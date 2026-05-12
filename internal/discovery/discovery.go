@@ -11,6 +11,9 @@ import (
 	"github.com/fluxo/fluxo/internal/templates"
 )
 
+// globPatterns matches template files in the files/ subdirectory.
+var globPatterns = []string{"*.ejs.t", "*.tmpl"}
+
 // TemplateIndex maps a manifest path to its indexed entry.
 type TemplateIndex map[string]TemplateIndexEntry
 
@@ -53,10 +56,17 @@ func Discover(root string) (TemplateIndex, error) {
 			return fmt.Errorf("manifest parse error at %s: %w", path, err)
 		}
 
+		// Load templates from files/ subdirectory
+		templates, err := loadTemplates(filepath.Dir(path))
+		if err != nil {
+			// Skip invalid templates with warning, don't fail the whole discovery
+			fmt.Fprintf(os.Stderr, "warning: skipping invalid templates in %s: %v\n", path, err)
+		}
+
 		entry := TemplateIndexEntry{
 			ManifestPath:  path,
 			Manifest:      m,
-			TemplateFiles: nil, // Templates resolved later in phase1
+			TemplateFiles: templates,
 		}
 
 		index[path] = entry
@@ -79,4 +89,68 @@ func FindByClassification(index TemplateIndex, classification string) []Template
 		}
 	}
 	return results
+}
+
+// loadTemplates reads template files from the files/ subdirectory relative to manifestDir.
+// It returns a list of parsed Template structs or nil if the files/ directory doesn't exist.
+func loadTemplates(manifestDir string) ([]templates.Template, error) {
+	filesDir := filepath.Join(manifestDir, "files")
+	info, err := os.Stat(filesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No files/ subdirectory — not an error
+		}
+		return nil, fmt.Errorf("stat files dir: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, nil
+	}
+
+	var result []templates.Template
+
+	for _, pattern := range globPatterns {
+		matches, err := filepath.Glob(filepath.Join(filesDir, pattern))
+		if err != nil {
+			return nil, fmt.Errorf("glob pattern %s: %w", pattern, err)
+		}
+
+		for _, match := range matches {
+			tmpl, err := loadTemplate(match, manifestDir)
+			if err != nil {
+				// Skip invalid templates with warning — not an error
+				fmt.Fprintf(os.Stderr, "warning: skipping invalid template %s: %v\n", match, err)
+				continue
+			}
+			result = append(result, *tmpl)
+		}
+	}
+
+	return result, nil
+}
+
+// loadTemplate reads a single template file, parses its frontmatter, and returns a Template struct.
+// The path is relative to manifestDir for storage in Template.Path.
+func loadTemplate(fullPath, manifestDir string) (*templates.Template, error) {
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	content := string(data)
+	directives, remaining, err := templates.ParseFrontmatter(content)
+	if err != nil {
+		return nil, fmt.Errorf("parse frontmatter: %w", err)
+	}
+
+	// Compute relative path from manifest directory
+	relPath, err := filepath.Rel(manifestDir, fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("relative path: %w", err)
+	}
+
+	return &templates.Template{
+		Path:        relPath,
+		Frontmatter: directives,
+		Content:     remaining,
+	}, nil
 }
