@@ -76,16 +76,44 @@ func ApplyInjection(target, injectPattern, content string, mode string) (string,
 			return "", fmt.Errorf("inject pattern required for mode %q", mode)
 		}
 		pattern := regexp.MustCompile(injectPattern)
-		switch mode {
-		case "replace":
+
+		if mode == "replace" {
 			return pattern.ReplaceAllString(target, content), nil
-		case "after":
-			return pattern.ReplaceAllString(target, "$0"+content), nil
-		case "before":
-			return pattern.ReplaceAllString(target, content+"$0"), nil
 		}
+
+		// For after/before, manually construct result to avoid regexp replacement quirks
+		// Find all match locations
+		matches := pattern.FindAllStringIndex(target, -1)
+		if len(matches) == 0 {
+			return target, nil
+		}
+
+		var sb strings.Builder
+		lastEnd := 0
+
+		for _, match := range matches {
+			start, end := match[0], match[1]
+			matchedText := target[start:end]
+
+			// Write everything before this match
+			sb.WriteString(target[lastEnd:start])
+
+			if mode == "after" {
+				sb.WriteString(matchedText)
+				sb.WriteString(content)
+			} else { // before
+				sb.WriteString(content)
+				sb.WriteString(matchedText)
+			}
+
+			lastEnd = end
+		}
+
+		// Write remaining content after last match
+		sb.WriteString(target[lastEnd:])
+
+		return sb.String(), nil
 	default:
 		return "", fmt.Errorf("unknown injection mode: %q", mode)
 	}
-	return target, nil
 }

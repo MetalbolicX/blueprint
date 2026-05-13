@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/fluxo/fluxo/internal/phases/phase2"
 	"github.com/fluxo/fluxo/internal/templates"
 )
 
@@ -90,31 +91,130 @@ func Execute(input Phase1Input) (*Phase1Output, error) {
 			if t.Frontmatter != nil && t.Frontmatter.To != "" {
 				destRel = t.Frontmatter.To
 			}
-			destPath := filepath.Join(stagingDir, destRel)
 
-			// Ensure dest dir exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				os.RemoveAll(stagingDir)
-				return nil, fmt.Errorf("mkdir error: %w", err)
-			}
+			// Check if this is an injection operation
+			isInjection := t.Frontmatter != nil &&
+				(t.Frontmatter.Inject != "" || t.Frontmatter.After != "" ||
+					t.Frontmatter.Before != "" || t.Frontmatter.Prepend || t.Frontmatter.Append)
 
-			// Write staged file
-			if err := os.WriteFile(destPath, []byte(rendered), 0644); err != nil {
-				os.RemoveAll(stagingDir)
-				return nil, fmt.Errorf("write error: %w", err)
-			}
+			if isInjection {
+				// For injection: read existing file, apply injection, write to staging
+				existingPath := filepath.Join(input.OutputRoot, destRel)
 
-			output.StagedFiles[t.Path] = destPath
-
-			// Apply injection if target exists
-			if t.Frontmatter != nil && t.Frontmatter.To != "" {
-				log := InjectionResult{
-					TemplatePath:  t.Path,
-					DestPath:      destPath,
-					Mode:          "staged",
-					LinesInjected: 0,
+				// Determine injection mode
+				mode := "replace"
+				injectPattern := ""
+				if t.Frontmatter.Prepend {
+					mode = "prepend"
+				} else if t.Frontmatter.Append {
+					mode = "append"
+				} else if t.Frontmatter.After != "" {
+					mode = "after"
+					injectPattern = t.Frontmatter.After
+				} else if t.Frontmatter.Before != "" {
+					mode = "before"
+					injectPattern = t.Frontmatter.Before
+				} else if t.Frontmatter.Inject != "" {
+					mode = "replace"
+					injectPattern = t.Frontmatter.Inject
 				}
-				output.InjectionLog = append(output.InjectionLog, log)
+
+				// Read existing content
+				var existingContent string
+				fileExists := true
+				if _, err := os.Stat(existingPath); os.IsNotExist(err) {
+					if !t.Frontmatter.Force {
+						os.RemoveAll(stagingDir)
+						return nil, fmt.Errorf("injection target does not exist: %s (use force:true to create it)", existingPath)
+					}
+					fileExists = false
+					existingContent = ""
+				} else if err != nil {
+					os.RemoveAll(stagingDir)
+					return nil, fmt.Errorf("failed to stat injection target: %w", err)
+				} else {
+					data, err := os.ReadFile(existingPath)
+					if err != nil {
+						os.RemoveAll(stagingDir)
+						return nil, fmt.Errorf("failed to read injection target: %w", err)
+					}
+					existingContent = string(data)
+				}
+
+				// Apply injection
+				var injected string
+				if !fileExists && t.Frontmatter.Force {
+					// Force create: just write the rendered content
+					injected = rendered
+				} else if fileExists {
+					var err2 error
+					injected, err2 = templates.ApplyInjection(existingContent, injectPattern, rendered, mode)
+					if err2 != nil {
+						os.RemoveAll(stagingDir)
+						return nil, fmt.Errorf("injection failed for %s: %w", t.Path, err2)
+					}
+				} else {
+					// No file and no force - should have errored above
+					injected = rendered
+				}
+
+				// Write injected content to staging
+				stagedPath := filepath.Join(stagingDir, destRel)
+				if err := os.MkdirAll(filepath.Dir(stagedPath), 0755); err != nil {
+					os.RemoveAll(stagingDir)
+					return nil, fmt.Errorf("mkdir error: %w", err)
+				}
+				if err := os.WriteFile(stagedPath, []byte(injected), 0644); err != nil {
+					os.RemoveAll(stagingDir)
+					return nil, fmt.Errorf("failed to write injected file: %w", err)
+				}
+
+				output.StagedFiles[t.Path] = stagedPath
+
+				// Log injection result
+				linesInjected := strings.Count(injected, "\n") - strings.Count(existingContent, "\n")
+				output.InjectionLog = append(output.InjectionLog, InjectionResult{
+					TemplatePath:  t.Path,
+					DestPath:      stagedPath,
+					Mode:          mode,
+					LinesInjected: linesInjected,
+				})
+			} else {
+				// Standard to: operation - write rendered content directly
+				destPath := filepath.Join(stagingDir, destRel)
+
+				// Ensure dest dir exists
+				if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+					os.RemoveAll(stagingDir)
+					return nil, fmt.Errorf("mkdir error: %w", err)
+				}
+
+				// Write staged file
+				if err := os.WriteFile(destPath, []byte(rendered), 0644); err != nil {
+					os.RemoveAll(stagingDir)
+					return nil, fmt.Errorf("write error: %w", err)
+				}
+
+				output.StagedFiles[t.Path] = destPath
+
+				// Execute shell command if defined
+				if t.Frontmatter != nil && t.Frontmatter.Sh != "" {
+					if err := ExecuteShellCommand(t.Frontmatter.Sh, stagingDir); err != nil {
+						phase2.Rollback(output.StagedFiles)
+						return nil, fmt.Errorf("shell command failed for %s: %w", t.Path, err)
+					}
+				}
+
+				// Log staged result
+				if t.Frontmatter != nil && t.Frontmatter.To != "" {
+					log := InjectionResult{
+						TemplatePath:  t.Path,
+						DestPath:      destPath,
+						Mode:          "staged",
+						LinesInjected: 0,
+					}
+					output.InjectionLog = append(output.InjectionLog, log)
+				}
 			}
 		}
 	}
