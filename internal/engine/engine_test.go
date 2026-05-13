@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +93,7 @@ prompts:
   - name: user
     type: input
     description: "Username"
+    default: testuser
 `
 	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0644); err != nil {
 		t.Fatalf("setup error: %v", err)
@@ -135,6 +139,7 @@ prompts:
   - name: user
     type: input
     description: "Username"
+    default: testuser
 `
 	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0644); err != nil {
 		t.Fatalf("setup error: %v", err)
@@ -242,4 +247,134 @@ func TestResult_CommittedFilesAndInjectionLog(t *testing.T) {
 	if result.InjectionLog[0].LinesInjected != 10 {
 		t.Errorf("expected 10 lines injected, got %d", result.InjectionLog[0].LinesInjected)
 	}
+}
+
+// Integration test: real template set in testdata/integration/
+func TestExecute_Integration_RealTemplateSet(t *testing.T) {
+	// S5: Full generation flow with real template set
+	tmp := t.TempDir()
+	outputRoot := filepath.Join(tmp, "output")
+
+	// Find module root by looking for go.mod
+	modRoot, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("failed to find module root: %v", err)
+	}
+	srcDir := filepath.Join(modRoot, "testdata", "integration")
+	destDir := filepath.Join(tmp, "integration")
+	if err := copyDir(srcDir, destDir); err != nil {
+		t.Fatalf("failed to copy integration template set: %v", err)
+	}
+
+	manifestPath := filepath.Join(destDir, "manifest.yaml")
+
+	// Create an existing file to test injection
+	existingFile := filepath.Join(outputRoot, "existing.txt")
+	existingContent := "// END INJECTION POINT\n// existing content here"
+	if err := os.MkdirAll(outputRoot, 0755); err != nil {
+		t.Fatalf("failed to create output root: %v", err)
+	}
+	if err := os.WriteFile(existingFile, []byte(existingContent), 0644); err != nil {
+		t.Fatalf("failed to create existing file: %v", err)
+	}
+
+	hookConfig := HookConfig{
+		PreGenerate:  "",
+		PostGenerate: "",
+		Timeout:      5 * time.Second,
+	}
+
+	eng := NewEngine(hookConfig)
+
+	// Provide name via CLI attributes
+	contextInput := ContextInput{
+		CWD:          tmp,
+		ManifestPath: manifestPath,
+		Name:         "mycomponent",
+		Attributes:   map[string]string{"name": "mycomponent"},
+	}
+
+	result, err := eng.Execute(context.Background(), manifestPath, outputRoot, contextInput)
+	if err != nil {
+		t.Fatalf("Execute returned unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Execute returned nil Result")
+	}
+
+	// Verify at least one file was committed
+	t.Logf("CommittedFiles: %v", result.CommittedFiles)
+	if len(result.CommittedFiles) == 0 {
+		t.Error("expected at least one committed file")
+	}
+
+	// Verify output files exist at their committed paths
+	for _, f := range result.CommittedFiles {
+		t.Logf("Checking committed file: %s", f)
+		if _, err := os.Stat(f); os.IsNotExist(err) {
+			t.Errorf("expected committed file %s to exist", f)
+		} else if err == nil {
+			content, _ := os.ReadFile(f)
+			if !strings.Contains(string(content), "mycomponent") {
+				t.Errorf("file %s should contain rendered name 'mycomponent', got: %s", f, string(content))
+			}
+		}
+	}
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
+// findModuleRoot walks up from the current directory to find go.mod
+func findModuleRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("go.mod not found")
+}
+
+// copyDir recursively copies a directory
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dstPath := filepath.Join(dst, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(dstPath, 0755)
+		}
+		return copyFile(path, dstPath)
+	})
+}
+
+// copyFile copies a single file from src to dst
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }

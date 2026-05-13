@@ -155,10 +155,15 @@ func (e *Engine) Execute(ctx context.Context, manifestPath, outputRoot string, c
 	// Build a phase1-compatible index from filtered entries
 	phase1Index := make(phase1.TemplateIndex)
 	for _, entry := range entries {
+		// Convert []templates.Template to []interface{} for phase1
+		templateFiles := make([]interface{}, len(entry.TemplateFiles))
+		for i, tf := range entry.TemplateFiles {
+			templateFiles[i] = tf
+		}
 		phase1Index[entry.ManifestPath] = phase1.TemplateIndexEntry{
 			ManifestPath:  entry.ManifestPath,
 			Manifest:      entry.Manifest,
-			TemplateFiles: nil, // Templates resolved during phase1
+			TemplateFiles: templateFiles,
 		}
 	}
 

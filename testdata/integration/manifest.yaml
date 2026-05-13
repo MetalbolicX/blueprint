@@ -1,0 +1,7 @@
+name: integration-test
+classification: integration-test
+prompts:
+  - name: name
+    type: input
+    description: "Component name"
+    default: my-component
