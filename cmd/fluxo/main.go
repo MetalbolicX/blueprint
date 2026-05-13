@@ -213,9 +213,31 @@ func main() {
 		// Initialize engine
 		eng := engine.NewEngine(hookConfig)
 
+		// Build context input from CLI flags
+		// Note: cwd is already set above for loadHookConfig
+		cwdGet, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot determine current directory: %v\n", err)
+			os.Exit(1)
+			return
+		}
+
+		// Parse CLI attributes from remaining args (after flags)
+		attrs := engine.ParseCLIAttributes(flag.Args())
+		if *nameFlag != "" {
+			attrs["name"] = *nameFlag
+		}
+
+		contextInput := engine.ContextInput{
+			CWD:          cwdGet,
+			ManifestPath: manifestPath,
+			Name:         *nameFlag,
+			Attributes:   attrs,
+		}
+
 		// Execute engine
 		ctx := context.Background()
-		result, err := eng.Execute(ctx, manifestPath, outputRoot)
+		result, err := eng.Execute(ctx, manifestPath, outputRoot, contextInput)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
