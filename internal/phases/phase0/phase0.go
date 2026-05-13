@@ -2,10 +2,13 @@
 package phase0
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 
 	"github.com/fluxo/fluxo/internal/conflicts"
 	"github.com/fluxo/fluxo/internal/discovery"
+	"github.com/fluxo/fluxo/internal/manifest"
 )
 
 // Phase0Input is the input for Phase 0.
@@ -32,9 +35,32 @@ func Execute(input Phase0Input) (*Phase0Output, error) {
 		Conflicts:      nil,
 	}
 
-	// Copy prompt values through to resolved values
-	for k, v := range input.PromptValues {
-		output.ResolvedValues[k] = v
+	// Collect all prompts from the index
+	var allPrompts []manifest.Prompt
+	for _, entry := range input.Index {
+		if entry.Manifest != nil {
+			allPrompts = append(allPrompts, entry.Manifest.Prompts...)
+		}
+	}
+
+	// Resolve prompts
+	if input.Force {
+		// Force mode: apply defaults for missing values without prompting
+		for _, p := range allPrompts {
+			if _, exists := output.ResolvedValues[p.Name]; !exists {
+				if p.Default != nil {
+					output.ResolvedValues[p.Name] = p.Default
+				}
+			}
+		}
+	} else {
+		// Interactive mode: prompt for missing values
+		scanner := bufio.NewScanner(os.Stdin)
+		resolved, err := ResolvePrompts(allPrompts, input.PromptValues, scanner)
+		if err != nil {
+			return nil, fmt.Errorf("prompt resolution failed: %w", err)
+		}
+		output.ResolvedValues = resolved
 	}
 
 	// Conflict detection will be enhanced when OutputRoot is available
