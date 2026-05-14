@@ -1,0 +1,21 @@
+{
+  "name": "fluxo",
+  "version": "0.1.0",
+  "sources": {
+    "dir": "src",
+    "subdirs": true
+  },
+  "package-specs": [
+    {
+      "module": "esmodule",
+      "in-source": true
+    }
+  ],
+  "suffix": ".mjs",
+  "dependencies": [],
+  "devDependencies": [],
+  "bsc-flags": ["-open ReScriptCore"],
+  "warnings": {
+    "error": true
+  }
+}

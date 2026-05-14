@@ -3,22 +3,33 @@
 ## Project Context
 
 - **Project**: fluxo
-- **Type**: Greenfield Go-based code/template generator
+- **Type**: Go + ReScript template/code generator (hygen-inspired)
 - **Location**: /home/metalbolicx/Documents/fluxo
 - **Artifact Store**: engram
-- **strict_tdd**: false (no test runner yet)
+- **strict_tdd**: true (Go test runner detected — 93 tests across 10 packages)
 
 ## Detected Stack
 
 | Component | Value |
 |-----------|-------|
-| Language | Go only |
+| Primary Language | Go 1.21 |
+| Secondary Language | ReScript 12.x (ESM, compiles to .res.mjs) |
 | YAML parsing | gopkg.in/yaml.v3 |
 | Template engine | Go text/template + FuncMaps |
-| Storage | File-system based (manifest.yaml) |
-| Test runner | None yet (greenfield) |
-| Linter | TBD |
-| Formatter | gofmt |
+| Go test runner | `go test` — 93 tests passing |
+| ReScript test runner | `retest` via rescript-test |
+| Bundler | Rolldown v1 |
+| Package Manager | pnpm |
+| Module system | ESM (type: module) |
+| Formatter | gofmt (no golangci-lint yet) |
+
+## Architecture
+
+- `cmd/fluxo/main.go` — CLI entry point
+- `internal/` — Engine, phases (phase0/1/2), discovery, conflicts, hooks, manifest, templates
+- `testdata/integration/` — Integration test fixtures
+- `src/` — ReScript source
+- `test/res/` — ReScript tests (.res.mjs suffix)
 
 ## SDD Phases Supported
 
@@ -38,14 +49,21 @@
 
 | Skill | Trigger |
 |-------|---------|
-| go-testing | Go tests, go test coverage, Bubbletea teatest, golden files |
+| go-testing | Go tests, go test coverage, golden files |
 | subagent-driven-development | Executing implementation plans with independent tasks |
 | test-driven-development | Before writing any feature or bugfix code |
 | executing-plans | Written implementation plan to execute in separate session |
 | work-unit-commits | Commit splitting, chained PRs, keeping tests with code |
 
+## Testing Commands
+
+- Go tests: `rtk go test ./... -v --count=1`
+- ReScript build: `rtk pnpm res:build`
+- ReScript tests: `rtk pnpm res:test`
+- Bundle: `rtk pnpm bundle`
+
 ## Notes
 
-- This is a greenfield project — no existing Go code or tests yet
-- strict_tdd will be set to true once Go test infrastructure is established
-- Handoff doc at `docs/fluxo-handoff-2026-05-11.md` defines the architecture baseline
+- Package.json "name": "blueprint" but repo is "fluxo" — naming inconsistency
+- openspec/changes/rescript-migration/tasks.md exists (pre-existing change artifact)
+- Strict TDD auto-enabled because Go test infrastructure exists

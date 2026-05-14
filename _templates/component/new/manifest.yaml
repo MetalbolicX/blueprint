@@ -1,0 +1,11 @@
+name: component
+classification: component
+prompts:
+  - name: name
+    type: input
+    description: "Component name (PascalCase)"
+    default: MyComponent
+  - name: path
+    type: input
+    description: "Output path"
+    default: src/components
