@@ -14,7 +14,7 @@ type prompt = {
 type manifest = {
   name: string,
   classification: string,
-  metadata: option<Js.Dict.t<string>>,
+  metadata: option<dict<JSON.t>>,
   prompts: option<array<prompt>>,
 }
 
@@ -52,12 +52,12 @@ let parse: string => result<manifest, string> = yamlContent => {
 
     // Helper to get string field
     let getString = (obj, key) => {
-      switch Js.Json.classify(obj) {
-      | Js.Json.JObject(dict) =>
-        switch Js.Dict.get(dict, key) {
+      switch obj {
+      | JSON.Object(dict) =>
+        switch dict->Dict.get(key) {
         | Some(v) =>
-          switch Js.Json.classify(v) {
-          | Js.Json.JString(s) => Some(s)
+          switch v {
+          | JSON.String(s) => Some(s)
           | _ => None
           }
         | None => None
@@ -76,18 +76,21 @@ let parse: string => result<manifest, string> = yamlContent => {
 
     // Helper to get array of strings
     let getStringArray = (obj, key) => {
-      switch Js.Json.classify(obj) {
-      | Js.Json.JObject(dict) =>
-        switch Js.Dict.get(dict, key) {
+      switch obj {
+      | JSON.Object(dict) =>
+        switch dict->Dict.get(key) {
         | Some(v) =>
-          switch Js.Json.classify(v) {
-          | Js.Json.JArray(arr) =>
-            arr->Js.Array.map(v' => {
-              switch Js.Json.classify(v') {
-              | Js.Json.JString(s) => Some(s)
+          switch v {
+          | JSON.Array(arr) =>
+            arr
+            ->Array.map(v' => {
+              switch v' {
+              | JSON.String(s) => Some(s)
               | _ => None
               }
-            })->Js.Array.filterMap(x => x)->Some
+            })
+            ->Array.filterMap(x => x)
+            ->Some
           | _ => None
           }
         | None => None
@@ -97,12 +100,12 @@ let parse: string => result<manifest, string> = yamlContent => {
     }
 
     let getMetadata = (obj, key) => {
-      switch Js.Json.classify(obj) {
-      | Js.Json.JObject(dict) =>
-        switch Js.Dict.get(dict, key) {
+      switch obj {
+      | JSON.Object(dict) =>
+        switch dict->Dict.get(key) {
         | Some(v) =>
-          switch Js.Json.classify(v) {
-          | Js.Json.JObject(objDict) => Some(objDict)
+          switch v {
+          | JSON.Object(objDict) => Some(objDict)
           | _ => None
           }
         | None => None
@@ -112,30 +115,40 @@ let parse: string => result<manifest, string> = yamlContent => {
     }
 
     let getPrompts = (obj, key) => {
-      switch Js.Json.classify(obj) {
-      | Js.Json.JObject(dict) =>
-        switch Js.Dict.get(dict, key) {
+      switch obj {
+      | JSON.Object(dict) =>
+        switch dict->Dict.get(key) {
         | Some(v) =>
-          switch Js.Json.classify(v) {
-          | Js.Json.JArray(arr) =>
-            arr->Js.Array.map(promptJson => {
-              switch Js.Json.classify(promptJson) {
-              | Js.Json.JObject(promptDict) => {
+          switch v {
+          | JSON.Array(arr) =>
+            arr
+            ->Array.map(promptJson => {
+              switch promptJson {
+    | JSON.Object(_promptDict) => {
                   let name = getString(promptJson, "name")
-                  let desc = getString(promptJson, "description")->Option.getWithDefault("")
+                  let desc = getString(promptJson, "description")->Option.getOr("")
                   let defaultVal = getOptString(promptJson, "default")
                   let opts = getStringArray(promptJson, "options")
-                  let typeStr = getString(promptJson, "type")->Option.getWithDefault("input")
-                  let pt = parsePromptType(typeStr)->Option.getWithDefault(Input)
+                  let typeStr = getString(promptJson, "type")->Option.getOr("input")
+                  let pt = parsePromptType(typeStr)->Option.getOr(Input)
 
                   switch name {
-                  | Some(n) => Some({ name: n, promptType: pt, description: desc, default: defaultVal, options: opts })
+                  | Some(n) =>
+                    Some({
+                      name: n,
+                      promptType: pt,
+                      description: desc,
+                      default: defaultVal,
+                      options: opts,
+                    })
                   | None => None
                   }
                 }
               | _ => None
               }
-            })->Js.Array.filterMap(x => x)->Some
+            })
+            ->Array.filterMap(x => x)
+            ->Some
           | _ => None
           }
         | None => None
@@ -145,15 +158,15 @@ let parse: string => result<manifest, string> = yamlContent => {
     }
 
     // Build manifest from JSON
-    let name = getString(json, "name")->Option.getWithDefault("")
-    let classification = getString(json, "classification")->Option.getWithDefault("")
+    let name = getString(json, "name")->Option.getOr("")
+    let classification = getString(json, "classification")->Option.getOr("")
     let metadata = getMetadata(json, "metadata")
     let prompts = getPrompts(json, "prompts")
 
-    Ok({ name: name, classification: classification, metadata: metadata, prompts: prompts })
+    Ok({name, classification, metadata, prompts})
   } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
     | Some(m) => m
     | None => "Failed to parse manifest"
     }
@@ -163,26 +176,32 @@ let parse: string => result<manifest, string> = yamlContent => {
 
 // Validate manifest — returns error list if invalid
 let validate: manifest => result<unit, array<validationError>> = manifest => {
-  let errors = Js.Array.empty()
+  let errors: array<validationError> = []
 
   if manifest.classification == "" {
-    Js.Array.push({ field: "classification", message: "classification is required" }, errors)
+    Js.Array.push({field: "classification", message: "classification is required"}, errors)->ignore
   }
 
   switch manifest.prompts {
   | Some(prompts) =>
-    prompts->Js.Array.forEach(p => {
+    prompts->Array.forEach(p => {
       if p.name == "" {
-        Js.Array.push({ field: "prompts.name", message: "prompt name cannot be empty" }, errors)
+        Js.Array.push(
+          {field: "prompts.name", message: "prompt name cannot be empty"},
+          errors,
+        )->ignore
       }
       if p.promptType == Select && p.options == None {
-        Js.Array.push({ field: "prompts.options", message: "select prompt requires options" }, errors)
+        Js.Array.push(
+          {field: "prompts.options", message: "select prompt requires options"},
+          errors,
+        )->ignore
       }
     })
   | None => ()
   }
 
-  if Js.Array.length(errors) == 0 {
+  if Array.length(errors) == 0 {
     Ok()
   } else {
     Error(errors)

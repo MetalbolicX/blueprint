@@ -14,9 +14,15 @@ type hookResult = {
 // Parse hook command string into interpreter + args
 // e.g. "bash scripts/validate.sh" -> ["bash", "scripts/validate.sh"]
 let parseCommand: string => (string, string) = cmd => {
-  let parts = cmd->Js.String.split(" ")
-  let interpreter = parts[0]->Option.getWithDefault("bash")
-  let args = parts->Js.Array.sliceFrom(1)->Js.Array.join(" ")
+  let parts = cmd->String.split(" ")
+  let interpreter = switch parts[0] {
+    | Some(p) => p
+    | None => "bash"
+  }
+  let args = {
+    let sliced = parts->Array.slice(~start=1)
+    sliced->Array.join(" ")
+  }
   (interpreter, args)
 }
 
@@ -31,12 +37,15 @@ let executeHook: (
   try {
     let fullCmd = interpreter ++ " " ++ args
 
-    let result = await ChildProcess.exec(fullCmd, ~options={
-      cwd: Some(cwd),
-      shell: true,
-      timeout: Some(timeout),
-      encoding: "utf8",
-    })
+    let result = await ChildProcess.exec(
+      fullCmd,
+      ~options={
+        cwd: cwd,
+        shell: true,
+        timeout: timeout,
+        encoding: "utf8",
+      },
+    )
 
     let exitCode = switch result.status {
     | Some(code) => code
@@ -44,13 +53,13 @@ let executeHook: (
     }
 
     if exitCode == 0 {
-      Ok({ hookType: PreGenerate, output: result.stdout, exitCode: exitCode })
+      Ok({hookType: PreGenerate, output: result.stdout, exitCode})
     } else {
-      Error("Hook exited with code " ++ Js.Int.toString(exitCode) ++ ": " ++ result.stderr)
+      Error("Hook exited with code " ++ Int.toString(exitCode) ++ ": " ++ result.stderr)
     }
   } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
     | Some(m) => "Hook execution failed: " ++ m
     | None => "Hook execution failed"
     }
@@ -59,50 +68,55 @@ let executeHook: (
 }
 
 // Execute pre_generate and post_generate hooks
-let run: (
-  ~config: Config.config,
-  ~cwd: string,
-) => promise<result<unit, string> = async (~config, ~cwd) => {
+let run: (~config: Config.config, ~cwd: string) => promise<result<unit, string>> = async (
+  ~config,
+  ~cwd,
+) => {
   let timeout = switch config.hooks {
   | Some(h) =>
     switch h.timeout {
-    | Some(t) => t * 1000  // Convert seconds to ms
+    | Some(t) => t * 1000 // Convert seconds to ms
     | None => 5000
     }
   | None => 5000
   }
 
   // Run pre_generate hook
-  switch config.hooks {
+  let preResult: result<unit, string> = switch config.hooks {
   | Some(h) =>
     switch h.preGenerate {
     | Some(cmd) => {
         let result = await executeHook(~command=cmd, ~cwd, ~timeout)
         switch result {
-        | Ok(_) => ()
-        | Error(e) => return Promise.resolve(Error("pre_generate hook failed: " ++ e))
+        | Ok(_) => Ok()
+        | Error(e) => Error("pre_generate hook failed: " ++ e)
         }
       }
-    | None => ()
+    | None => Ok()
     }
-  | None => ()
+  | None => Ok()
   }
 
-  // Run post_generate hook
-  switch config.hooks {
-  | Some(h) =>
-    switch h.postGenerate {
-    | Some(cmd) => {
-        let result = await executeHook(~command=cmd, ~cwd, ~timeout)
-        switch result {
-        | Ok(_) => ()
-        | Error(e) => return Promise.resolve(Error("post_generate hook failed: " ++ e))
+  switch preResult {
+  | Error(_) => preResult
+  | Ok() => {
+      // Run post_generate hook
+      let postResult: result<unit, string> = switch config.hooks {
+      | Some(h) =>
+        switch h.postGenerate {
+        | Some(cmd) => {
+            let result = await executeHook(~command=cmd, ~cwd, ~timeout)
+            switch result {
+            | Ok(_) => Ok()
+            | Error(e) => Error("post_generate hook failed: " ++ e)
+            }
+          }
+        | None => Ok()
         }
+      | None => Ok()
       }
-    | None => ()
-    }
-  | None => ()
-  }
 
-  Promise.resolve(Ok())
+      postResult
+    }
+  }
 }

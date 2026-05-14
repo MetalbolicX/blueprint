@@ -12,72 +12,73 @@ type config = {
   output: option<string>,
 }
 
-let parseHooks: Js.Json.t => option<hooksConfig> = json => {
-  switch Js.Json.classify(json) {
-  | Js.Json.JObject(dict) => {
-    let preGenerate = switch Js.Dict.get(dict, "pre_generate") {
-    | Some(v) =>
-      switch Js.Json.classify(v) {
-      | Js.Json.JString(s) => Some(s)
-      | _ => None
+let parseHooks: JSON.t => option<hooksConfig> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let preGenerate = switch Dict.get(dict, "pre_generate") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
       }
-    | None => None
-    }
 
-    let postGenerate = switch Js.Dict.get(dict, "post_generate") {
-    | Some(v) =>
-      switch Js.Json.classify(v) {
-      | Js.Json.JString(s) => Some(s)
-      | _ => None
+      let postGenerate = switch Dict.get(dict, "post_generate") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
       }
-    | None => None
-    }
 
-    let timeout = switch Js.Dict.get(dict, "timeout") {
-    | Some(v) =>
-      switch Js.Json.classify(v) {
-      | Js.Json.JNumber(n) => Some(Js.Math.floor(n))
-      | _ => None
+      let timeout = switch Dict.get(dict, "timeout") {
+      | Some(v) =>
+        switch v {
+        | JSON.Number(n) => Some(Js.Math.floor(n))
+        | _ => None
+        }
+      | None => None
       }
-    | None => None
-    }
 
-    if preGenerate == None && postGenerate == None && timeout == None {
-      None
-    } else {
-      Some({ preGenerate: preGenerate, postGenerate: postGenerate, timeout: timeout })
+      if preGenerate == None && postGenerate == None && timeout == None {
+        None
+      } else {
+        Some({preGenerate, postGenerate, timeout})
+      }
     }
-  }
   | _ => None
+  }
 }
 
 let parse: string => result<config, string> = yamlContent => {
   try {
     let json = Bindings.Yaml.parse(yamlContent)
 
-    switch Js.Json.classify(json) {
-    | Js.Json.JObject(dict) => {
-      let hooks = switch Js.Dict.get(dict, "hooks") {
-      | Some(v) => parseHooks(v)
-      | None => None
-      }
-
-      let output = switch Js.Dict.get(dict, "output") {
-      | Some(v) =>
-        switch Js.Json.classify(v) {
-        | Js.Json.JString(s) => Some(s)
-        | _ => None
+    switch json {
+    | JSON.Object(dict) => {
+        let hooks = switch Dict.get(dict, "hooks") {
+        | Some(v) => parseHooks(v)
+        | None => None
         }
-      | None => None
-      }
 
-      Ok({ hooks: hooks, output: output })
-    }
-    | _ => Ok({ hooks: None, output: None })
+        let output = switch Dict.get(dict, "output") {
+        | Some(v) =>
+          switch v {
+          | JSON.String(s) => Some(s)
+          | _ => None
+          }
+        | None => None
+        }
+
+        Ok({hooks, output})
+      }
+    | _ => Ok({hooks: None, output: None})
     }
   } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
     | Some(m) => m
     | None => "Failed to parse config"
     }
@@ -87,7 +88,7 @@ let parse: string => result<config, string> = yamlContent => {
 
 // Load .fluxo.yaml from a given directory
 let loadFrom: string => promise<result<option<config>, string>> = async dir => {
-  let configPath = Node.Path.join(dir, ".fluxo.yaml")
+  let configPath = Bindings.Path.join(dir, ".fluxo.yaml")
 
   let exists = await Bindings.Fs.fileExists(configPath)
   if !exists {
@@ -101,8 +102,8 @@ let loadFrom: string => promise<result<option<config>, string>> = async dir => {
       | Error(e) => Error(e)
       }
     } catch {
-    | Js.Exn.Error(obj) =>
-      let msg = switch Js.Exn.message(obj) {
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
       | Some(m) => m
       | None => "Failed to read config"
       }
@@ -113,4 +114,4 @@ let loadFrom: string => promise<result<option<config>, string>> = async dir => {
 
 // Default config values
 let defaultOutputDir: string = "generated"
-let defaultTimeout: int = 5  // seconds
+let defaultTimeout: int = 5 // seconds

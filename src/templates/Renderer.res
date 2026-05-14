@@ -5,53 +5,50 @@ open FuncMap
 
 type renderContext = {
   name: string,
-  Name: string,
+  pascalName: string,
   names: string,
-  Names: string,
+  pluralPascalName: string,
   cwd: string,
   actionfolder: string,
-  attributes: Js.Dict.t<string>,
+  attributes: dict<string>,
 }
 
 let render: (template, renderContext) => result<string, string> = (tmpl, ctx) => {
   let helpers = makeHelpers()
 
   // Build EJS data object — merge name variants, attributes, and h helper
-  let data = Js.Dict.empty()
+  let data = Dict.make()
 
-  Js.Dict.set(data, "name", ctx.name)
-  Js.Dict.set(data, "Name", ctx.Name)
-  Js.Dict.set(data, "names", ctx.names)
-  Js.Dict.set(data, "Names", ctx.Names)
-  Js.Dict.set(data, "cwd", ctx.cwd)
-  Js.Dict.set(data, "actionfolder", ctx.actionfolder)
+  Dict.set(data, "name", ctx.name)
+  Dict.set(data, "Name", ctx.pascalName)
+  Dict.set(data, "names", ctx.names)
+  Dict.set(data, "Names", ctx.pluralPascalName)
+  Dict.set(data, "cwd", ctx.cwd)
+  Dict.set(data, "actionfolder", ctx.actionfolder)
 
   // Merge attributes
-  Js.Json.stringifyExplore(Js.Json.parseOrNull(Js.Json.object_(ctx.attributes)), (key, value) => {
-    switch Js.Json.classify(value) {
-    | Js.Json.JString(s) => Some(Js.Json.JString(s))
-    | _ => Some(value)
-    }
-  })->ignore
+  Dict.toArray(ctx.attributes)->Array.forEach(((k, v)) => {
+    Dict.set(data, k, v)
+  })
 
   // Set h helper object
-  let hObj = Js.Dict.empty()
-  Js.Dict.set(hObj, "pascalCase", Js.Json.JString(helpers.pascalCase->Obj.magic))
-  Js.Dict.set(hObj, "camelCase", Js.Json.JString(helpers.camelCase->Obj.magic))
-  Js.Dict.set(hObj, "kebabCase", Js.Json.JString(helpers.kebabCase->Obj.magic))
-  Js.Dict.set(hObj, "snakeCase", Js.Json.JString(helpers.snakeCase->Obj.magic))
-  Js.Dict.set(hObj, "upper", Js.Json.JString(helpers.upper->Obj.magic))
-  Js.Dict.set(hObj, "lower", Js.Json.JString(helpers.lower->Obj.magic))
-  Js.Dict.set(hObj, "trim", Js.Json.JString(helpers.trim->Obj.magic))
-  Js.Dict.set(hObj, "title", Js.Json.JString(helpers.title->Obj.magic))
-  Js.Dict.set(data, "h", Js.Json.object_(hObj))
+  let hObj = Dict.make()
+  Dict.set(hObj, "pascalCase", helpers.pascalCase->Obj.magic)
+  Dict.set(hObj, "camelCase", helpers.camelCase->Obj.magic)
+  Dict.set(hObj, "kebabCase", helpers.kebabCase->Obj.magic)
+  Dict.set(hObj, "snakeCase", helpers.snakeCase->Obj.magic)
+  Dict.set(hObj, "upper", helpers.upper->Obj.magic)
+  Dict.set(hObj, "lower", helpers.lower->Obj.magic)
+  Dict.set(hObj, "trim", helpers.trim->Obj.magic)
+  Dict.set(hObj, "title", helpers.title->Obj.magic)
+  Dict.set(data, "h", hObj->Obj.magic)
 
   try {
-    let rendered = Bindings.Ejs.render(tmpl.body, data, ())
+    let rendered = Bindings.Ejs.render(tmpl.body, data->Obj.magic)
     Ok(rendered)
   } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
     | Some(m) => m
     | None => "Unknown render error"
     }

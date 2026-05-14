@@ -1,6 +1,5 @@
 {
   "name": "fluxo",
-  "version": "0.1.0",
   "sources": {
     "dir": "src",
     "subdirs": true
@@ -13,9 +12,7 @@
   ],
   "suffix": ".mjs",
   "dependencies": [],
-  "devDependencies": [],
-  "bsc-flags": ["-open ReScriptCore"],
   "warnings": {
-    "error": true
+    "error": false
   }
 }

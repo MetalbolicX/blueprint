@@ -2,66 +2,67 @@
 // Merge priority: CLI attrs > prompt answers > defaults > name variants
 // Mirrors Go version's context.go
 
-open Templates.FuncMap
+open FuncMap
 
 type nameVariants = {
-  name: string,          // lowercase
-  Name: string,          // PascalCase
-  names: string,         // plural lowercase
-  Names: string,         // plural PascalCase
+  name: string, // lowercase
+  pascalName: string, // PascalCase
+  names: string, // plural lowercase
+  pluralPascalName: string, // plural PascalCase
 }
 
 type context = {
   cwd: string,
-  actionfolder: string,   // absolute path to manifest directory
+  actionfolder: string, // absolute path to manifest directory
   nameVariants: nameVariants,
-  attributes: Js.Dict.t<string>,  // CLI --key value + prompt answers
+  attributes: dict<string>, // CLI --key value + prompt answers
 }
 
 // Generate name variants from base name
 let makeNameVariants: string => nameVariants = baseName => {
   {
-    name: baseName->snakeCase->Js.String.toLowerCase,
-    Name: baseName->pascalCase,
-    names: baseName->snakeCase->Js.String.toLowerCase->Js.String.concat("s"),
-    Names: baseName->pascalCase->Js.String.concat("s"),
+    name: baseName->snakeCase->String.toLowerCase,
+    pascalName: baseName->pascalCase,
+    names: baseName->snakeCase->String.toLowerCase->String.concat("s"),
+    pluralPascalName: baseName->pascalCase->String.concat("s"),
   }
 }
 
 // Merge CLI attributes with prompt answers and defaults
 // Priority: CLI > prompt answers > manifest defaults > name variants
 let mergeAttributes: (
-  ~cliAttributes: Js.Dict.t<string>,
-  ~promptAnswers: Js.Dict.t<string>,
-  ~manifestDefaults: Js.Dict.t<string>,
+  ~cliAttributes: dict<string>,
+  ~promptAnswers: dict<string>,
+  ~manifestDefaults: dict<string>,
   ~nameVariants: nameVariants,
-) => Js.Dict.t<string> = (
-  ~cliAttributes,
-  ~promptAnswers,
-  ~manifestDefaults,
-  ~nameVariants,
-) => {
-  let merged = Js.Dict.empty()
+) => dict<string> = (~cliAttributes, ~promptAnswers, ~manifestDefaults, ~nameVariants) => {
+  let merged = Dict.make()
 
   // Seed with manifest defaults
-  manifestDefaults->Js.Dict.entries->Js.Array.forEach(((k, v)) => {
-    Js.Dict.set(merged, k, v)
+  manifestDefaults
+  ->Dict.toArray
+  ->Array.forEach(((k, v)) => {
+    Dict.set(merged, k, v)
   })
 
   // Override with name variants (pre-seeded)
-  Js.Dict.set(merged, "name", nameVariants.name)
-  Js.Dict.set(merged, "Name", nameVariants.Name)
-  Js.Dict.set(merged, "names", nameVariants.names)
-  Js.Dict.set(merged, "Names", nameVariants.Names)
+  Dict.set(merged, "name", nameVariants.name)
+  Dict.set(merged, "Name", nameVariants.pascalName)
+  Dict.set(merged, "names", nameVariants.names)
+  Dict.set(merged, "Names", nameVariants.pluralPascalName)
 
   // Override with prompt answers
-  promptAnswers->Js.Dict.entries->Js.Array.forEach(((k, v)) => {
-    Js.Dict.set(merged, k, v)
+  promptAnswers
+  ->Dict.toArray
+  ->Array.forEach(((k, v)) => {
+    Dict.set(merged, k, v)
   })
 
   // Override with CLI attributes (highest priority)
-  cliAttributes->Js.Dict.entries->Js.Array.forEach(((k, v)) => {
-    Js.Dict.set(merged, k, v)
+  cliAttributes
+  ->Dict.toArray
+  ->Array.forEach(((k, v)) => {
+    Dict.set(merged, k, v)
   })
 
   merged
@@ -72,9 +73,9 @@ let build: (
   ~cwd: string,
   ~actionfolder: string,
   ~name: string,
-  ~cliAttributes: Js.Dict.t<string>=?,
-  ~promptAnswers: Js.Dict.t<string>=?,
-  ~manifestDefaults: Js.Dict.t<string>=?,
+  ~cliAttributes: dict<string>=?,
+  ~promptAnswers: dict<string>=?,
+  ~manifestDefaults: dict<string>=?,
   unit,
 ) => context = (
   ~cwd,
@@ -89,22 +90,22 @@ let build: (
 
   let defaults = switch manifestDefaults {
   | Some(d) => d
-  | None => Js.Dict.empty()
+  | None => Dict.make()
   }
 
   let prompts = switch promptAnswers {
   | Some(p) => p
-  | None => Js.Dict.empty()
+  | None => Dict.make()
   }
 
   let cli = switch cliAttributes {
   | Some(c) => c
-  | None => Js.Dict.empty()
+  | None => Dict.make()
   }
 
   {
-    cwd: cwd,
-    actionfolder: actionfolder,
+    cwd,
+    actionfolder,
     nameVariants: nv,
     attributes: mergeAttributes(
       ~cliAttributes=cli,
@@ -116,12 +117,12 @@ let build: (
 }
 
 // Convert context to Renderer.renderContext for EJS rendering
-let toRenderContext: context => Templates.Renderer.renderContext = ctx => {
+let toRenderContext: context => Renderer.renderContext = ctx => {
   {
     name: ctx.nameVariants.name,
-    Name: ctx.nameVariants.Name,
+    pascalName: ctx.nameVariants.pascalName,
     names: ctx.nameVariants.names,
-    Names: ctx.nameVariants.Names,
+    pluralPascalName: ctx.nameVariants.pluralPascalName,
     cwd: ctx.cwd,
     actionfolder: ctx.actionfolder,
     attributes: ctx.attributes,

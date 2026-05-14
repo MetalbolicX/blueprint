@@ -10,35 +10,43 @@ type promptAnswer = {
 }
 
 // Ask a single question based on prompt type
-let askPrompt: (
-  ~rl: Readline.readlineInterface,
-  ~prompt: Manifest.prompt,
-) => promise<string> = (~rl, ~prompt) => {
-  let questionText = prompt.description ++
-    (
-      switch prompt.default {
-      | Some(d) => " [" ++ d ++ "]"
-      | None => ""
-      }
-    ) ++ ": "
+let askPrompt: (~rl: Readline.readlineInterface, ~prompt: Manifest.prompt) => promise<string> = (
+  ~rl,
+  ~prompt,
+) => {
+  let questionText =
+    prompt.description ++
+    switch prompt.default {
+    | Some(d) => " [" ++ d ++ "]"
+    | None => ""
+    } ++ ": "
 
   switch prompt.promptType {
-  | Manifest.Input =>
-    rl.question(questionText)
+  | Manifest.Input => rl.question(questionText)
 
   | Manifest.Select =>
     // Show numbered options
     switch prompt.options {
-    | Some(opts) if Js.Array.length(opts) > 0 => {
-        let optionsText = opts->Js.Array.mapi((opt, i) => {
-          "  " ++ (i + 1)->Js.Int.toString ++ ". " ++ opt
-        })->Js.Array.join("\n")
+    | Some(opts) if Array.length(opts) > 0 => {
+        let optionsText =
+          opts
+          ->Array.mapWithIndex((opt, i) => {
+            "  " ++ Int.toString(i + 1) ++ ". " ++ opt
+          })
+          ->Array.join("\n")
 
         let fullQuestion = optionsText ++ "\n" ++ questionText
 
         rl.question(fullQuestion)->Promise.then(answer => {
-          let idx = Js.Int.fromString(Js.String.trim(answer))->Option.getWithDefault(1) - 1
-          let selected = opts[idx]->Option.getWithDefault(opts[0]->Option.getExn)
+          let trimmedAnswer = String.trim(answer)
+          let idx = switch Int.fromString(trimmedAnswer) {
+          | Some(n) => n - 1
+          | None => 0
+          }
+          let selected = switch opts[idx] {
+          | Some(s) => s
+          | None => ""
+          }
           Promise.resolve(selected)
         })
       }
@@ -47,7 +55,7 @@ let askPrompt: (
 
   | Manifest.Confirm =>
     rl.question(questionText ++ " (y/n) ")->Promise.then(answer => {
-      let trimmed = Js.String.trim(answer)->Js.String.toLowerCase
+      let trimmed = String.trim(answer)->String.toLowerCase
       if trimmed == "y" || trimmed == "yes" || trimmed == "" {
         Promise.resolve("true")
       } else {
@@ -62,33 +70,38 @@ let resolve: (
   ~rl: Readline.readlineInterface,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
-) => promise<Js.Dict.t<string>> = (~rl, ~prompts, ~force) => {
-  let answers = Js.Dict.empty()
+) => promise<dict<string>> = (~rl, ~prompts, ~force) => {
+  let answers = Dict.make()
 
   if force {
     // In force mode, use defaults only
-    prompts->Js.Array.forEach(p => {
+    prompts->Array.forEach(p => {
       switch p.default {
-      | Some(d) => Js.Dict.set(answers, p.name, d)
-      | None => Js.Dict.set(answers, p.name, "")
+      | Some(d) => Dict.set(answers, p.name, d)
+      | None => Dict.set(answers, p.name, "")
       }
     })
+    Promise.resolve(answers)
   } else {
     // Interactive mode — ask each prompt
     let rec loop = (idx, prompts) => {
-      if idx >= Js.Array.length(prompts) {
-        Promise.resolve()
+      if idx >= Array.length(prompts) {
+        Promise.resolve(answers)
       } else {
-        let prompt = prompts[idx]
-        askPrompt(~rl, ~prompt)->Promise.then(answer => {
-          let finalAnswer = if Js.String.trim(answer) == "" {
-            prompt.default->Option.getWithDefault("")
-          } else {
-            answer
-          }
-          Js.Dict.set(answers, prompt.name, finalAnswer)
-          loop(idx + 1, prompts)
-        })
+        switch prompts[idx] {
+        | Some(prompt) =>
+          askPrompt(~rl, ~prompt)->Promise.then(answer => {
+            let finalAnswer = if String.trim(answer) == "" {
+              prompt.default->Option.getOr("")
+            } else {
+              answer
+            }
+            answers->Dict.set(prompt.name, finalAnswer)
+            loop(idx + 1, prompts)
+          })
+        | None =>
+          Promise.resolve(answers)
+        }
       }
     }
 
@@ -98,11 +111,7 @@ let resolve: (
 
 // Readline interface lifecycle
 let createReadline: unit => Readline.readlineInterface = () => {
-  Readline.createInterface(
-    ~input=Node.Process.stdin,
-    ~output=Node.Process.stdout,
-    (),
-  )
+  Readline.createInterface(~input=(), ~output=(), ())
 }
 
 let closeReadline: Readline.readlineInterface => unit = rl => {

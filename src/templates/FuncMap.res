@@ -2,23 +2,23 @@
 // Mirrors Go version's funcmaps from internal/templates/funcmaps.go
 
 let capitalize: string => string = s => {
-  let len = Js.String.length(s)
+  let len = String.length(s)
   if len == 0 {
     s
   } else {
-    let first = Js.String.charAt(0, s)->Js.String.toUpperCase
-    let rest = Js.String.sliceToEnd(s, ~from=1)
+    let first = String.getUnsafe(s, 0)->String.toUpperCase
+    let rest = String.slice(s, ~start=1)
     first ++ rest
   }
 }
 
 let uncapitalize: string => string = s => {
-  let len = Js.String.length(s)
+  let len = String.length(s)
   if len == 0 {
     s
   } else {
-    let first = Js.String.charAt(0, s)->Js.String.toLowerCase
-    let rest = Js.String.sliceToEnd(s, ~from=1)
+    let first = String.getUnsafe(s, 0)->String.toLowerCase
+    let rest = String.slice(s, ~start=1)
     first ++ rest
   }
 }
@@ -26,42 +26,45 @@ let uncapitalize: string => string = s => {
 // Split on underscore, dash, and camelCase boundaries
 let splitIntoWords: string => array<string> = s => {
   // First replace dashes and underscores with spaces
-  let withSpaces = s->Js.String.replaceByRe(%re("/-/"), " ")->Js.String.replaceByRe(%re("/_/"), " ")
+  let withDashes = Js.String.replaceByRe(/-/, s, " ")
+  let withSpaces = Js.String.replaceByRe(/_/, withDashes, " ")
   // Split camelCase: aB -> a B, ABC -> A B C
-  let splitCamel = withSpaces->Js.String.replaceByRe(%re("/([a-z])([A-Z])/g"), "$1 $2")
+  let splitCamel = Js.String.replaceByRe(/([a-z])([A-Z])/g, withSpaces, "$1 $2")
   // Handle consecutive uppercase before lowercase: ABc -> A B c
-  let splitCaps = splitCamel->Js.String.replaceByRe(%re("/([A-Z]+)([A-Z][a-z])/g"), "$1 $2")
-  splitCaps->Js.String.split(" ")->Js.Array.filter(s => s != "")
+  let splitCaps = Js.String.replaceByRe(/([A-Z]+)([A-Z][a-z])/g, splitCamel, "$1 $2")
+  splitCaps
+  ->Js.String.split(" ")
+  ->Array.filter(word => word !== "")
 }
 
 let pascalCase: string => string = s => {
-  s->splitIntoWords->Js.Array.map(capitalize)->Js.Array.join("")
+  s->splitIntoWords->Array.map(capitalize)->Array.join("")
 }
 
 let camelCase: string => string = s => {
   let words = s->splitIntoWords
-  if Js.Array.length(words) == 0 {
+  if Array.length(words) == 0 {
     s
   } else {
-    let first = words[0]->Option.getExn->uncapitalize
-    let rest = Js.Array.sliceFrom(words, 1)->Js.Array.map(capitalize)->Js.Array.join("")
+    let first = words[0]->Option.getOrThrow->uncapitalize
+    let rest = Array.slice(words, ~start=1)->Array.map(capitalize)->Array.join("")
     first ++ rest
   }
 }
 
 let kebabCase: string => string = s => {
-  s->splitIntoWords->Js.Array.map(Js.String.toLowerCase)->Js.Array.join("-")
+  s->splitIntoWords->Array.map(String.toLowerCase)->Array.join("-")
 }
 
 let snakeCase: string => string = s => {
-  s->splitIntoWords->Js.Array.map(Js.String.toLowerCase)->Js.Array.join("_")
+  s->splitIntoWords->Array.map(String.toLowerCase)->Array.join("_")
 }
 
-let upper: string => string = Js.String.toUpperCase
-let lower: string => string = Js.String.toLowerCase
-let trim: string => string = Js.String.trim
+let upper: string => string = String.toUpperCase
+let lower: string => string = String.toLowerCase
+let trim: string => string = String.trim
 let title: string => string = s => {
-  s->Js.String.split(" ")->Js.Array.map(s => s->capitalize->Js.String.toLowerCase)->Js.Array.join(" ")
+  s->Js.String.split(" ")->Array.map(s => s->capitalize->String.toLowerCase)->Array.join(" ")
 }
 
 // Export helpers object for EJS
@@ -80,15 +83,15 @@ type helpers = {
 
 let makeHelpers: unit => helpers = () => {
   {
-    pascalCase: pascalCase,
-    camelCase: camelCase,
-    kebabCase: kebabCase,
-    snakeCase: snakeCase,
-    upper: upper,
-    lower: lower,
-    trim: trim,
-    title: title,
-    capitalize: capitalize,
-    uncapitalize: uncapitalize,
+    pascalCase,
+    camelCase,
+    kebabCase,
+    snakeCase,
+    upper,
+    lower,
+    trim,
+    title,
+    capitalize,
+    uncapitalize,
   }
 }

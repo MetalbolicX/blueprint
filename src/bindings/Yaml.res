@@ -1,5 +1,5 @@
 @module("yaml")
-external parse: string => Js.Json.t = "parse"
+external parse: string => JSON.t = "parse"
 
 @module("yaml")
 external stringify: 'a => string = "stringify"
@@ -11,7 +11,7 @@ type documentOptions = {
 }
 
 @module("yaml")
-external parseWithOptions: (string, ~options: documentOptions=?) => Js.Json.t = "parse"
+external parseWithOptions: (string, ~options: documentOptions=?) => JSON.t = "parse"
 
 @module("yaml")
 external stringifyWithOptions: ('a, ~options: documentOptions=?) => string = "stringify"

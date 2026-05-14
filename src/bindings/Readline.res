@@ -1,5 +1,5 @@
 type interface = {
-  question: (string) => promise<string>,
+  question: string => promise<string>,
   close: unit => unit,
 }
 
@@ -10,14 +10,21 @@ type readlineInterface = {
   close: unit => unit,
 }
 
-@module("readline")
-external createInterface: (~input: node:stream$Readable, ~output: node:stream$Writable=?, unit) => readlineInterface = "createInterface"
+type streamReadable = unit
+type streamWritable = unit
 
 @module("readline")
-external moveCursor: (node:stream$Readable, int, int) => unit = "moveCursor"
+external createInterface: (
+  ~input: streamReadable,
+  ~output: streamWritable=?,
+  unit,
+) => readlineInterface = "createInterface"
 
 @module("readline")
-external clearLine: (node:stream$Readable, int) => unit = "clearLine"
+external moveCursor: (streamReadable, int, int) => unit = "moveCursor"
 
 @module("readline")
-external cursorTo: (node:stream$Readable, int, ~y: int=?, unit) => unit = "cursorTo"
+external clearLine: (streamReadable, int) => unit = "clearLine"
+
+@module("readline")
+external cursorTo: (streamReadable, int, ~y: int=?, unit) => unit = "cursorTo"

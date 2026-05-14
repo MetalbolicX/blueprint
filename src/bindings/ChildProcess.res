@@ -1,6 +1,6 @@
 type spawnOptions = {
   cwd: option<string>,
-  env: option<Js.Dict.t<string>>,
+  env: option<dict<string>>,
   shell: option<bool>,
   timeout: option<int>,
   stdio: option<array<string>>,
@@ -8,24 +8,35 @@ type spawnOptions = {
 
 type childProcess = {
   pid: int,
-  stdout: node:stream$Readable,
-  stderr: node:stream$Readable,
+  stdout: unit,
+  stderr: unit,
   status: option<int>,
   signal: option<string>,
 }
 
 @module("node:child_process")
-external spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess = "spawn"
+external spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess =
+  "spawn"
+
+type execResult = {stdout: string, stderr: string, status: option<int>}
+
+type execOptions = {
+  cwd?: string,
+  env?: dict<string>,
+  shell?: bool,
+  encoding?: string,
+  timeout?: int,
+}
 
 @module("node:child_process")
-external exec: (string, ~options: spawnOptions=?) => promise<{stdout: string, stderr: string, status: option<int>}> = "exec"
+external exec: (string, ~options: execOptions=?) => promise<execResult> = "exec"
 
 @module("node:child_process")
 external execSync: (string, ~options: spawnOptions=?) => string = "execSync"
 
 type execSyncOptions = {
   cwd: option<string>,
-  env: option<Js.Dict.t<string>>,
+  env: option<dict<string>>,
   shell: option<bool>,
   input: option<string>,
   encoding: option<string>,
@@ -34,12 +45,16 @@ type execSyncOptions = {
 }
 
 @module("node:child_process")
-external execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string = "execFileSync"
+external execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string =
+  "execFileSync"
 
-let execShellCommand: (~command: string, ~cwd: string=?) => promise<result<string, string>> = async (~command, ~cwd=?) => {
+let execShellCommand: (
+  ~command: string,
+  ~cwd: string=?,
+) => promise<result<string, string>> = async (~command, ~cwd=?) => {
   try {
-    let options = {
-      cwd: cwd,
+    let options: execOptions = {
+      ?cwd,
       shell: true,
       encoding: "utf8",
     }
@@ -49,8 +64,8 @@ let execShellCommand: (~command: string, ~cwd: string=?) => promise<result<strin
     | _ => Error(result.stderr)
     }
   } catch {
-  | Js.Exn.Error(obj) =>
-    let message = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let message = switch JsExn.message(obj) {
     | Some(m) => m
     | None => "Unknown error"
     }

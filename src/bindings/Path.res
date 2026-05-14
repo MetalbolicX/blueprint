@@ -1,8 +1,11 @@
 @module("node:path")
-external join: (string, string, ...string) => string = "join"
+external join: (string, string) => string = "join"
 
 @module("node:path")
-external resolve: (string, string, ...string) => string = "resolve"
+external join3: (string, string, string) => string = "join"
+
+@module("node:path")
+external resolve: (string, string) => string = "resolve"
 
 @module("node:path")
 external relative: (string, string) => string = "relative"

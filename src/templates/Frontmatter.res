@@ -13,29 +13,52 @@ type parseError = {
   line: option<int>,
 }
 
-let frontmatterRegex: Js.Re.t = %re("/^---\\n([\\s\\S]*?)\\n---\\n/")
+let frontmatterRegex: RegExp.t = /^---\\n([\\s\\S]*?)\\n---\\n/
 
-let directiveRegex: Js.Re.t = %re("/^(\\w+):\\s*(.*)$/")
+let directiveRegex: RegExp.t = /^(\\w+):\\s*(.*)$/
 
-let parseDirective: string => option<directive> = line => {
-  let regexMatch = Js.String.match directiveRegex, line
-  switch regexMatch {
-  | Some(matches) if Js.Array.length(matches) >= 3 => {
-    let key = matches[1]
-    let value = matches[2]
-    switch key {
-    | "to" => Some(To(value))
-    | "inject" => Some(Inject(value))
-    | "after" => Some(After(value))
-    | "before" => Some(Before(value))
-    | "prepend" if value == "" || value == "true" => Some(Prepend)
-    | "append" if value == "" || value == "true" => Some(Append)
-    | "force" if value == "" || value == "true" => Some(Force)
-    | "sh" => Some(Sh(value))
-    | _ => None  // unknown directive, skip for forward compat
-    }
+// Helper to check directive type
+let checkDirective: (string, string) => option<directive> = (key, value) => {
+  if key == "to" {
+    Some(To(value))
+  } else if key == "inject" {
+    Some(Inject(value))
+  } else if key == "after" {
+    Some(After(value))
+  } else if key == "before" {
+    Some(Before(value))
+  } else if key == "prepend" && (value == "" || value == "true") {
+    Some(Prepend)
+  } else if key == "append" && (value == "" || value == "true") {
+    Some(Append)
+  } else if key == "force" && (value == "" || value == "true") {
+    Some(Force)
+  } else if key == "sh" {
+    Some(Sh(value))
+  } else {
+    None
   }
-  | _ => None
+}
+
+// Parse directive - convert Js.String.t to string explicitly
+let parseDirective: string => option<directive> = line => {
+  let matches = Js.String.match_(directiveRegex, line)
+  switch matches {
+  | None => None
+  | Some(arr) =>
+    if Array.length(arr) < 3 {
+      None
+    } else {
+      let keyOpt = arr[1]
+      let valueOpt = arr[2]
+      // Convert option<Js.String.t> to option<string> using Obj.magic
+      let keyStr: option<string> = Obj.magic(keyOpt)
+      let valueStr: option<string> = Obj.magic(valueOpt)
+      switch (keyStr, valueStr) {
+      | (Some(k), Some(v)) => checkDirective(k, v)
+      | _ => None
+      }
+    }
   }
 }
 
@@ -45,18 +68,24 @@ type parsedFrontmatter = {
 }
 
 let parse: string => result<parsedFrontmatter, string> = content => {
-  let matchResult = Js.String.match(frontmatterRegex, content)
-  switch matchResult {
-  | Some(matches) if Js.Array.length(matches) >= 2 => {
-    let frontmatterStr = matches[1]
-    let body = Js.String.replace(frontmatterRegex, "", content)
-
-    // Parse each line of frontmatter as a directive
-    let lines = frontmatterStr->Js.String.split("\n")->Js.Array.filter(l => l != "")
-    let directives = lines->Js.Array.map(parseDirective)->Js.Array.filterMap(x => x)
-
-    Ok({ directives: directives, body: body })
-  }
-  | _ => Error("Missing or invalid frontmatter delimiter")
+  let matches = Js.String.match_(frontmatterRegex, content)
+  switch matches {
+  | None => Error("Missing or invalid frontmatter delimiter")
+  | Some(arr) =>
+    if Array.length(arr) < 2 {
+      Error("Missing or invalid frontmatter delimiter")
+    } else {
+      let fsOpt = arr[1]
+      let fsStr: option<string> = Obj.magic(fsOpt)
+      switch fsStr {
+      | Some(fs) => {
+          let body = Js.String.replaceByRe(frontmatterRegex, content, "")
+          let lines = fs->Js.String.split("\n")->Array.filter(l => l !== "")
+          let directives = lines->Array.map(parseDirective)->Array.filterMap(x => x)
+          Ok({directives, body})
+        }
+      | None => Error("Missing frontmatter content")
+      }
+    }
   }
 }

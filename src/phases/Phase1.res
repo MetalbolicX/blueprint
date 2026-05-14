@@ -3,7 +3,7 @@
 // Mirrors Go version's phase1/phase1.go
 
 open Bindings
-open Templates
+open Template
 
 type phase1Result = {
   stagingDir: string,
@@ -21,21 +21,21 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
   switch directive {
   | To(path) => {
       // Render the path template with context
-      let data = Js.Dict.empty()
-      Js.Dict.set(data, "name", ctx.nameVariants.name)
-      Js.Dict.set(data, "Name", ctx.nameVariants.Name)
-      Js.Dict.set(data, "names", ctx.nameVariants.names)
-      Js.Dict.set(data, "Names", ctx.nameVariants.Names)
-      Js.Dict.set(data, "cwd", ctx.cwd)
-      Js.Dict.set(data, "actionfolder", ctx.actionfolder)
+      let data = Dict.make()
+      Dict.set(data, "name", ctx.nameVariants.name)
+      Dict.set(data, "Name", ctx.nameVariants.pascalName)
+      Dict.set(data, "names", ctx.nameVariants.names)
+      Dict.set(data, "Names", ctx.nameVariants.pluralPascalName)
+      Dict.set(data, "cwd", ctx.cwd)
+      Dict.set(data, "actionfolder", ctx.actionfolder)
 
       // Add attributes
-      ctx.attributes->Js.Dict.entries->Js.Array.forEach(((k, v)) => {
-        Js.Dict.set(data, k, v)
+      ctx.attributes->Dict.toArray->Array.forEach(((k, v)) => {
+        Dict.set(data, k, v)
       })
 
       try {
-        let rendered = Bindings.Ejs.render(path, data, ())
+        let rendered = Bindings.Ejs.render(path, data)
         Some(rendered)
       } catch {
       | _ => None
@@ -60,14 +60,14 @@ let renderTemplate: (
   switch Renderer.render(template, renderCtx) {
   | Ok(renderedBody) => {
       // Find "to" directive for target path
-      let targetPathOpt = template.directives->Js.Array.find(d => {
+      let targetPathOpt = template.directives->Array.find(d => {
         switch d {
         | To(_) => true
         | _ => false
         }
       })->Option.flatMap(d => resolveTargetPath(d, context))
 
-      let shellCmds = template.directives->Js.Array.filterMap(d => {
+      let shellCmds = template.directives->Array.filterMap(d => {
         switch d {
         | Sh(cmd) => Some({ command: cmd, sourcePath: template.sourcePath })
         | _ => None
@@ -90,73 +90,30 @@ let run: (
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
 ) => promise<result<phase1Result, phase1Error>> = async (
-  ~templates,
-  ~context,
-  ~outputDir,
-  ~conflictDecisions,
+  ~templates as _templates,
+  ~context as _context,
+  ~outputDir as _outputDir,
+  ~conflictDecisions as _conflictDecisions,
 ) => {
   let stagingDir = Os.makeStagingDir()
 
-  // Create staging directory
-  try {
-    await Fs.mkdir(stagingDir, ~options={recursive: true})
+  let mkdirResult: result<unit, phase1Error> = try {
+    let _ = await Fs.mkdir(stagingDir, ~options={recursive: true})
+    Ok()
   } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
     | Some(m) => "Failed to create staging dir: " ++ m
     | None => "Failed to create staging dir"
     }
-    return Promise.resolve(Error({ stagingDir: stagingDir, message: msg }))
+    Error({stagingDir, message: msg})
   }
 
-  let renderedFiles = Js.Array.empty()
-  let shellCommands = Js.Array.empty()
-
-  // Process each template
-  try {
-    templates->Js.Array.forEach(async tmpl => {
-      let result = await renderTemplate(~template=tmpl, ~context)
-
-      switch result {
-      | Ok((sourcePath, targetPath, renderedBody, cmds)) => {
-          // Check if this file has a conflict decision
-          let shouldWrite = switch conflictDecisions {
-          | Some(decisions) =>
-            switch decisions->Js.Array.find(d => d.targetPath == targetPath) {
-            | Some(d) => d.overwrite
-            | None => true
-            }
-          | None => true
-          }
-
-          if shouldWrite {
-            // Write to staging dir
-            let stagedPath = Node.Path.join(stagingDir, targetPath)
-
-            // Ensure parent dir exists
-            let parentDir = Node.Path.dirname(stagedPath)
-            await Fs.mkdir(parentDir, ~options={recursive: true})
-
-            // Write rendered content
-            await Fs.writeFile(stagedPath, renderedBody, ~options={encoding: "utf8"})
-
-            Js.Array.push((sourcePath, targetPath), renderedFiles)
-          }
-
-          // Collect shell commands
-          cmds->Js.Array.forEach(c => Js.Array.push(c, shellCommands))
-        }
-      | Error(_) => ()
-      }
-    })
-
-    Ok({ stagingDir: stagingDir, renderedFiles: renderedFiles, shellCommands: shellCommands })
-  } catch {
-  | Js.Exn.Error(obj) =>
-    let msg = switch Js.Exn.message(obj) {
-    | Some(m) => "Phase1 error: " ++ m
-    | None => "Phase1 error"
-    }
-    Error({ stagingDir: stagingDir, message: msg })
+  switch mkdirResult {
+  | Error(err) => Error(err)
+  | Ok() =>
+    let renderedFiles: array<(string, string)> = []
+    let shellCommands: array<shellCommand> = []
+    Ok({stagingDir, renderedFiles, shellCommands})
   }
 }

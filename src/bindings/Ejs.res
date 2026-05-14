@@ -4,7 +4,7 @@ type options = {
 }
 
 @module("ejs")
-external render: (string, Js.Dict.t<string>, ~options: options=?) => string = "render"
+external render: (string, dict<string>, ~options: options=?) => string = "render"
 
 @module("ejs")
-external renderFile: (string, Js.Dict.t<string>, ~options: options=?) => promise<string> = "renderFile"
+external renderFile: (string, dict<string>, ~options: options=?) => promise<string> = "renderFile"

@@ -13,12 +13,15 @@ external platform: unit => string = "platform"
 @module("node:os")
 external arch: unit => string = "arch"
 
-@module("node:os")
-external cpus: unit => array<{
+type cpusTimes = {user: int, nice: int, sys: int, idle: int, irq: int}
+type cpusInfo = {
   model: string,
   speed: int,
-  times: {user: int, nice: int, sys: int, idle: int, irq: int},
-}> = "cpus"
+  times: cpusTimes,
+}
+
+@module("node:os")
+external cpus: unit => array<cpusInfo> = "cpus"
 
 @module("node:os")
 external totalmem: unit => int = "totalmem"
@@ -32,18 +35,24 @@ external loadavg: unit => array<float> = "loadavg"
 @module("node:os")
 external uptime: unit => int = "uptime"
 
-type eol = {LF: string, CRLF: string}
+type networkInterfaceInfo = {
+  address: string,
+  family: string,
+  netmask: string,
+  mac: string,
+  internal: bool,
+}
 
 @module("node:os")
-external eol: eol = "EOL"
+external networkInterfaces: unit => dict<array<networkInterfaceInfo>> = "networkInterfaces"
+
+type userInfoOptions = {encoding: string}
+type userInfoResult = {username: string, uid: int, gid: int, shell: string, homedir: string}
 
 @module("node:os")
-external networkInterfaces: unit => Js.Dict.t<array<{address: string, family: string, netmask: string, mac: string, internal: bool}>> = "networkInterfaces"
-
-@module("node:os")
-external userInfo: (~options: {encoding: string}=?) => {username: string, uid: int, gid: int, shell: string, homedir: string} = "userInfo"
+external userInfo: (~options: userInfoOptions=?) => userInfoResult = "userInfo"
 
 let makeStagingDir: unit => string = () => {
-  let randomPart = Js.Math.random() -> Js.Float.toString -> Js.String.substring(~from=2)
-  Node.Path.join(Node.Os.tmpdir(), "fluxo-" ++ randomPart)
+  let randomPart = Math.random()->Float.toString->String.slice(~start=2)
+  Path.join(tmpdir(), "fluxo-" ++ randomPart)
 }
