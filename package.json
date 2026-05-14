@@ -9,7 +9,8 @@
   "scripts": {
     "build": "rescript",
     "clean": "rescript clean",
-    "test": "retest",
+    "develop": "rescript build -w",
+    "test": "rescript-test",
     "fmt": "rescript format"
   },
   "dependencies": {
@@ -19,7 +20,8 @@
   "devDependencies": {
     "@rescript/core": "^5.0.0",
     "@rescript/std": "^5.0.0",
-    "rescript": "^12.0.0"
+    "rescript": "^12.0.0",
+    "rescript-test": "^0.2.0"
   },
   "engines": {
     "node": ">=18.0.0"
