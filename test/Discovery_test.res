@@ -37,4 +37,66 @@ suite("Discovery", () => {
     | None => assert_true(true)
     }
   })
+
+  testAsync("discoverIn: returns generators from real directory", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let componentDir = NodeJs.Path.join(tmpDir, "component")
+    let newDir = NodeJs.Path.join(componentDir, "new")
+
+    let _ = NodeJs.Fs.mkdir(componentDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(newDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(componentDir, "manifest.yaml"),
+        "name: test\nclassification: component\nprompts: []\n",
+      )
+    )
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(newDir, "index.tsx.ejs.t"),
+        "---\nto: src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
+      )
+    )
+    ->Promise.then(_ => Discovery.discoverIn(tmpDir))
+    ->Promise.then(gens => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        assert_true(Array.length(gens) >= 1)
+        switch gens[0] {
+        | Some(g) => assert_eq(g.name, "component")
+        | None => assert_false(true)
+        }
+        resolve()
+        Promise.resolve()
+      })
+    })
+  })
+
+  testAsync("discoverIn: returns empty array for non-existent directory", resolve => {
+    let _ = Discovery.discoverIn("/non/existent/path")
+    ->Promise.then(gens => {
+      assert_eq(Array.length(gens), 0)
+      resolve()
+      Promise.resolve()
+    })
+  })
+
+  testAsync("discoverIn: skips files in base directory", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+
+    let _ = NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(tmpDir, "not_a_directory.txt"),
+        "not a generator",
+      )
+    )
+    ->Promise.then(_ => Discovery.discoverIn(tmpDir))
+    ->Promise.then(gens => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        assert_eq(Array.length(gens), 0)
+        resolve()
+        Promise.resolve()
+      })
+    })
+  })
 })

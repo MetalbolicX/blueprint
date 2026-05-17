@@ -80,12 +80,23 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
 
       let genPromises = entries->Array.map(async entry => {
         let genPath = Bindings.Path.join(baseDir, entry)
-        let stat = await Bindings.Fs.stat(genPath)
-        if stat.isDirectory() {
+        let stat = try {
+          Some(await Bindings.Fs.stat(genPath))
+        } catch {
+        | _ => None
+        }
+
+        switch stat {
+        | Some(s) if s.isDirectory() => {
           let templateFiles = try {
             await Bindings.Fs.readdir(genPath, ~options={withFileTypes: false})
           } catch {
-          | _ => []
+          | JsExn(obj) =>
+            let _msg = switch JsExn.message(obj) {
+            | Some(m) => m
+            | None => "unknown"
+            }
+            []
           }
 
           let tmplPromises = templateFiles->Array.map(async fname => {
@@ -110,8 +121,8 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
             templates,
             manifest: ?manifest,
           })
-        } else {
-          None
+        }
+        | _ => None
         }
       })
 
