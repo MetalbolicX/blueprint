@@ -88,7 +88,10 @@ let run: (
           )
 
           switch phase1Result {
-          | Error(e) => Error(e.message)
+          | Error(e) => {
+              rl.close()
+              Error(e.message)
+            }
           | Ok(p1) => {
               let phase2Result = await Phase2.run(
                 ~stagingDir=p1.stagingDir,
@@ -98,14 +101,19 @@ let run: (
               )
 
               switch phase2Result {
-              | Error(e) => Error(e.message)
-              | Ok(p2) =>
-                Ok({
-                  filesCreated: p2.filesCreated,
-                  filesInjected: p2.filesInjected,
-                  commandsExecuted: p2.commandsExecuted,
-                  classification: generator.name,
-                })
+              | Error(e) => {
+                  rl.close()
+                  Error(e.message)
+                }
+              | Ok(p2) => {
+                  rl.close()
+                  Ok({
+                    filesCreated: p2.filesCreated,
+                    filesInjected: p2.filesInjected,
+                    commandsExecuted: p2.commandsExecuted,
+                    classification: generator.name,
+                  })
+                }
               }
             }
           }
