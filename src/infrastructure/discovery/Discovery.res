@@ -2,6 +2,7 @@
 // Follows Hygen's _templates/<generator>/<action>/ convention
 
 open Template
+open Bindings
 
 type generator = {
   name: string, // directory name (e.g. "component")
