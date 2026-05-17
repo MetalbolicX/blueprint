@@ -1,0 +1,6 @@
+# Fluxo configuration
+generators: []
+hooks:
+  pre_generate: ""
+  post_generate: ""
+  timeout: 5s

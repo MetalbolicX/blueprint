@@ -71,7 +71,7 @@ let runGenerate: (
   }
 }
 
-let main: unit => unit = () => {
+let main: unit => promise<unit> = async () => {
   let argv = NodeJs.NodeProcess.argv
 
   // argv[0] = node, argv[1] = script path, argv[2+] = actual args
@@ -88,7 +88,7 @@ let main: unit => unit = () => {
 
     switch command {
     | "init" => {
-        let _ = runInit()
+        await runInit()
       }
 
     | "generate" => {
@@ -119,7 +119,9 @@ let main: unit => unit = () => {
         | None => classification
         }
 
-        let force = parsed.values.verbose->Option.getOr(false)
+        // NOTE: parseArgs binding doesn't support custom boolean flags in values.
+        // Force is checked from positionals as a workaround.
+        let force = args->Array.includes("--force") || args->Array.includes("-f")
 
         let outputDir = switch parsed.values.output {
         | Some(d) => d
@@ -129,7 +131,7 @@ let main: unit => unit = () => {
         let cliAttributes = Dict.make()
         Dict.set(cliAttributes, "name", name)
 
-        let _ = runGenerate(
+        await runGenerate(
           ~classification,
           ~name,
           ~force,

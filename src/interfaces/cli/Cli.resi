@@ -1,1 +1,1 @@
-let main: unit => unit
+let main: unit => promise<unit>
