@@ -18,28 +18,28 @@ module Fs = {
   }
   type accessOptions = {mode: int}
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external readFile: (string, ~options: readFileOptions=?) => promise<string> = "readFile"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external writeFile: (string, string, ~options: writeFileOptions=?) => promise<unit> = "writeFile"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external mkdir: (string, ~options: mkdirOptions=?) => promise<string> = "mkdir"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external rm: (string, ~options: rmOptions=?) => promise<unit> = "rm"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external cp: (string, string, ~options: cpOptions=?) => promise<unit> = "cp"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external readdir: (string, ~options: readdirOptions=?) => promise<array<string>> = "readdir"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external stat: string => promise<statResult> = "stat"
 
-  @module("node:fs/promises")
+  @module("node:fs") @scope("promises")
   external access: (string, ~mode: int=?) => promise<unit> = "access"
 
   let fOk = 0

@@ -92,6 +92,7 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
             await Bindings.Fs.readdir(genPath, ~options={withFileTypes: false})
           } catch {
           | JsExn(obj) =>
+            // Silent — errors on non-template files are expected
             let _msg = switch JsExn.message(obj) {
             | Some(m) => m
             | None => "unknown"
@@ -130,6 +131,7 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
       results->Array.filterMap(x => x)
     } catch {
     | JsExn(obj) =>
+      // Silent — errors on non-generator dirs are expected
       let _ = JsExn.message(obj)
       []
     }

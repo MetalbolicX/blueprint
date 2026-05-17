@@ -69,6 +69,13 @@ suite("Discovery", () => {
         Promise.resolve()
       })
     })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        Console.error("Test failed")
+        resolve()
+        Promise.resolve()
+      })
+    })
   })
 
   testAsync("discoverIn: returns empty array for non-existent directory", resolve => {
@@ -94,6 +101,13 @@ suite("Discovery", () => {
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_eq(Array.length(gens), 0)
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        Console.error("Test failed")
         resolve()
         Promise.resolve()
       })
