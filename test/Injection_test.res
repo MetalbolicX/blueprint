@@ -17,11 +17,7 @@ suite("Injection", () => {
   })
 
   test("injectRegex: invalid regex", () => {
-    let result = Injection.injectRegex(
-      "content",
-      "[invalid",
-      "replacement",
-    )
+    let result = Injection.injectRegex("content", "[invalid", "replacement")
 
     switch result {
     | Ok(_) => assert_false(true)
@@ -30,11 +26,7 @@ suite("Injection", () => {
   })
 
   test("insertAfter: inserts after match", () => {
-    let result = Injection.insertAfter(
-      "const x = 1;\n// END",
-      "// END",
-      "\nconst y = 2;",
-    )
+    let result = Injection.insertAfter("const x = 1;\n// END", "// END", "\nconst y = 2;")
 
     switch result {
     | Ok(content) => assert_true(Js.String.includes(content, "const y = 2"))

@@ -1,17 +1,17 @@
 type spawnOptions = {
-  cwd: option<string>,
-  env: option<dict<string>>,
-  shell: option<bool>,
-  timeout: option<int>,
-  stdio: option<array<string>>,
+  cwd?: string,
+  env?: dict<string>,
+  shell?: bool,
+  timeout?: int,
+  stdio?: array<string>,
 }
 
 type childProcess = {
   pid: int,
   stdout: unit,
   stderr: unit,
-  status: option<int>,
-  signal: option<string>,
+  status?: int,
+  signal?: string,
 }
 
 @module("node:child_process")
@@ -35,13 +35,13 @@ external exec: (string, ~options: execOptions=?) => promise<execResult> = "exec"
 external execSync: (string, ~options: spawnOptions=?) => string = "execSync"
 
 type execSyncOptions = {
-  cwd: option<string>,
-  env: option<dict<string>>,
-  shell: option<bool>,
-  input: option<string>,
-  encoding: option<string>,
-  timeout: option<int>,
-  maxBuffer: option<int>,
+  cwd?: string,
+  env?: dict<string>,
+  shell?: bool,
+  input?: string,
+  encoding?: string,
+  timeout?: int,
+  maxBuffer?: int,
 }
 
 @module("node:child_process")

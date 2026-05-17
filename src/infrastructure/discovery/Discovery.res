@@ -10,7 +10,7 @@ type generator = {
   manifest: option<Manifest.manifest>, // manifest.yaml if present
 }
 
-let isTemplateFile: string => bool = filename => {
+let _isTemplateFile: string => bool = filename => {
   String.endsWith(filename, ".ejs.t") || String.endsWith(filename, ".tmpl")
 }
 
@@ -19,7 +19,7 @@ let isManifestFile: string => bool = filename => {
 }
 
 // Load and parse a single template file
-let loadTemplate: string => promise<result<template, string>> = async sourcePath => {
+let _loadTemplate: string => promise<result<template, string>> = async sourcePath => {
   try {
     let content = await Bindings.Fs.readFile(sourcePath, ~options={encoding: "utf8"})
     let filename = Path.basename(sourcePath)
@@ -49,7 +49,7 @@ let loadTemplate: string => promise<result<template, string>> = async sourcePath
 }
 
 // Load manifest.yaml from a generator directory if present
-let loadManifest: string => promise<option<Manifest.manifest>> = async generatorPath => {
+let _loadManifest: string => promise<option<Manifest.manifest>> = async generatorPath => {
   let manifestPath = Path.join(generatorPath, "manifest.yaml")
 
   let exists = await Bindings.Fs.fileExists(manifestPath)

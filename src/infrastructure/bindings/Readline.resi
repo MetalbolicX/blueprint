@@ -16,11 +16,7 @@ type streamWritable
 let stdin: streamReadable
 let stdout: streamWritable
 
-let createInterface: (
-  ~input: streamReadable,
-  ~output: streamWritable=?,
-  unit,
-) => readlineInterface
+let createInterface: (~input: streamReadable, ~output: streamWritable=?, unit) => readlineInterface
 
 let moveCursor: (streamReadable, int, int) => unit
 let clearLine: (streamReadable, int) => unit

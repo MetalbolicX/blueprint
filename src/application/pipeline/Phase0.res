@@ -10,12 +10,12 @@ type conflictFile = {
 }
 
 type phase0Result = {
-  resolvedAttributes: dict<string>,  // merged CLI + prompt answers
+  resolvedAttributes: dict<string>, // merged CLI + prompt answers
   conflicts: array<conflictFile>,
 }
 
 // Check if a file exists at target path
-let checkFileConflict: (
+let _checkFileConflict: (
   ~sourcePath: string,
   ~targetPath: string,
   ~outputDir: string,
@@ -24,7 +24,7 @@ let checkFileConflict: (
   let exists = await Fs.fileExists(fullTargetPath)
 
   if exists {
-    Some({ sourcePath: sourcePath, targetPath: fullTargetPath })
+    Some({sourcePath, targetPath: fullTargetPath})
   } else {
     None
   }
@@ -61,18 +61,12 @@ let run: (
   }
 
   let resolvedAttributes = switch prompts {
-  | Some(ps) if Array.length(ps) > 0 => {
-      await PromptResolver.resolve(~rl, ~prompts=ps, ~force)
-    }
+  | Some(ps) if Array.length(ps) > 0 => await PromptResolver.resolve(~rl, ~prompts=ps, ~force)
   | _ => Dict.make()
   }
 
   // Detect file conflicts
-  let conflicts = await detectConflicts(
-    ~templates=generator.templates,
-    ~outputDir,
-    ~force,
-  )
+  let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force)
 
-  Ok({ resolvedAttributes: resolvedAttributes, conflicts: conflicts })
+  Ok({resolvedAttributes, conflicts})
 }

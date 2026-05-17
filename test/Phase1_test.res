@@ -11,7 +11,7 @@ suite("Phase1", () => {
     }
 
     assert_eq(result.stagingDir, "/tmp/fluxo-abc123")
-    assert_eq(Js.Array.length(result.renderedFiles), 1)
+    assert_eq(Array.length(result.renderedFiles), 1)
   })
 
   test("phase1Error: structure", () => {
@@ -25,7 +25,7 @@ suite("Phase1", () => {
   })
 
   test("resolveTargetPath: resolves to directive", () => {
-    let nv = Context.makeNameVariants("Hello")
+    let _nv = Context.makeNameVariants("Hello")
     let ctx = Context.build(
       ~cwd="/workspace",
       ~actionfolder="/workspace/_templates",

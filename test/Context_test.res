@@ -23,9 +23,9 @@ suite("Context", () => {
   })
 
   test("mergeAttributes: CLI overrides prompts", () => {
-    let cli = Js.Dict.fromArray([("name", "cliName")])
-    let prompts = Js.Dict.fromArray([("name", "promptName")])
-    let defaults = Js.Dict.empty()
+    let cli = Dict.fromArray([("name", "cliName")])
+    let prompts = Dict.fromArray([("name", "promptName")])
+    let defaults = Dict.make()
     let nv = Context.makeNameVariants("BaseName")
 
     let merged = Context.mergeAttributes(
@@ -35,13 +35,13 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Js.Dict.get(merged, "name"), Some("cliName"))
+    assert_eq(Dict.get(merged, "name"), Some("cliName"))
   })
 
   test("mergeAttributes: prompts override defaults", () => {
-    let cli = Js.Dict.empty()
-    let prompts = Js.Dict.fromArray([("name", "promptName")])
-    let defaults = Js.Dict.fromArray([("name", "defaultName")])
+    let cli = Dict.make()
+    let prompts = Dict.fromArray([("name", "promptName")])
+    let defaults = Dict.fromArray([("name", "defaultName")])
     let nv = Context.makeNameVariants("BaseName")
 
     let merged = Context.mergeAttributes(
@@ -51,13 +51,13 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Js.Dict.get(merged, "name"), Some("promptName"))
+    assert_eq(Dict.get(merged, "name"), Some("promptName"))
   })
 
   test("mergeAttributes: name variants seeded", () => {
-    let cli = Js.Dict.empty()
-    let prompts = Js.Dict.empty()
-    let defaults = Js.Dict.empty()
+    let cli = Dict.make()
+    let prompts = Dict.make()
+    let defaults = Dict.make()
     let nv = Context.makeNameVariants("MyComponent")
 
     let merged = Context.mergeAttributes(
@@ -67,8 +67,8 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Js.Dict.get(merged, "Name"), Some("MyComponent"))
-    assert_eq(Js.Dict.get(merged, "name"), Some("my_component"))
+    assert_eq(Dict.get(merged, "Name"), Some("MyComponent"))
+    assert_eq(Dict.get(merged, "name"), Some("my_component"))
   })
 
   test("build: creates complete context", () => {

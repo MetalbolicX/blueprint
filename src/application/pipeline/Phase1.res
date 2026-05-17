@@ -7,7 +7,7 @@ open Template
 
 type phase1Result = {
   stagingDir: string,
-  renderedFiles: array<(string, string)>,  // (source, target) pairs
+  renderedFiles: array<(string, string)>, // (source, target) pairs
   shellCommands: array<shellCommand>,
 }
 
@@ -17,7 +17,10 @@ type phase1Error = {
 }
 
 // Resolve target path from "to" directive using context
-let resolveTargetPath: (Template.directive, Context.context) => option<string> = (directive, ctx) => {
+let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
+  directive,
+  ctx,
+) => {
   switch directive {
   | To(path) => {
       // Render the path template with context
@@ -30,7 +33,9 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
       Dict.set(data, "actionfolder", ctx.actionfolder)
 
       // Add attributes
-      ctx.attributes->Dict.toArray->Array.forEach(((k, v)) => {
+      ctx.attributes
+      ->Dict.toArray
+      ->Array.forEach(((k, v)) => {
         Dict.set(data, k, v)
       })
 
@@ -46,7 +51,7 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
 }
 
 // Render a single template
-let renderTemplate: (
+let _renderTemplate: (
   ~template: template,
   ~context: Context.context,
 ) => promise<result<(string, string, string, array<shellCommand>), string>> = async (
@@ -60,16 +65,19 @@ let renderTemplate: (
   switch Renderer.render(template, renderCtx) {
   | Ok(renderedBody) => {
       // Find "to" directive for target path
-      let targetPathOpt = template.directives->Array.find(d => {
-        switch d {
-        | To(_) => true
-        | _ => false
-        }
-      })->Option.flatMap(d => resolveTargetPath(d, context))
+      let targetPathOpt =
+        template.directives
+        ->Array.find(d => {
+          switch d {
+          | To(_) => true
+          | _ => false
+          }
+        })
+        ->Option.flatMap(d => resolveTargetPath(d, context))
 
       let shellCmds = template.directives->Array.filterMap(d => {
         switch d {
-        | Sh(cmd) => Some({ command: cmd, sourcePath: template.sourcePath })
+        | Sh(cmd) => Some({command: cmd, sourcePath: template.sourcePath})
         | _ => None
         }
       })

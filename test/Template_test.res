@@ -75,7 +75,7 @@ suite("Template", () => {
     }
 
     assert_eq(tmpl.sourcePath, "/templates/Hello.tsx.ejs.t")
-    assert_eq(Js.Array.length(tmpl.directives), 1)
+    assert_eq(Array.length(tmpl.directives), 1)
     assert_eq(Js.String.includes(tmpl.body, "export"), true)
   })
 

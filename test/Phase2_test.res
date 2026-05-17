@@ -23,7 +23,7 @@ suite("Phase2", () => {
 
     assert_eq(err.message, "Commit failed")
     switch err.partialCommit {
-    | Some(files) => assert_eq(Js.Array.length(files), 2)
+    | Some(files) => assert_eq(Array.length(files), 2)
     | None => assert_false(true)
     }
   })

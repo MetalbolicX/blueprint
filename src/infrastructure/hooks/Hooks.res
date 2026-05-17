@@ -16,8 +16,8 @@ type hookResult = {
 let parseCommand: string => (string, string) = cmd => {
   let parts = cmd->String.split(" ")
   let interpreter = switch parts[0] {
-    | Some(p) => p
-    | None => "bash"
+  | Some(p) => p
+  | None => "bash"
   }
   let args = {
     let sliced = parts->Array.slice(~start=1)
@@ -40,9 +40,9 @@ let executeHook: (
     let result = await ChildProcess.exec(
       fullCmd,
       ~options={
-        cwd: cwd,
+        cwd,
         shell: true,
-        timeout: timeout,
+        timeout,
         encoding: "utf8",
       },
     )

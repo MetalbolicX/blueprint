@@ -5,12 +5,12 @@ open TestHelpers
 suite("Phase0", () => {
   test("phase0Result: structure", () => {
     let result = {
-      Phase0.resolvedAttributes: Js.Dict.empty(),
+      Phase0.resolvedAttributes: Dict.make(),
       conflicts: [],
     }
 
     assert_true(Dict.toArray(result.resolvedAttributes)->Array.length == 0)
-    assert_eq(Js.Array.length(result.conflicts), 0)
+    assert_eq(Array.length(result.conflicts), 0)
   })
 
   test("conflictFile: structure", () => {

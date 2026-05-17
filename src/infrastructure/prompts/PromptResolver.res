@@ -4,6 +4,7 @@
 
 open Bindings
 
+@@warning("-34")
 type promptAnswer = {
   name: string,
   value: string,
@@ -99,8 +100,7 @@ let resolve: (
             answers->Dict.set(prompt.name, finalAnswer)
             loop(idx + 1, prompts)
           })
-        | None =>
-          Promise.resolve(answers)
+        | None => Promise.resolve(answers)
         }
       }
     }
@@ -110,10 +110,10 @@ let resolve: (
 }
 
 // Readline interface lifecycle
-let createReadline: unit => Readline.readlineInterface = () => {
+let _createReadline: unit => Readline.readlineInterface = () => {
   Readline.createInterface(~input=Readline.stdin, ~output=Readline.stdout, ())
 }
 
-let closeReadline: Readline.readlineInterface => unit = rl => {
+let _closeReadline: Readline.readlineInterface => unit = rl => {
   rl.close()
 }

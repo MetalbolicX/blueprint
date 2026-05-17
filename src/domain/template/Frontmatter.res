@@ -8,6 +8,7 @@
 
 open Template
 
+@@warning("-34")
 type parseError = {
   message: string,
   line: option<int>,
@@ -79,8 +80,8 @@ let parse: string => result<parsedFrontmatter, string> = content => {
       let fsStr: option<string> = Obj.magic(fsOpt)
       switch fsStr {
       | Some(fs) => {
-      let body = Js.String.replaceByRe(frontmatterRegex, "", content)
-      let lines = Js.String.split("\n", fs)->Array.filter(l => l !== "")
+          let body = Js.String.replaceByRe(frontmatterRegex, "", content)
+          let lines = Js.String.split("\n", fs)->Array.filter(l => l !== "")
           let directives = lines->Array.map(parseDirective)->Array.filterMap(x => x)
           Ok({directives, body})
         }

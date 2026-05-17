@@ -18,6 +18,7 @@ type manifest = {
   prompts: option<array<prompt>>,
 }
 
+@@warning("-34")
 type parseError = {
   message: string,
   line: option<int>,
@@ -124,7 +125,7 @@ let parse: string => result<manifest, string> = yamlContent => {
             arr
             ->Array.map(promptJson => {
               switch promptJson {
-    | JSON.Object(_promptDict) => {
+              | JSON.Object(_promptDict) => {
                   let name = getString(promptJson, "name")
                   let desc = getString(promptJson, "description")->Option.getOr("")
                   let defaultVal = getOptString(promptJson, "default")

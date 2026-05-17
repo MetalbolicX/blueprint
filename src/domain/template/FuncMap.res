@@ -32,8 +32,7 @@ let splitIntoWords: string => array<string> = s => {
   let splitCamel = Js.String.replaceByRe(/([a-z])([A-Z])/g, "$1 $2", withSpaces)
   // Handle consecutive uppercase before lowercase: ABc -> A B c
   let splitCaps = Js.String.replaceByRe(/([A-Z]+)([A-Z][a-z])/g, "$1 $2", splitCamel)
-  Js.String.split(" ", splitCaps)
-  ->Array.filter(word => word !== "")
+  Js.String.split(" ", splitCaps)->Array.filter(word => word !== "")
 }
 
 let pascalCase: string => string = s => {

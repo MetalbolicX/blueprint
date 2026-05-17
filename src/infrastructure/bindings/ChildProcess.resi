@@ -1,17 +1,17 @@
 type spawnOptions = {
-  cwd: option<string>,
-  env: option<dict<string>>,
-  shell: option<bool>,
-  timeout: option<int>,
-  stdio: option<array<string>>,
+  cwd?: string,
+  env?: dict<string>,
+  shell?: bool,
+  timeout?: int,
+  stdio?: array<string>,
 }
 
 type childProcess = {
   pid: int,
   stdout: unit,
   stderr: unit,
-  status: option<int>,
-  signal: option<string>,
+  status?: int,
+  signal?: string,
 }
 
 type execResult = {stdout: string, stderr: string, status: option<int>}
@@ -25,13 +25,13 @@ type execOptions = {
 }
 
 type execSyncOptions = {
-  cwd: option<string>,
-  env: option<dict<string>>,
-  shell: option<bool>,
-  input: option<string>,
-  encoding: option<string>,
-  timeout: option<int>,
-  maxBuffer: option<int>,
+  cwd?: string,
+  env?: dict<string>,
+  shell?: bool,
+  input?: string,
+  encoding?: string,
+  timeout?: int,
+  maxBuffer?: int,
 }
 
 let spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess

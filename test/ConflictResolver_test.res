@@ -4,12 +4,12 @@ open TestHelpers
 
 suite("ConflictResolver", () => {
   test("resolution: variants", () => {
-    let r1 = ConflictResolver.YesAll
-    let r2 = ConflictResolver.NoAll
-    let r3 = ConflictResolver.Select
-    let r4 = ConflictResolver.Abort
+    let _r1 = ConflictResolver.YesAll
+    let _r2 = ConflictResolver.NoAll
+    let _r3 = ConflictResolver.Select
+    let _r4 = ConflictResolver.Abort
 
-    assert_true(true)  // Just verify variants exist
+    assert_true(true) // Just verify variants exist
   })
 
   test("parseChoice: y/yes/all", () => {
@@ -63,17 +63,15 @@ suite("ConflictResolver", () => {
       (),
     )
 
-    let _ = ConflictResolver.resolveConflicts(
-      ~rl,
-      ~conflicts=[],
-      ~force=false,
-    )->Promise.then(result => {
-      switch result {
-      | Ok(decisions) => assert_eq(Array.length(decisions), 0)
-      | Error(_) => assert_false(true)
-      }
-      resolve()
-      Promise.resolve()
-    })
+    let _ = ConflictResolver.resolveConflicts(~rl, ~conflicts=[], ~force=false)->Promise.then(
+      result => {
+        switch result {
+        | Ok(decisions) => assert_eq(Array.length(decisions), 0)
+        | Error(_) => assert_false(true)
+        }
+        resolve()
+        Promise.resolve()
+      },
+    )
   })
 })

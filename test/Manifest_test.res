@@ -33,7 +33,7 @@ suite("Manifest", () => {
         }
       }
     | Error(e) => {
-        Js.Console.log(e)
+        Console.log(e)
         assert_false(true)
       }
     }
@@ -43,22 +43,18 @@ suite("Manifest", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - component\n      - hook\n      - utility\n"
     let result = Manifest.parse(yaml)
     switch result {
-    | Ok(m) => {
-        switch m.prompts {
-        | Some(prompts) => {
-            switch prompts[0] {
-            | Some(p) => {
-                assert_eq(p.promptType, Manifest.Select)
-                switch p.options {
-                | Some(opts) => assert_eq(Array.length(opts), 3)
-                | None => assert_false(true)
-                }
-              }
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            assert_eq(p.promptType, Manifest.Select)
+            switch p.options {
+            | Some(opts) => assert_eq(Array.length(opts), 3)
             | None => assert_false(true)
             }
           }
         | None => assert_false(true)
         }
+      | None => assert_false(true)
       }
     | Error(_) => assert_false(true)
     }
@@ -68,16 +64,12 @@ suite("Manifest", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: typescript\n    type: confirm\n    description: Use TypeScript\n"
     let result = Manifest.parse(yaml)
     switch result {
-    | Ok(m) => {
-        switch m.prompts {
-        | Some(prompts) => {
-            switch prompts[0] {
-            | Some(p) => assert_eq(p.promptType, Manifest.Confirm)
-            | None => assert_false(true)
-            }
-          }
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => assert_eq(p.promptType, Manifest.Confirm)
         | None => assert_false(true)
         }
+      | None => assert_false(true)
       }
     | Error(_) => assert_false(true)
     }
@@ -87,14 +79,12 @@ suite("Manifest", () => {
     let yaml = "name: test\nclassification: test\nmetadata:\n  author: someone\n  version: 1.0\n"
     let result = Manifest.parse(yaml)
     switch result {
-    | Ok(m) => {
-        switch m.metadata {
-        | Some(meta) => {
-            let author = Js.Dict.get(meta, "author")
-            assert_true(author != None)
-          }
-        | None => assert_false(true)
+    | Ok(m) => switch m.metadata {
+      | Some(meta) => {
+          let author = Dict.get(meta, "author")
+          assert_true(author != None)
         }
+      | None => assert_false(true)
       }
     | Error(_) => assert_false(true)
     }
@@ -119,13 +109,15 @@ suite("Manifest", () => {
       name: "test",
       classification: "test",
       metadata: None,
-      prompts: Some([{
-        name: "",
-        promptType: Manifest.Input,
-        description: "test",
-        default: None,
-        options: None,
-      }]),
+      prompts: Some([
+        {
+          name: "",
+          promptType: Manifest.Input,
+          description: "test",
+          default: None,
+          options: None,
+        },
+      ]),
     }
     let result = Manifest.validate(manifest)
     switch result {
@@ -139,13 +131,15 @@ suite("Manifest", () => {
       name: "test",
       classification: "test",
       metadata: None,
-      prompts: Some([{
-        name: "type",
-        promptType: Manifest.Select,
-        description: "test",
-        default: None,
-        options: None,
-      }]),
+      prompts: Some([
+        {
+          name: "type",
+          promptType: Manifest.Select,
+          description: "test",
+          default: None,
+          options: None,
+        },
+      ]),
     }
     let result = Manifest.validate(manifest)
     switch result {
@@ -159,13 +153,15 @@ suite("Manifest", () => {
       name: "test",
       classification: "test",
       metadata: None,
-      prompts: Some([{
-        name: "name",
-        promptType: Manifest.Input,
-        description: "Component name",
-        default: Some("MyComponent"),
-        options: None,
-      }]),
+      prompts: Some([
+        {
+          name: "name",
+          promptType: Manifest.Input,
+          description: "Component name",
+          default: Some("MyComponent"),
+          options: None,
+        },
+      ]),
     }
     let result = Manifest.validate(manifest)
     switch result {

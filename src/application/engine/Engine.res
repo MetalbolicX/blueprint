@@ -41,11 +41,5 @@ let runWithConfig: (
   ~cliAttributes,
   ~force,
 ) => {
-  await run(
-    ~generator,
-    ~name,
-    ~cliAttributes,
-    ~outputDir=Config.defaultOutputDir,
-    ~force,
-  )
+  await run(~generator, ~name, ~cliAttributes, ~outputDir=Config.defaultOutputDir, ~force)
 }
