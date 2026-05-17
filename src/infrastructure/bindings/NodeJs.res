@@ -264,51 +264,71 @@ module Readline = {
 }
 
 module Util = {
-  type optionConfig = {"type": string, "short": option<string>, "default": option<string>}
+  @unboxed
+  type defaultValue =
+    | String(string)
+    | Bool(bool)
 
-  type parseArgsConfig = {
-    args: option<array<string>>,
-    options: option<dict<optionConfig>>,
-    strict: option<bool>,
-    allowPositionals: option<bool>,
-    tokens: option<bool>,
-    stopEarly: option<bool>,
-    ignoreCrashes: option<bool>,
+  type flagConfig = {
+    @as("type") type_: string,
+    short?: string,
+    default?: defaultValue,
+    multiple?: bool,
   }
 
-  type parsedValues = dict<string>
+  type cliOptions = {
+    help?: bool,
+    version?: bool,
+    input?: string,
+    output?: string,
+    format?: string,
+    verbose?: bool,
+  }
 
-  type parsedArgs = {
-    values: parsedValues,
+  type parseResults = {
+    values: cliOptions,
     positionals: array<string>,
-    tokens: option<array<string>>,
+  }
+
+  type parseConfig = {
+    args: array<string>,
+    options: dict<flagConfig>,
+    strict?: bool,
+    allowPositionals?: bool,
+    tokens?: bool,
   }
 
   @module("node:util")
-  external parseArgs: parseArgsConfig => parsedArgs = "parseArgs"
+  external parseArgs: parseConfig => parseResults = "parseArgs"
 
   @module("node:util")
   external inspect: 'a => string = "inspect"
 
-  let parseOptions: (~short: string=?, ~default: string=?, unit) => optionConfig = (
+  let parseOptions: (~short: string=?, ~default: defaultValue=?, unit) => flagConfig = (
     ~short=?,
     ~default=?,
     (),
-  ) =>
-    {
-      "type": "string",
-      "short": short,
-      "default": default,
-    }
-
-  let getString: (parsedValues, string) => option<string> = (values, key) => {
-    Dict.get(values, key)
+  ) => {
+    type_: "string",
+    ?short,
+    ?default,
   }
 
-  let getBool: (parsedValues, string) => bool = (values, key) => {
-    switch Dict.get(values, key) {
-    | Some(v) => v == "true"
-    | None => false
+  let getString: (cliOptions, string) => option<string> = (values, key) => {
+    switch key {
+    | "input" => values.input
+    | "output" => values.output
+    | "format" => values.format
+    | _ => None
+    }
+  }
+
+  let getBool: (cliOptions, string) => bool = (values, key) => {
+    switch key {
+    | "help" => values.help->Option.getOr(false)
+    | "version" => values.version->Option.getOr(false)
+    | "verbose" => values.verbose->Option.getOr(false)
+    | _ => false
     }
   }
 }

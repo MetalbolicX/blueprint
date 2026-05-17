@@ -155,31 +155,45 @@ module Readline: {
 }
 
 module Util: {
-  type optionConfig = {"type": string, "short": option<string>, "default": option<string>}
+  @unboxed
+  type defaultValue =
+    | String(string)
+    | Bool(bool)
 
-  type parseArgsConfig = {
-    args: option<array<string>>,
-    options: option<dict<optionConfig>>,
-    strict: option<bool>,
-    allowPositionals: option<bool>,
-    tokens: option<bool>,
-    stopEarly: option<bool>,
-    ignoreCrashes: option<bool>,
+  type flagConfig = {
+    @as("type") type_: string,
+    short?: string,
+    default?: defaultValue,
+    multiple?: bool,
   }
 
-  type parsedValues = dict<string>
+  type cliOptions = {
+    help?: bool,
+    version?: bool,
+    input?: string,
+    output?: string,
+    format?: string,
+    verbose?: bool,
+  }
 
-  type parsedArgs = {
-    values: parsedValues,
+  type parseResults = {
+    values: cliOptions,
     positionals: array<string>,
-    tokens: option<array<string>>,
   }
 
-  let parseArgs: parseArgsConfig => parsedArgs
+  type parseConfig = {
+    args: array<string>,
+    options: dict<flagConfig>,
+    strict?: bool,
+    allowPositionals?: bool,
+    tokens?: bool,
+  }
+
+  let parseArgs: parseConfig => parseResults
   let inspect: 'a => string
-  let parseOptions: (~short: string=?, ~default: string=?, unit) => optionConfig
-  let getString: (parsedValues, string) => option<string>
-  let getBool: (parsedValues, string) => bool
+  let parseOptions: (~short: string=?, ~default: defaultValue=?, unit) => flagConfig
+  let getString: (cliOptions, string) => option<string>
+  let getBool: (cliOptions, string) => bool
 }
 
 module ParseArgs = Util
