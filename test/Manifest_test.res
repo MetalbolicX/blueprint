@@ -94,8 +94,6 @@ suite("Manifest", () => {
     let manifest: Manifest.manifest = {
       name: "test",
       classification: "",
-      metadata: None,
-      prompts: None,
     }
     let result = Manifest.validate(manifest)
     switch result {
@@ -108,16 +106,13 @@ suite("Manifest", () => {
     let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
-      metadata: None,
-      prompts: Some([
+      prompts: [
         {
           name: "",
           promptType: Manifest.Input,
           description: "test",
-          default: None,
-          options: None,
         },
-      ]),
+      ],
     }
     let result = Manifest.validate(manifest)
     switch result {
@@ -130,16 +125,13 @@ suite("Manifest", () => {
     let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
-      metadata: None,
-      prompts: Some([
+      prompts: [
         {
           name: "type",
           promptType: Manifest.Select,
           description: "test",
-          default: None,
-          options: None,
         },
-      ]),
+      ],
     }
     let result = Manifest.validate(manifest)
     switch result {
@@ -152,16 +144,14 @@ suite("Manifest", () => {
     let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
-      metadata: None,
-      prompts: Some([
+      prompts: [
         {
           name: "name",
           promptType: Manifest.Input,
           description: "Component name",
-          default: Some("MyComponent"),
-          options: None,
+          default: "MyComponent",
         },
-      ]),
+      ],
     }
     let result = Manifest.validate(manifest)
     switch result {

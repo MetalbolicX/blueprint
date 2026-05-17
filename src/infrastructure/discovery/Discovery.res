@@ -8,7 +8,7 @@ type generator = {
   name: string, // directory name (e.g. "component")
   path: string, // absolute path to generator dir
   templates: array<template>, // .ejs.t files found
-  manifest: option<Manifest.manifest>, // manifest.yaml if present
+  manifest?: Manifest.manifest, // manifest.yaml if present
 }
 
 let _isTemplateFile: string => bool = filename => {

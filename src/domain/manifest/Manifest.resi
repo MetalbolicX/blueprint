@@ -4,15 +4,15 @@ type prompt = {
   name: string,
   promptType: promptType,
   description: string,
-  default: option<string>,
-  options: option<array<string>>,
+  default?: string,
+  options?: array<string>,
 }
 
 type manifest = {
   name: string,
   classification: string,
-  metadata: option<dict<JSON.t>>,
-  prompts: option<array<prompt>>,
+  metadata?: dict<JSON.t>,
+  prompts?: array<prompt>,
 }
 
 type validationError = {

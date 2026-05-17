@@ -18,7 +18,7 @@ suite("Phase2", () => {
   test("phase2Error: structure", () => {
     let err = {
       Phase2.message: "Commit failed",
-      partialCommit: Some(["file1.txt", "file2.txt"]),
+      partialCommit: ["file1.txt", "file2.txt"],
     }
 
     assert_eq(err.message, "Commit failed")
@@ -31,7 +31,6 @@ suite("Phase2", () => {
   test("phase2Error: no partial commit", () => {
     let err = {
       Phase2.message: "Early failure",
-      partialCommit: None,
     }
 
     switch err.partialCommit {

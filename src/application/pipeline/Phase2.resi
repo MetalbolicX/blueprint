@@ -6,7 +6,7 @@ type phase2Result = {
 
 type phase2Error = {
   message: string,
-  partialCommit: option<array<string>>,
+  partialCommit?: array<string>,
 }
 
 let run: (

@@ -1,6 +1,6 @@
 type options = {
-  delimiter: option<string>,
-  escape: option<string => string>,
+  delimiter?: string,
+  escape?: string => string,
 }
 
 let render: (string, dict<string>, ~options: options=?) => string

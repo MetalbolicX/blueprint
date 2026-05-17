@@ -1,7 +1,7 @@
 type documentOptions = {
-  indent: option<int>,
-  lineWidth: option<int>,
-  singleQuote: option<bool>,
+  indent?: int,
+  lineWidth?: int,
+  singleQuote?: bool,
 }
 
 let parse: string => JSON.t

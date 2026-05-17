@@ -1,6 +1,6 @@
 type options = {
-  delimiter: option<string>,
-  escape: option<string => string>,
+  delimiter?: string,
+  escape?: string => string,
 }
 
 @module("ejs")

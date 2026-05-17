@@ -2,14 +2,14 @@
 // Mirrors Go version's Config struct
 
 type hooksConfig = {
-  preGenerate: option<string>,
-  postGenerate: option<string>,
-  timeout: option<int>,
+  preGenerate?: string,
+  postGenerate?: string,
+  timeout?: int,
 }
 
 type config = {
-  hooks: option<hooksConfig>,
-  output: option<string>,
+  hooks?: hooksConfig,
+  output?: string,
 }
 
 let parseHooks: JSON.t => option<hooksConfig> = json => {
@@ -45,7 +45,7 @@ let parseHooks: JSON.t => option<hooksConfig> = json => {
       if preGenerate == None && postGenerate == None && timeout == None {
         None
       } else {
-        Some({preGenerate, postGenerate, timeout})
+        Some({preGenerate: ?preGenerate, postGenerate: ?postGenerate, timeout: ?timeout})
       }
     }
   | _ => None
@@ -72,9 +72,9 @@ let parse: string => result<config, string> = yamlContent => {
         | None => None
         }
 
-        Ok({hooks, output})
+        Ok({hooks: ?hooks, output: ?output})
       }
-    | _ => Ok({hooks: None, output: None})
+    | _ => Ok({})
     }
   } catch {
   | JsExn(obj) =>

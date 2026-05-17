@@ -1,12 +1,12 @@
 type hooksConfig = {
-  preGenerate: option<string>,
-  postGenerate: option<string>,
-  timeout: option<int>,
+  preGenerate?: string,
+  postGenerate?: string,
+  timeout?: int,
 }
 
 type config = {
-  hooks: option<hooksConfig>,
-  output: option<string>,
+  hooks?: hooksConfig,
+  output?: string,
 }
 
 let parse: string => result<config, string>

@@ -12,7 +12,7 @@ type phase2Result = {
 
 type phase2Error = {
   message: string,
-  partialCommit: option<array<string>>, // files that were committed before error
+  partialCommit?: array<string>, // files that were committed before error
 }
 
 // Execute all queued shell commands

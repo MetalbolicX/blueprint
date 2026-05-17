@@ -5,9 +5,9 @@ external parse: string => JSON.t = "parse"
 external stringify: 'a => string = "stringify"
 
 type documentOptions = {
-  indent: option<int>,
-  lineWidth: option<int>,
-  singleQuote: option<bool>,
+  indent?: int,
+  lineWidth?: int,
+  singleQuote?: bool,
 }
 
 @module("yaml")

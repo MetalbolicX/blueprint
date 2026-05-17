@@ -11,7 +11,7 @@ open Template
 @@warning("-34")
 type parseError = {
   message: string,
-  line: option<int>,
+  line?: int,
 }
 
 let frontmatterRegex: RegExp.t = /^---\n([\s\S]*?)\n---\n/

@@ -7,21 +7,21 @@ type prompt = {
   name: string,
   promptType: promptType,
   description: string,
-  default: option<string>,
-  options: option<array<string>>,
+  default?: string,
+  options?: array<string>,
 }
 
 type manifest = {
   name: string,
   classification: string,
-  metadata: option<dict<JSON.t>>,
-  prompts: option<array<prompt>>,
+  metadata?: dict<JSON.t>,
+  prompts?: array<prompt>,
 }
 
 @@warning("-34")
 type parseError = {
   message: string,
-  line: option<int>,
+  line?: int,
 }
 
 type validationError = {
@@ -139,8 +139,8 @@ let parse: string => result<manifest, string> = yamlContent => {
                       name: n,
                       promptType: pt,
                       description: desc,
-                      default: defaultVal,
-                      options: opts,
+                      default: ?defaultVal,
+                      options: ?opts,
                     })
                   | None => None
                   }
@@ -164,7 +164,7 @@ let parse: string => result<manifest, string> = yamlContent => {
     let metadata = getMetadata(json, "metadata")
     let prompts = getPrompts(json, "prompts")
 
-    Ok({name, classification, metadata, prompts})
+    Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
   } catch {
   | JsExn(obj) =>
     let msg = switch JsExn.message(obj) {
