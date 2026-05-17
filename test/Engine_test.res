@@ -28,4 +28,29 @@ suite("Engine", () => {
     assert_eq(result.filesCreated, 0)
     assert_eq(result.classification, "empty")
   })
+
+  testAsync("run: returns Ok result with classification", resolve => {
+    let gen: Discovery.generator = {
+      name: "component",
+      path: "/workspace/_templates/component",
+      templates: [],
+    }
+
+    Engine.run(
+      ~generator=gen,
+      ~name="Button",
+      ~cliAttributes=Dict.make(),
+      ~outputDir="/tmp/fluxo-test-output",
+      ~force=true,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(r) => assert_eq(r.classification, "component")
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })
