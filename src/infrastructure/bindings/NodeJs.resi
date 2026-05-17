@@ -197,3 +197,10 @@ module Util: {
 }
 
 module ParseArgs = Util
+
+module NodeProcess: {
+  let argv: array<string>
+  let env: dict<string>
+  let exit: int => unit
+  let cwd: unit => string
+}
