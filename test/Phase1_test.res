@@ -39,4 +39,34 @@ suite("Phase1", () => {
     | None => assert_false(true)
     }
   })
+
+  test("resolveTargetPath: non-To directive returns None", () => {
+    let ctx = Context.build(
+      ~cwd="/workspace",
+      ~actionfolder="/workspace/_templates",
+      ~name="Button",
+      (),
+    )
+
+    let result = Phase1.resolveTargetPath(Template.Sh("npm install"), ctx)
+    switch result {
+    | Some(_) => assert_false(true)
+    | None => assert_true(true)
+    }
+  })
+
+  test("resolveTargetPath: EJS path renders correctly", () => {
+    let ctx = Context.build(
+      ~cwd="/workspace",
+      ~actionfolder="/workspace/_templates",
+      ~name="Button",
+      (),
+    )
+
+    let result = Phase1.resolveTargetPath(Template.To("src/<%= name %>.tsx"), ctx)
+    switch result {
+    | Some(path) => assert_eq(path, "src/button.tsx")
+    | None => assert_false(true)
+    }
+  })
 })

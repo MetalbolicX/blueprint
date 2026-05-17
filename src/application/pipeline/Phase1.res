@@ -122,6 +122,44 @@ let run: (
   | Ok() =>
     let renderedFiles: array<(string, string)> = []
     let shellCommands: array<shellCommand> = []
-    Ok({stagingDir, renderedFiles, shellCommands})
+    let errorRef: ref<option<phase1Error>> = ref(None)
+
+    let renderOps = _templates->Array.map(async tmpl => {
+      switch await _renderTemplate(~template=tmpl, ~context=_context) {
+      | Error(e) =>
+        errorRef.contents = Some({stagingDir, message: e})
+      | Ok((sourcePath, targetPath, renderedBody, shellCmds)) =>
+        let stagedPath = Path.join(stagingDir, targetPath)
+        let stagedDir = Path.dirname(stagedPath)
+        try {
+          let _ = await Fs.mkdir(stagedDir, ~options={recursive: true})
+          await Fs.writeFile(stagedPath, renderedBody)
+          let _ = renderedFiles->Array.push((sourcePath, targetPath))
+          shellCmds->Array.forEach(cmd => {
+            let _ = shellCommands->Array.push(cmd)
+          })
+        } catch {
+        | JsExn(obj) =>
+          let msg = switch JsExn.message(obj) {
+          | Some(m) => m
+          | None => "Write failed"
+          }
+          errorRef.contents = Some({stagingDir, message: "Failed to write staged file: " ++ msg})
+        }
+      }
+    })
+
+    let _ = await Promise.all(renderOps)
+
+    switch errorRef.contents {
+    | Some(err) =>
+      try {
+        await Fs.rm(stagingDir, ~options={recursive: true})
+      } catch {
+      | _ => ()
+      }
+      Error(err)
+    | None => Ok({stagingDir, renderedFiles, shellCommands})
+    }
   }
 }
