@@ -70,8 +70,59 @@ let _loadManifest: string => promise<option<Manifest.manifest>> = async generato
 }
 
 // Discover all generators under a base directory
-let discoverIn: string => promise<array<generator>> = async _baseDir => {
-  []
+let discoverIn: string => promise<array<generator>> = async baseDir => {
+  let exists = await Bindings.Fs.fileExists(baseDir)
+  if !exists {
+    []
+  } else {
+    try {
+      let entries = await Bindings.Fs.readdir(baseDir, ~options={withFileTypes: false})
+
+      let genPromises = entries->Array.map(async entry => {
+        let genPath = Bindings.Path.join(baseDir, entry)
+        let stat = await Bindings.Fs.stat(genPath)
+        if stat.isDirectory() {
+          let templateFiles = try {
+            await Bindings.Fs.readdir(genPath, ~options={withFileTypes: false})
+          } catch {
+          | _ => []
+          }
+
+          let tmplPromises = templateFiles->Array.map(async fname => {
+            if _isTemplateFile(fname) {
+              let fpath = Bindings.Path.join(genPath, fname)
+              switch await _loadTemplate(fpath) {
+              | Ok(t) => Some(t)
+              | Error(_) => None
+              }
+            } else {
+              None
+            }
+          })
+
+          let loaded = await Promise.all(tmplPromises)
+          let templates = loaded->Array.filterMap(x => x)
+          let manifest = await _loadManifest(genPath)
+
+          Some({
+            name: entry,
+            path: genPath,
+            templates,
+            manifest: ?manifest,
+          })
+        } else {
+          None
+        }
+      })
+
+      let results = await Promise.all(genPromises)
+      results->Array.filterMap(x => x)
+    } catch {
+    | JsExn(obj) =>
+      let _ = JsExn.message(obj)
+      []
+    }
+  }
 }
 
 // Discover generators across standard search paths
