@@ -1,5 +1,7 @@
 // Template_test — directive parsing tests
 
+open TestHelpers
+
 suite("Template", () => {
   test("directive: To variant", () => {
     let dir = Template.To("src/{{ .Name }}.go")
@@ -67,7 +69,7 @@ suite("Template", () => {
 
   test("template: full structure", () => {
     let tmpl = {
-      sourcePath: "/templates/Hello.tsx.ejs.t",
+      Template.sourcePath: "/templates/Hello.tsx.ejs.t",
       directives: [Template.To("src/Hello.tsx")],
       body: "export const Hello = () => <div/>\n",
     }

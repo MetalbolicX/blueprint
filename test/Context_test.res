@@ -1,23 +1,25 @@
 // Context_test — name variant generation and merge priority tests
 
+open TestHelpers
+
 suite("Context", () => {
   test("makeNameVariants: basic", () => {
     let variants = Context.makeNameVariants("HelloWorld")
     assert_eq(variants.name, "hello_world")
-    assert_eq(variants.Name, "HelloWorld")
+    assert_eq(variants.pascalName, "HelloWorld")
     assert_eq(variants.names, "hello_worlds")
-    assert_eq(variants.Names, "HelloWorlds")
+    assert_eq(variants.pluralPascalName, "HelloWorlds")
   })
 
   test("makeNameVariants: snake_case input", () => {
     let variants = Context.makeNameVariants("hello_world")
-    assert_eq(variants.Name, "HelloWorld")
+    assert_eq(variants.pascalName, "HelloWorld")
     assert_eq(variants.names, "hello_worlds")
   })
 
   test("makeNameVariants: kebab-case input", () => {
     let variants = Context.makeNameVariants("hello-world")
-    assert_eq(variants.Name, "HelloWorld")
+    assert_eq(variants.pascalName, "HelloWorld")
   })
 
   test("mergeAttributes: CLI overrides prompts", () => {
@@ -79,7 +81,7 @@ suite("Context", () => {
 
     assert_eq(ctx.cwd, "/workspace")
     assert_eq(ctx.actionfolder, "/workspace/_templates/component")
-    assert_eq(ctx.nameVariants.Name, "MyComponent")
+    assert_eq(ctx.nameVariants.pascalName, "MyComponent")
     assert_eq(ctx.nameVariants.name, "my_component")
   })
 
@@ -93,7 +95,7 @@ suite("Context", () => {
 
     let renderCtx = Context.toRenderContext(ctx)
 
-    assert_eq(renderCtx.Name, "MyComponent")
+    assert_eq(renderCtx.pascalName, "MyComponent")
     assert_eq(renderCtx.names, "my_components")
     assert_eq(renderCtx.cwd, "/workspace")
   })

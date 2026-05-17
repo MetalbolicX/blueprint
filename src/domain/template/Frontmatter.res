@@ -13,9 +13,9 @@ type parseError = {
   line: option<int>,
 }
 
-let frontmatterRegex: RegExp.t = /^---\\n([\\s\\S]*?)\\n---\\n/
+let frontmatterRegex: RegExp.t = /^---\n([\s\S]*?)\n---\n/
 
-let directiveRegex: RegExp.t = /^(\\w+):\\s*(.*)$/
+let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 
 // Helper to check directive type
 let checkDirective: (string, string) => option<directive> = (key, value) => {
@@ -79,8 +79,8 @@ let parse: string => result<parsedFrontmatter, string> = content => {
       let fsStr: option<string> = Obj.magic(fsOpt)
       switch fsStr {
       | Some(fs) => {
-          let body = Js.String.replaceByRe(frontmatterRegex, content, "")
-          let lines = fs->Js.String.split("\n")->Array.filter(l => l !== "")
+      let body = Js.String.replaceByRe(frontmatterRegex, "", content)
+      let lines = Js.String.split("\n", fs)->Array.filter(l => l !== "")
           let directives = lines->Array.map(parseDirective)->Array.filterMap(x => x)
           Ok({directives, body})
         }

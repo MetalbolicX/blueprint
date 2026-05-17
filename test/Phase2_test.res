@@ -1,9 +1,11 @@
 // Phase2_test — commit and rollback tests
 
+open TestHelpers
+
 suite("Phase2", () => {
   test("phase2Result: structure", () => {
     let result = {
-      Phases.Phase2.filesCreated: 5,
+      Phase2.filesCreated: 5,
       filesInjected: 2,
       commandsExecuted: 1,
     }
@@ -15,7 +17,7 @@ suite("Phase2", () => {
 
   test("phase2Error: structure", () => {
     let err = {
-      Phases.Phase2.message: "Commit failed",
+      Phase2.message: "Commit failed",
       partialCommit: Some(["file1.txt", "file2.txt"]),
     }
 
@@ -28,7 +30,7 @@ suite("Phase2", () => {
 
   test("phase2Error: no partial commit", () => {
     let err = {
-      Phases.Phase2.message: "Early failure",
+      Phase2.message: "Early failure",
       partialCommit: None,
     }
 

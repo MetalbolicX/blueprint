@@ -8,7 +8,7 @@ let injectRegex: (string, string, string) => result<string, string> = (
 ) => {
   try {
     let regex = RegExp.fromString(pattern)
-    let result = Js.String.replaceByRe(regex, content, replacement)
+    let result = Js.String.replaceByRe(regex, replacement, content)
     Ok(result)
   } catch {
   | JsExn(_) => Error("Invalid regex pattern: " ++ pattern)
@@ -22,7 +22,7 @@ let insertAfter: (string, string, string) => result<string, string> = (
 ) => {
   try {
     let regex = RegExp.fromString(pattern)
-    let result = Js.String.replaceByRe(regex, content, "$&" ++ insertion)
+    let result = Js.String.replaceByRe(regex, "$&" ++ insertion, content)
     Ok(result)
   } catch {
   | JsExn(_) => Error("Invalid regex pattern: " ++ pattern)
@@ -36,7 +36,7 @@ let insertBefore: (string, string, string) => result<string, string> = (
 ) => {
   try {
     let regex = RegExp.fromString(pattern)
-    let result = Js.String.replaceByRe(regex, content, insertion ++ "$&")
+    let result = Js.String.replaceByRe(regex, insertion ++ "$&", content)
     Ok(result)
   } catch {
   | JsExn(_) => Error("Invalid regex pattern: " ++ pattern)

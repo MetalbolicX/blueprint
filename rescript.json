@@ -1,18 +1,17 @@
 {
-  "name": "fluxo",
-  "sources": {
-    "dir": "src",
-    "subdirs": true
-  },
-  "package-specs": [
-    {
-      "module": "esmodule",
-      "in-source": true
-    }
+  "name": "blueprint",
+  "sources": [
+    { "dir": "test", "subdirs": true, "type": "dev" },
+    { "dir": "src", "subdirs": true }
   ],
-  "suffix": ".mjs",
+  "package-specs": {
+    "module": "esmodule",
+    "in-source": true
+  },
+  "suffix": ".res.mjs",
+  "dev-dependencies": [
+    "rescript-test"
+  ],
   "dependencies": [],
-  "warnings": {
-    "error": false
-  }
+  "compiler-flags": []
 }

@@ -10,8 +10,11 @@ type readlineInterface = {
   close: unit => unit,
 }
 
-type streamReadable = unit
-type streamWritable = unit
+type streamReadable
+type streamWritable
+
+@module("node:process") external stdin: streamReadable = "stdin"
+@module("node:process") external stdout: streamWritable = "stdout"
 
 @module("readline")
 external createInterface: (

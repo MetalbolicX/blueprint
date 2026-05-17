@@ -1,5 +1,7 @@
 // Injection_test — injection mode tests
 
+open TestHelpers
+
 suite("Injection", () => {
   test("injectRegex: basic replacement", () => {
     let result = Injection.injectRegex(

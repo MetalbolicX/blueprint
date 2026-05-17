@@ -1,5 +1,7 @@
 // Frontmatter_test — YAML frontmatter parsing tests
 
+open TestHelpers
+
 suite("Frontmatter", () => {
   test("parse: valid frontmatter with to directive", () => {
     let content = "---\nto: src/{{ .Name }}.go\n---\npackage main\n"
@@ -8,7 +10,7 @@ suite("Frontmatter", () => {
     | Ok(parsed) => {
         assert_eq(Js.Array.length(parsed.directives), 1)
         switch parsed.directives[0] {
-        | Template.To(path) => assert_eq(path, "src/{{ .Name }}.go")
+        | Some(Template.To(path)) => assert_eq(path, "src/{{ .Name }}.go")
         | _ => assert_false(true)
         }
         assert_eq(parsed.body, "package main\n")
@@ -34,7 +36,7 @@ suite("Frontmatter", () => {
     switch result {
     | Ok(parsed) => {
         switch parsed.directives[0] {
-        | Template.Inject(pattern) => assert_eq(pattern, "true")
+        | Some(Template.Inject(pattern)) => assert_eq(pattern, "true")
         | _ => assert_false(true)
         }
       }
@@ -48,7 +50,7 @@ suite("Frontmatter", () => {
     switch result {
     | Ok(parsed) => {
         switch parsed.directives[0] {
-        | Template.Sh(cmd) => assert_eq(cmd, "npm run format")
+        | Some(Template.Sh(cmd)) => assert_eq(cmd, "npm run format")
         | _ => assert_false(true)
         }
       }

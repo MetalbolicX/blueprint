@@ -1,6 +1,8 @@
 // FuncMap_test — case conversion tests
 // Tests all funcmap functions: pascalCase, camelCase, kebabCase, snakeCase, upper, lower, trim, title
 
+open TestHelpers
+
 suite("FuncMap", () => {
   test("pascalCase: snake_case", () => {
     assert_eq(FuncMap.pascalCase("hello_world"), "HelloWorld")

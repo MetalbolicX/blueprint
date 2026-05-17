@@ -1,8 +1,10 @@
 // Manifest_test — manifest parsing and validation tests
 
+open TestHelpers
+
 suite("Manifest", () => {
   test("parse: minimal valid manifest", () => {
-    let yaml = "name: test\classification: test\n"
+    let yaml = "name: test\nclassification: test\n"
     let result = Manifest.parse(yaml)
     switch result {
     | Ok(m) => {
@@ -21,8 +23,11 @@ suite("Manifest", () => {
         assert_eq(m.name, "component")
         switch m.prompts {
         | Some(prompts) => {
-            assert_eq(Js.Array.length(prompts), 1)
-            assert_eq(prompts[0].name, "path")
+            assert_eq(Array.length(prompts), 1)
+            switch prompts[0] {
+            | Some(p) => assert_eq(p.name, "path")
+            | None => assert_false(true)
+            }
           }
         | None => assert_false(true)
         }
@@ -41,9 +46,14 @@ suite("Manifest", () => {
     | Ok(m) => {
         switch m.prompts {
         | Some(prompts) => {
-            assert_eq(prompts[0].promptType, Manifest.Select)
-            switch prompts[0].options {
-            | Some(opts) => assert_eq(Js.Array.length(opts), 3)
+            switch prompts[0] {
+            | Some(p) => {
+                assert_eq(p.promptType, Manifest.Select)
+                switch p.options {
+                | Some(opts) => assert_eq(Array.length(opts), 3)
+                | None => assert_false(true)
+                }
+              }
             | None => assert_false(true)
             }
           }
@@ -61,7 +71,10 @@ suite("Manifest", () => {
     | Ok(m) => {
         switch m.prompts {
         | Some(prompts) => {
-            assert_eq(prompts[0].promptType, Manifest.Confirm)
+            switch prompts[0] {
+            | Some(p) => assert_eq(p.promptType, Manifest.Confirm)
+            | None => assert_false(true)
+            }
           }
         | None => assert_false(true)
         }
@@ -88,7 +101,7 @@ suite("Manifest", () => {
   })
 
   test("validate: missing classification", () => {
-    let manifest = {
+    let manifest: Manifest.manifest = {
       name: "test",
       classification: "",
       metadata: None,
@@ -102,7 +115,7 @@ suite("Manifest", () => {
   })
 
   test("validate: empty prompt name", () => {
-    let manifest = {
+    let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
       metadata: None,
@@ -122,7 +135,7 @@ suite("Manifest", () => {
   })
 
   test("validate: select without options", () => {
-    let manifest = {
+    let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
       metadata: None,
@@ -142,7 +155,7 @@ suite("Manifest", () => {
   })
 
   test("validate: valid manifest", () => {
-    let manifest = {
+    let manifest: Manifest.manifest = {
       name: "test",
       classification: "test",
       metadata: None,

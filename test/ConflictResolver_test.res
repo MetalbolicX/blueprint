@@ -1,5 +1,7 @@
 // ConflictResolver_test — y/n/s/a resolution tests
 
+open TestHelpers
+
 suite("ConflictResolver", () => {
   test("resolution: variants", () => {
     let r1 = ConflictResolver.YesAll
@@ -54,22 +56,24 @@ suite("ConflictResolver", () => {
     assert_true(cd.overwrite)
   })
 
-  test("resolveConflicts: empty conflicts list", () => {
+  testAsync("resolveConflicts: empty conflicts list", resolve => {
     let rl = Bindings.Readline.createInterface(
-      ~input=Node.Process.stdin,
-      ~output=Node.Process.stdout,
+      ~input=Bindings.Readline.stdin,
+      ~output=Bindings.Readline.stdout,
       (),
     )
 
-    let result = ConflictResolver.resolveConflicts(
+    let _ = ConflictResolver.resolveConflicts(
       ~rl,
       ~conflicts=[],
       ~force=false,
-    )
-
-    switch result {
-    | Ok(decisions) => assert_eq(Js.Array.length(decisions), 0)
-    | Error(_) => assert_false(true)
-    }
+    )->Promise.then(result => {
+      switch result {
+      | Ok(decisions) => assert_eq(Array.length(decisions), 0)
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
   })
 })

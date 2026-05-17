@@ -1,29 +1,31 @@
 {
-  "name": "fluxo",
+  "name": "blueprint",
   "version": "0.1.0",
   "description": "Transactional code generator with Hygen-compatible templates",
   "type": "module",
   "bin": {
-    "fluxo": "./src/interfaces/cli/Cli.mjs"
+    "blueprint": "dist/main.mjs"
   },
   "scripts": {
-    "build": "rescript",
-    "clean": "rescript clean",
-    "develop": "rescript build -w",
-    "test": "rescript-test",
-    "fmt": "rescript format"
+    "res:build": "rescript",
+    "res:clean": "rescript clean",
+    "res:dev": "rescript watch",
+    "res:test": "retest ./test/*.res.mjs",
+    "bundle": "rolldown -c"
   },
   "dependencies": {
+    "@rescript/runtime": "^12.2.0",
     "ejs": "^3.1.10",
+    "rescript": "^12.2.0",
     "yaml": "^2.5.0"
   },
   "devDependencies": {
-    "@rescript/core": "^5.0.0",
-    "@rescript/std": "^5.0.0",
-    "rescript": "^12.0.0",
-    "rescript-test": "^0.2.0"
+    "rescript-test": "^8.0.1",
+    "rolldown": "^1.0.1",
+    "rollup-plugin-esbuild": "^6.2.1"
   },
   "engines": {
-    "node": ">=18.0.0"
-  }
+    "node": ">=22.0.0"
+  },
+  "main": "dist/main.mjs"
 }

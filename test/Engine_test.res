@@ -1,5 +1,7 @@
 // Engine_test — full pipeline e2e tests
 
+open TestHelpers
+
 suite("Engine", () => {
   test("generateResult: structure", () => {
     let result = {

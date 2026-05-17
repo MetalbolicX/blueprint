@@ -1,9 +1,11 @@
 // Phase1_test — staging and rendering tests
 
+open TestHelpers
+
 suite("Phase1", () => {
   test("phase1Result: structure", () => {
     let result = {
-      Phases.Phase1.stagingDir: "/tmp/fluxo-abc123",
+      Phase1.stagingDir: "/tmp/fluxo-abc123",
       renderedFiles: [("/src/Hello.tsx.ejs.t", "src/Hello.tsx")],
       shellCommands: [],
     }
@@ -14,7 +16,7 @@ suite("Phase1", () => {
 
   test("phase1Error: structure", () => {
     let err = {
-      Phases.Phase1.stagingDir: "/tmp/fluxo-abc123",
+      Phase1.stagingDir: "/tmp/fluxo-abc123",
       message: "Failed to render",
     }
 
@@ -31,7 +33,7 @@ suite("Phase1", () => {
       (),
     )
 
-    let result = Phases.Phase1.resolveTargetPath(Template.To("src/{{ .Name }}.tsx"), ctx)
+    let result = Phase1.resolveTargetPath(Template.To("src/{{ .Name }}.tsx"), ctx)
     switch result {
     | Some(path) => assert_eq(path, "src/Hello.tsx")
     | None => assert_false(true)

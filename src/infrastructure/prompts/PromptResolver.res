@@ -111,7 +111,7 @@ let resolve: (
 
 // Readline interface lifecycle
 let createReadline: unit => Readline.readlineInterface = () => {
-  Readline.createInterface(~input=(), ~output=(), ())
+  Readline.createInterface(~input=Readline.stdin, ~output=Readline.stdout, ())
 }
 
 let closeReadline: Readline.readlineInterface => unit = rl => {

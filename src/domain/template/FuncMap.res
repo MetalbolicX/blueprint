@@ -26,14 +26,13 @@ let uncapitalize: string => string = s => {
 // Split on underscore, dash, and camelCase boundaries
 let splitIntoWords: string => array<string> = s => {
   // First replace dashes and underscores with spaces
-  let withDashes = Js.String.replaceByRe(/-/, s, " ")
-  let withSpaces = Js.String.replaceByRe(/_/, withDashes, " ")
+  let withDashes = Js.String.replaceByRe(/-/, " ", s)
+  let withSpaces = Js.String.replaceByRe(/_/, " ", withDashes)
   // Split camelCase: aB -> a B, ABC -> A B C
-  let splitCamel = Js.String.replaceByRe(/([a-z])([A-Z])/g, withSpaces, "$1 $2")
+  let splitCamel = Js.String.replaceByRe(/([a-z])([A-Z])/g, "$1 $2", withSpaces)
   // Handle consecutive uppercase before lowercase: ABc -> A B c
-  let splitCaps = Js.String.replaceByRe(/([A-Z]+)([A-Z][a-z])/g, splitCamel, "$1 $2")
-  splitCaps
-  ->Js.String.split(" ")
+  let splitCaps = Js.String.replaceByRe(/([A-Z]+)([A-Z][a-z])/g, "$1 $2", splitCamel)
+  Js.String.split(" ", splitCaps)
   ->Array.filter(word => word !== "")
 }
 
@@ -64,7 +63,7 @@ let upper: string => string = String.toUpperCase
 let lower: string => string = String.toLowerCase
 let trim: string => string = String.trim
 let title: string => string = s => {
-  s->Js.String.split(" ")->Array.map(s => s->capitalize->String.toLowerCase)->Array.join(" ")
+  Js.String.split(" ", s)->Array.map(s => s->capitalize->String.toLowerCase)->Array.join(" ")
 }
 
 // Export helpers object for EJS
