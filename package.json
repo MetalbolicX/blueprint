@@ -7,6 +7,7 @@
     "blueprint": "dist/main.mjs"
   },
   "scripts": {
+    "build": "rescript && rolldown -c",
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript watch",

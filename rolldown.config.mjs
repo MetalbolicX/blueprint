@@ -1,17 +1,21 @@
 "use strict";
 import { defineConfig } from "rolldown";
 import { join } from "node:path";
-import { minify } from "rollup-plugin-esbuild";
 
 const dirname = import.meta.dirname ?? ".";
 
 export default defineConfig({
-  input: join(dirname, "src", "VanRs.res.mjs"),
+  input: join(dirname, "src", "interfaces", "cli", "Main.res.mjs"),
   output: {
     format: "es",
-    file: join(dirname, "dist", "vanrs.mjs"),
+    file: join(dirname, "dist", "main.mjs"),
+    banner: "#!/usr/bin/env node",
   },
-  platform: "browser",
-  plugins: [minify()],
-  external: [/^@rescript\/runtime$/],
+  platform: "node",
+  external: [
+    /^node:/,
+    "ejs",
+    "yaml",
+    /^@rescript\/runtime/,
+  ],
 });
