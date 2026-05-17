@@ -15,3 +15,5 @@ let run: (
   ~renderedFiles: array<(string, string)>,
   ~shellCommands: array<Template.shellCommand>,
 ) => promise<result<phase2Result, phase2Error>>
+
+let rollback: string => promise<unit>

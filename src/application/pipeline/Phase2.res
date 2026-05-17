@@ -57,25 +57,32 @@ let commitFiles: (
   let partialCommit: array<string> = []
   let errorRef: ref<option<string>> = ref(None)
 
-  let ops = renderedFiles->Array.map(async ((_, targetPath)) => {
-    let stagedPath = Path.join(stagingDir, targetPath)
-    let destPath = Path.join(outputDir, targetPath)
-    let destDir = Path.dirname(destPath)
-    try {
-      let _ = await Fs.mkdir(destDir, ~options={recursive: true})
-      await Fs.cp(stagedPath, destPath, ~options={recursive: false})
-      let _ = partialCommit->Array.push(destPath)
-    } catch {
-    | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(m) => m
-      | None => "Copy failed"
+  let _ = await renderedFiles->Array.reduce(
+    Promise.resolve(),
+    async (acc, (_, targetPath)) => {
+      let _ = await acc
+      
+      switch errorRef.contents {
+      | Some(_) => ()
+      | None =>
+        let stagedPath = Path.join(stagingDir, targetPath)
+        let destPath = Path.join(outputDir, targetPath)
+        let destDir = Path.dirname(destPath)
+        try {
+          let _ = await Fs.mkdir(destDir, ~options={recursive: true})
+          await Fs.cp(stagedPath, destPath, ~options={recursive: false})
+          let _ = partialCommit->Array.push(destPath)
+        } catch {
+        | JsExn(obj) =>
+          let msg = switch JsExn.message(obj) {
+          | Some(m) => m
+          | None => "Copy failed"
+          }
+          errorRef.contents = Some("Failed to commit " ++ targetPath ++ ": " ++ msg)
+        }
       }
-      errorRef.contents = Some("Failed to commit " ++ targetPath ++ ": " ++ msg)
-    }
-  })
-
-  let _ = await Promise.all(ops)
+    },
+  )
 
   let partial = switch partialCommit->Array.length {
   | 0 => None
