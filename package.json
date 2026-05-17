@@ -4,7 +4,7 @@
   "description": "Transactional code generator with Hygen-compatible templates",
   "type": "module",
   "bin": {
-    "fluxo": "./src/Cli.mjs"
+    "fluxo": "./src/interfaces/cli/Cli.mjs"
   },
   "scripts": {
     "build": "rescript",
