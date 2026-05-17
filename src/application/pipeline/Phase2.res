@@ -53,9 +53,44 @@ let commitFiles: (
   ~stagingDir: string,
   ~outputDir: string,
   ~renderedFiles: array<(string, string)>,
-) => promise<result<int, phase2Error>> = (~stagingDir, ~outputDir, ~renderedFiles) => {
-  let _ = (stagingDir, outputDir, renderedFiles)
-  Promise.resolve(Ok(0))
+) => promise<result<int, phase2Error>> = async (~stagingDir, ~outputDir, ~renderedFiles) => {
+  let partialCommit: array<string> = []
+  let errorRef: ref<option<string>> = ref(None)
+
+  let ops = renderedFiles->Array.map(async ((_, targetPath)) => {
+    let stagedPath = Path.join(stagingDir, targetPath)
+    let destPath = Path.join(outputDir, targetPath)
+    let destDir = Path.dirname(destPath)
+    try {
+      let _ = await Fs.mkdir(destDir, ~options={recursive: true})
+      await Fs.cp(stagedPath, destPath, ~options={recursive: false})
+      let _ = partialCommit->Array.push(destPath)
+    } catch {
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
+      | Some(m) => m
+      | None => "Copy failed"
+      }
+      errorRef.contents = Some("Failed to commit " ++ targetPath ++ ": " ++ msg)
+    }
+  })
+
+  let _ = await Promise.all(ops)
+
+  let partial = switch partialCommit->Array.length {
+  | 0 => None
+  | _ => Some(partialCommit)
+  }
+
+  switch errorRef.contents {
+  | Some(msg) =>
+    let err: phase2Error = {message: msg}
+    switch partial {
+    | Some(files) => Error({message: msg, partialCommit: files})
+    | None => Error(err)
+    }
+  | None => Ok(Array.length(partialCommit))
+  }
 }
 
 // Rollback: remove staging directory

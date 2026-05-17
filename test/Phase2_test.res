@@ -38,4 +38,20 @@ suite("Phase2", () => {
     | None => assert_true(true)
     }
   })
+
+  testAsync("rollback: removes staging directory", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let _ = NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
+    ->Promise.then(exists => {
+      assert_true(exists)
+      Phase2.rollback(tmpDir)
+    })
+    ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
+    ->Promise.then(existsAfter => {
+      assert_false(existsAfter)
+      resolve()
+      Promise.resolve()
+    })
+  })
 })
