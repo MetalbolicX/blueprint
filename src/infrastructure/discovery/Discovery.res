@@ -20,32 +20,31 @@ let isManifestFile: string => bool = filename => {
 }
 
 // Load and parse a single template file
-let _loadTemplate: string => promise<result<template, string>> = async sourcePath => {
+let _loadTemplate: string => promise<option<template>> = async sourcePath => {
   try {
     let content = await Bindings.Fs.readFile(sourcePath, ~options={encoding: "utf8"})
     let filename = Path.basename(sourcePath)
 
-    // Skip manifest files
     if isManifestFile(filename) {
-      Error("Skipping manifest file")
+      None
     } else {
       switch Frontmatter.parse(content) {
       | Ok(parsed) =>
-        Ok({
+        Some({
           sourcePath,
           directives: parsed.directives,
           body: parsed.body,
         })
-      | Error(e) => Error("Failed to parse frontmatter in " ++ sourcePath ++ ": " ++ e)
+      | Error(_e) => None
       }
     }
   } catch {
   | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
+    let _msg = switch JsExn.message(obj) {
     | Some(m) => "Failed to load template " ++ sourcePath ++ ": " ++ m
     | None => "Failed to load template " ++ sourcePath
     }
-    Error(msg)
+    None
   }
 }
 
@@ -103,10 +102,7 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
           let tmplPromises = templateFiles->Array.map(async fname => {
             if _isTemplateFile(fname) {
               let fpath = Bindings.Path.join(genPath, fname)
-              switch await _loadTemplate(fpath) {
-              | Ok(t) => Some(t)
-              | Error(_) => None
-              }
+              await _loadTemplate(fpath)
             } else {
               None
             }

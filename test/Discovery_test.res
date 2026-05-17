@@ -69,11 +69,9 @@ suite("Discovery", () => {
         Promise.resolve()
       })
     })
-    ->Promise.catch(_ => {
+    ->Promise.catch(exn => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
-        Console.error("Test failed")
-        resolve()
-        Promise.resolve()
+        throw(exn)
       })
     })
   })
@@ -105,11 +103,9 @@ suite("Discovery", () => {
         Promise.resolve()
       })
     })
-    ->Promise.catch(_ => {
+    ->Promise.catch(exn => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
-        Console.error("Test failed")
-        resolve()
-        Promise.resolve()
+        throw(exn)
       })
     })
   })
