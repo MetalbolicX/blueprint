@@ -33,7 +33,7 @@ suite("Phase1", () => {
       (),
     )
 
-    let result = Phase1.resolveTargetPath(Template.To("src/{{ .Name }}.tsx"), ctx)
+    let result = Phase1.resolveTargetPath(Template.To("src/<%= Name %>.tsx"), ctx)
     switch result {
     | Some(path) => assert_eq(path, "src/Hello.tsx")
     | None => assert_false(true)
