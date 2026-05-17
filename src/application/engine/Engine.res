@@ -88,7 +88,7 @@ let run: (
           )
 
           switch phase1Result {
-          | Error(e) => Error(e.Phase1.message)
+          | Error(e) => Error(e.message)
           | Ok(p1) => {
               let phase2Result = await Phase2.run(
                 ~stagingDir=p1.stagingDir,
@@ -98,7 +98,7 @@ let run: (
               )
 
               switch phase2Result {
-              | Error(e) => Error(e.Phase2.message)
+              | Error(e) => Error(e.message)
               | Ok(p2) =>
                 Ok({
                   filesCreated: p2.filesCreated,
