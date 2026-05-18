@@ -1,4 +1,4 @@
-# Tasks: Fluxo ReScript Migration
+# Tasks: Blueprint ReScript Migration
 
 ## Review Workload Forecast
 
@@ -32,7 +32,7 @@ User preference: Small incremental phases, not all at once.
 ## Phase 1: Project Setup
 
 - [x] 1.1 Create `rescript.json` with v12 config (esmodule, in-source, suffix: .mjs)
-- [x] 1.2 Create `package.json` with bin entry `fluxo`, deps: `ejs`, `yaml`, `@rescript/runtime`
+- [x] 1.2 Create `package.json` with bin entry `blueprint`, deps: `ejs`, `yaml`, `@rescript/runtime`
 - [x] 1.3 Create `src/bindings/Ejs.res` — EJS render bindings with options type
 - [x] 1.4 Create `src/bindings/Yaml.res` — yaml npm package bindings
 - [x] 1.5 Create `src/bindings/ParseArgs.res` — node:util parseArgs bindings
@@ -55,7 +55,7 @@ User preference: Small incremental phases, not all at once.
 ## Phase 3: Manifest, Config & Discovery ✅ COMPLETE
 
 - [x] 3.1 Create `src/Manifest.res` — parse and validate manifest.yaml
-- [x] 3.2 Create `src/Config.res` — load and parse .fluxo.yaml hooks config
+- [x] 3.2 Create `src/Config.res` — load and parse .blueprint.yaml hooks config
 - [x] 3.3 Create `src/Discovery.res` — traverse _templates/ directory, find generators
 
 ## Phase 4: Context & Prompt Resolution ✅ COMPLETE

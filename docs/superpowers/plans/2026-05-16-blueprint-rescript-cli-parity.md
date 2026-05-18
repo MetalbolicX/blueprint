@@ -1,8 +1,8 @@
-# Fluxo ReScript CLI — Option B Implementation Plan
+# Blueprint ReScript CLI — Option B Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the Fluxo ReScript CLI fully functional — discovery traverses real directories, pipeline renders and commits files, and `dist/main.mjs` runs as a Node CLI.
+**Goal:** Make the Blueprint ReScript CLI fully functional — discovery traverses real directories, pipeline renders and commits files, and `dist/main.mjs` runs as a Node CLI.
 
 **Architecture:** 6 discrete tasks, each self-contained and commit-able. Starts with fixing the build pipeline, then completes infrastructure stubs (discovery, Phase1, Phase2), wires the engine orchestrator, and finishes with a real CLI entry point plus test coverage.
 
@@ -502,7 +502,7 @@ Append to the existing suite:
       ~generator=gen,
       ~name="Button",
       ~cliAttributes=Dict.make(),
-      ~outputDir="/tmp/fluxo-test-output",
+      ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
     )
 
@@ -716,13 +716,13 @@ Add `module Process = NodeJs.Process` to `Bindings.res`.
 Replace `src/interfaces/cli/Cli.res`:
 
 ```rescript
-// Fluxo CLI — init + generate commands
+// Blueprint CLI — init + generate commands
 
 let printUsage = () => {
-  Console.log("Usage: fluxo <command> [options]")
+  Console.log("Usage: blueprint <command> [options]")
   Console.log("")
   Console.log("Commands:")
-  Console.log("  init                   Scaffold a .fluxo.yaml config file")
+  Console.log("  init                   Scaffold a .blueprint.yaml config file")
   Console.log("  generate <class>       Run template generation")
   Console.log("")
   Console.log("Options (generate):")
@@ -734,16 +734,16 @@ let printUsage = () => {
 
 let runInit: unit => promise<unit> = async () => {
   let cwd = NodeJs.Process.cwd()
-  let configPath = Bindings.Path.join(cwd, ".fluxo.yaml")
+  let configPath = Bindings.Path.join(cwd, ".blueprint.yaml")
 
   let exists = await Bindings.Fs.fileExists(configPath)
   if exists {
-    Console.error("Error: .fluxo.yaml already exists at " ++ configPath)
+    Console.error("Error: .blueprint.yaml already exists at " ++ configPath)
     NodeJs.Process.exit(1)
   } else {
-    let content = "# Fluxo configuration\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s\n"
+    let content = "# Blueprint configuration\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s\n"
     await Bindings.Fs.writeFile(configPath, content)
-    Console.log("Scaffolded .fluxo.yaml at " ++ configPath)
+    Console.log("Scaffolded .blueprint.yaml at " ++ configPath)
   }
 }
 
@@ -777,7 +777,7 @@ let runGenerate: (
         }
       | Ok(r) => {
           Console.log(
-            "Fluxo: generated " ++
+            "Blueprint: generated " ++
             Int.toString(r.filesCreated) ++
             " file(s), " ++
             Int.toString(r.commandsExecuted) ++
@@ -913,7 +913,7 @@ node dist/main.mjs --help
 node dist/main.mjs init
 ```
 
-Expected: usage printed, `.fluxo.yaml` created.
+Expected: usage printed, `.blueprint.yaml` created.
 
 - [ ] **Step 10: Commit**
 

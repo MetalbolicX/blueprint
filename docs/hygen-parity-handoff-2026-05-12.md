@@ -2,10 +2,10 @@
 
 ## Next Session Focus
 
-Use Hygen's README + source code as the functional baseline to decide Fluxo's parity target and implementation order:
+Use Hygen's README + source code as the functional baseline to decide Blueprint's parity target and implementation order:
 - Lock a parity policy (`core parity`, `selective parity`, or `full parity`).
 - Convert high-priority parity gaps into a new SDD change proposal.
-- Keep Fluxo's Go-native architecture (`manifest.yaml`, transactional phases) while defining migration behavior for Hygen users.
+- Keep Blueprint's Go-native architecture (`manifest.yaml`, transactional phases) while defining migration behavior for Hygen users.
 
 ## Context & Summary
 
@@ -16,13 +16,13 @@ After completion, we ran a Hygen reverse-engineering pass because Hygen lacks cu
 - Hygen source (`src/`, `__tests__/`, `package.json`) for operational behavior and edge cases.
 
 Current state:
-- Fluxo has 7 implemented capabilities and passing verification in its current scope.
+- Blueprint has 7 implemented capabilities and passing verification in its current scope.
 - Hygen parity is partial: core frontmatter + discovery + injection + shell/hook concepts are present, but several directives and workflow features are still missing.
 - EJS/JS ecosystem differences are acknowledged; compatibility is possible but should be explicitly scoped (do not assume drop-in parity by default).
 
 ## Detailed Findings (Condensed)
 
-### Already Covered in Fluxo
+### Already Covered in Blueprint
 
 - Manifest parsing and validation.
 - Template discovery + classification index.
@@ -45,14 +45,14 @@ Current state:
 ### Compatibility Positioning
 
 - Hygen templates are `.ejs.t` + JS prompt/config hooks.
-- Fluxo is Go `text/template` + manifest-driven architecture.
+- Blueprint is Go `text/template` + manifest-driven architecture.
 - Recommended stance: compatibility adapter is optional and should be a separate scoped change, not implicit behavior.
 
 ## External Artifacts
 
 - Hygen README raw: https://raw.githubusercontent.com/jondot/hygen/refs/heads/master/README.md
 - Hygen repo: https://github.com/jondot/hygen
-- Previous project handoff: `docs/fluxo-handoff-2026-05-11.md`
+- Previous project handoff: `docs/blueprint-handoff-2026-05-11.md`
 - SDD proposal artifact: Engram `#199` (`sdd/go-template-generator/proposal`)
 - SDD spec artifact: Engram `#200` (`sdd/go-template-generator/spec`)
 - SDD design artifact: Engram `#201` (`sdd/go-template-generator/design`)

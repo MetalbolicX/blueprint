@@ -8,8 +8,8 @@
 ## Install
 
 ```bash
-git clone https://github.com/fluxo/fluxo.git
-cd fluxo
+git clone https://github.com/blueprint/blueprint.git
+cd blueprint
 pnpm install
 pnpm bundle
 ```
@@ -23,13 +23,13 @@ node dist/main.mjs --help
 ## Initialize a project
 
 ```bash
-fluxo init
+blueprint init
 ```
 
-Creates `.fluxo.yaml` in the current directory:
+Creates `.blueprint.yaml` in the current directory:
 
 ```yaml
-# Fluxo configuration
+# Blueprint configuration
 generators: []
 hooks:
   pre_generate: ""
@@ -38,21 +38,21 @@ hooks:
 ```
 
 > [!Tip|style:flat|label:Pro tip]
-> Commit `.fluxo.yaml` to your repo so all contributors use the same hooks and timeout settings.
+> Commit `.blueprint.yaml` to your repo so all contributors use the same hooks and timeout settings.
 
 ## Verify
 
 ```bash
-fluxo --help
+blueprint --help
 ```
 
 Expected output:
 
 ```
-Usage: fluxo <generator> <action> [--name NAME] [--force] [--output DIR]
+Usage: blueprint <generator> <action> [--name NAME] [--force] [--output DIR]
 
 Commands:
-  init           scaffold a .fluxo.yaml config file
+  init           scaffold a .blueprint.yaml config file
   generate       run template generation
 
 Flags:

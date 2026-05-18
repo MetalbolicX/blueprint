@@ -2,20 +2,20 @@
 
 ## CLI
 
-### `fluxo init`
+### `blueprint init`
 
-Scaffolds a default `.fluxo.yaml` in the current directory.
+Scaffolds a default `.blueprint.yaml` in the current directory.
 
 ```bash
-fluxo init
+blueprint init
 ```
 
-### `fluxo generate <classification>`
+### `blueprint generate <classification>`
 
 Runs the generation pipeline for the given classification.
 
 ```bash
-fluxo generate <classification> [flags]
+blueprint generate <classification> [flags]
 ```
 
 #### Flags
@@ -35,7 +35,7 @@ Schema for `manifest.yaml`:
 
 ```yaml
 name: <string>              # Required: generator name
-classification: <string>    # Required: used to match with `fluxo generate <classification>`
+classification: <string>    # Required: used to match with `blueprint generate <classification>`
 metadata:                   # Optional: arbitrary key-value pairs
   key: value
 prompts:                    # Optional: declarative prompts
@@ -112,7 +112,7 @@ Available in every template by default.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `{{ .cwd }}` | string | Working directory where fluxo was invoked |
+| `{{ .cwd }}` | string | Working directory where blueprint was invoked |
 | `{{ .actionfolder }}` | string | Absolute path to the generator's manifest directory |
 | `{{ .name }}` | string | Component name (lowercased, from `--name` or prompt) |
 | `{{ .Name }}` | string | PascalCased component name |
@@ -142,7 +142,7 @@ Template helper functions registered in Go `text/template`.
 
 ---
 
-## `.fluxo.yaml`
+## `.blueprint.yaml`
 
 ```yaml
 generators:

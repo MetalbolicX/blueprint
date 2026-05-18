@@ -1,4 +1,4 @@
-# Fluxo ReScript Migration — Technical Design
+# Blueprint ReScript Migration — Technical Design
 
 **Date**: 2026-05-14
 **Status**: Draft
@@ -8,9 +8,9 @@
 
 ## 1. Overview
 
-**What**: Migrate Fluxo from Go back to the JavaScript ecosystem, rewritten in ReScript v12.
+**What**: Migrate Blueprint from Go back to the JavaScript ecosystem, rewritten in ReScript v12.
 
-**Why**: Return Fluxo to the JS ecosystem for better integration with the JS tooling landscape (npm, Node.js), while maintaining its core differentiator — transactional, atomic code generation — with the safety of ReScript's type system.
+**Why**: Return Blueprint to the JS ecosystem for better integration with the JS tooling landscape (npm, Node.js), while maintaining its core differentiator — transactional, atomic code generation — with the safety of ReScript's type system.
 
 **Scope**: Full feature parity with the Go version, targeting npm distribution as a standalone CLI tool.
 
@@ -23,9 +23,9 @@
 | Template syntax | EJS (`<%= name %>`) | Hygen-compatible, familiar to JS developers |
 | Directory structure | Hygen's `_templates/<gen>/<action>/` | Familiar to Hygen users |
 | Transactional safety | Keep 3-phase pipeline | Core differentiator, proven in Go version |
-| Prompt system | Keep Fluxo's YAML manifest (`manifest.yaml`) | Declarative, type-safe, no runtime deps |
+| Prompt system | Keep Blueprint's YAML manifest (`manifest.yaml`) | Declarative, type-safe, no runtime deps |
 | Distribution | npm package | Natural for JS ecosystem |
-| Config file | Keep `.fluxo.yaml` | Works with YAML manifest system |
+| Config file | Keep `.blueprint.yaml` | Works with YAML manifest system |
 | Go codebase | Gradual migration (coexist) | Safer, allows comparison/rollback |
 | Scope | Full feature parity | No half-measures |
 | Testing | ReScript native tests | Idiomatic, type-safe |
@@ -38,14 +38,14 @@
 ## 3. Project Structure
 
 ```
-fluxo/
+blueprint/
 ├── rescript.json                 # ReScript v12 build config
 ├── package.json                  # npm package metadata, bin entry
 ├── src/
 │   ├── Cli.res                   # CLI entry point
 │   ├── Engine.res                # Pipeline orchestrator
 │   ├── Manifest.res              # YAML manifest parsing & validation
-│   ├── Config.res                # .fluxo.yaml parsing (hooks, settings)
+│   ├── Config.res                # .blueprint.yaml parsing (hooks, settings)
 │   ├── Discovery.res             # _templates/ directory traversal
 │   ├── Context.res               # Template context: name variants, attributes
 │   ├── PromptResolver.res        # Interactive prompt resolution
@@ -219,7 +219,7 @@ Phase 0: Resolve
   └── Detect file conflicts in output dir
        ↓ (fail fast if abort)
 Phase 1: Stage
-  ├── Create temp staging dir (os.tmpdir()/fluxo-<random>)
+  ├── Create temp staging dir (os.tmpdir()/blueprint-<random>)
   ├── For each template:
   │   ├── Parse frontmatter (YAML between --- delimiters)
   │   ├── Render EJS body with merged context
@@ -315,7 +315,7 @@ let validate: manifest => result<unit, string>
 
 ### 7.2 Config Loading
 
-Looks for `.fluxo.yaml` in current working directory.
+Looks for `.blueprint.yaml` in current working directory.
 
 ```rescript
 let load: unit => promise<result<option<config>, string>>
@@ -343,8 +343,8 @@ let discover: (~searchPaths: array<string>=?, unit) => result<array<generator>, 
 ### 8.1 Commands
 
 ```
-fluxo init                          # scaffold .fluxo.yaml
-fluxo generate <classification>     # run pipeline
+blueprint init                          # scaffold .blueprint.yaml
+blueprint generate <classification>     # run pipeline
   --name <name>                     # component name
   --force                           # skip prompts, overwrite
   --output <dir>                    # output directory (default: "generated")
@@ -384,7 +384,7 @@ external parseArgs: parseArgsConfig => parsedArgs = "parseArgs"
 Cli.res
   ├── parse CLI args via parseArgs
   ├── dispatch: init | generate
-  │   ├── init → write default .fluxo.yaml
+  │   ├── init → write default .blueprint.yaml
   │   └── generate →
   │       ├── Config.load() → get hooks, output dir
   │       ├── Discovery.discover() → find generator
@@ -498,7 +498,7 @@ ReScript native tests (`rescript-test`).
 
 ### Phase 7: Publish
 - Update docs for ReScript version
-- Publish to npm as `fluxo`
+- Publish to npm as `blueprint`
 - Deprecation notice on Go version when ready
 
 ---
@@ -510,7 +510,7 @@ ReScript native tests (`rescript-test`).
 | Template syntax | Go `text/template` `{{ }}` | EJS `<%= %>` |
 | Directory structure | `templates/<classification>/` | `_templates/<gen>/<action>/` |
 | Manifest | `manifest.yaml` (same) | `manifest.yaml` (same) |
-| Config | `.fluxo.yaml` (same) | `.fluxo.yaml` (same) |
+| Config | `.blueprint.yaml` (same) | `.blueprint.yaml` (same) |
 | CLI parsing | Go `flag` | `node:util` `parseArgs` |
 | Prompts | Go stdin readline | `node:readline` |
 | YAML parsing | `gopkg.in/yaml.v3` | `yaml` npm package |

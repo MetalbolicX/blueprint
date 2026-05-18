@@ -1,10 +1,10 @@
-// Fluxo CLI — init + generate commands
+// Blueprint CLI — init + generate commands
 
 let printUsage = () => {
-  Console.log("Usage: fluxo <command> [options]")
+  Console.log("Usage: blueprint <command> [options]")
   Console.log("")
   Console.log("Commands:")
-  Console.log("  init                   Scaffold a .fluxo.yaml config file")
+  Console.log("  init                   Scaffold a .blueprint.yaml config file")
   Console.log("  generate <class>       Run template generation")
   Console.log("")
   Console.log("Options (generate):")
@@ -16,16 +16,16 @@ let printUsage = () => {
 
 let runInit: unit => promise<unit> = async () => {
   let cwd = NodeJs.NodeProcess.cwd()
-  let configPath = Bindings.Path.join(cwd, ".fluxo.yaml")
+  let configPath = Bindings.Path.join(cwd, ".blueprint.yaml")
 
   let exists = await Bindings.Fs.fileExists(configPath)
   if exists {
-    Console.error("Error: .fluxo.yaml already exists at " ++ configPath)
+    Console.error("Error: .blueprint.yaml already exists at " ++ configPath)
     NodeJs.NodeProcess.exit(1)
   } else {
-    let content = "# Fluxo configuration\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s\n"
+    let content = "# Blueprint configuration\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s\n"
     await Bindings.Fs.writeFile(configPath, content)
-    Console.log("Scaffolded .fluxo.yaml at " ++ configPath)
+    Console.log("Scaffolded .blueprint.yaml at " ++ configPath)
   }
 }
 
@@ -59,7 +59,7 @@ let runGenerate: (
         }
       | Ok(r) => {
           Console.log(
-            "Fluxo: generated " ++
+            "Blueprint: generated " ++
             Int.toString(r.filesCreated) +
             " file(s), " ++
             Int.toString(r.commandsExecuted) +

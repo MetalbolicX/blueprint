@@ -4,8 +4,8 @@
   "windows": [
     {
       "id": 1,
-      "label": "fluxo",
-      "root": "/home/metalbolicx/Documents/fluxo",
+"label": "blueprint",
+"root": "/home/metalbolicx/Documents/blueprint",
       "plugin_state": {}
     }
   ]

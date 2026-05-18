@@ -7,8 +7,8 @@ LLM-optimized reference. No prose. Public symbols and usage only.
 ## CLI
 
 ```
-fluxo init                                         → scaffold .fluxo.yaml
-fluxo generate <classification> [--name X] [--force] [--output DIR]
+blueprint init                                         → scaffold .blueprint.yaml
+blueprint generate <classification> [--name X] [--force] [--output DIR]
 ```
 
 ## manifest.yaml
@@ -83,7 +83,7 @@ hooks.ExecuteHooks(config, phase) -> error
 conflicts.Resolver{BulkResolve(conflicts)} -> (map[string]bool, error)
 ```
 
-## .fluxo.yaml
+## .blueprint.yaml
 
 ```yaml
 generators: [{name, classification, template_root, output_root}]

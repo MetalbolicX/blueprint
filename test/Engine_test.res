@@ -40,7 +40,7 @@ suite("Engine", () => {
       ~generator=gen,
       ~name="Button",
       ~cliAttributes=Dict.make(),
-      ~outputDir="/tmp/fluxo-test-output",
+      ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
     )
     ->Promise.then(result => {

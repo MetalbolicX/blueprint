@@ -146,7 +146,7 @@ module Os = {
 
   let makeStagingDir: unit => string = () => {
     let randomPart = Math.random()->Float.toString->String.slice(~start=2)
-    Path.join(tmpdir(), "fluxo-" ++ randomPart)
+    Path.join(tmpdir(), "blueprint-" ++ randomPart)
   }
 }
 

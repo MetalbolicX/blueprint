@@ -1,4 +1,4 @@
-# Fluxo
+# Blueprint
 
 A fast, transactional template generator — a modern replacement for Hygen.
 
@@ -16,7 +16,7 @@ npm install -g blueprint
 
 ## Quick start
 
-1. **Init** — `blueprint init` scaffolds `.fluxo.yaml`
+1. **Init** — `blueprint init` scaffolds `.blueprint.yaml`
 2. **Author** — create a manifest + template files:
 
 ```bash
@@ -67,7 +67,7 @@ export const <%= name %>: React.FC<<%= name %>Props> = ({ children }) => {
 # Show help
 blueprint --help
 
-# Scaffold .fluxo.yaml
+# Scaffold .blueprint.yaml
 blueprint init
 
 # Generate from a template classification
@@ -263,7 +263,7 @@ Available as `h.*` in templates:
 
 ## Hooks
 
-Lifecycle hooks in `.fluxo.yaml`:
+Lifecycle hooks in `.blueprint.yaml`:
 
 ```yaml
 hooks:

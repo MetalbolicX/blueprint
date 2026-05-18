@@ -1,4 +1,4 @@
-# Fluxo Examples
+# Blueprint Examples
 
 This directory contains example templates you can copy and customize for your own projects.
 
@@ -16,7 +16,7 @@ This directory contains example templates you can copy and customize for your ow
 
 3. Or use the example config (optional):
    ```bash
-   cp examples/.fluxo.yaml .fluxo.yaml
+   cp examples/.blueprint.yaml .blueprint.yaml
    ```
 
 ## Available examples

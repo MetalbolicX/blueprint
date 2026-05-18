@@ -1,4 +1,4 @@
-# Fluxo configuration
+# Blueprint configuration
 generators: []
 hooks:
   pre_generate: ""

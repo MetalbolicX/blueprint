@@ -84,7 +84,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Start["fluxo generate <classification>"] --> ParseArgs[Parse CLI flags]
+    Start["blueprint generate <classification>"] --> ParseArgs[Parse CLI flags]
     ParseArgs --> LoadManifest[Load & parse manifest.yaml]
     LoadManifest --> Discover[Discover templates in files/]
     Discover --> BuildContext[Build context map]

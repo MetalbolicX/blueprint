@@ -1,4 +1,4 @@
-// Config parsing — load and parse .fluxo.yaml hooks config
+// Config parsing — load and parse .blueprint.yaml hooks config
 // Mirrors Go version's Config struct
 
 type hooksConfig = {
@@ -86,9 +86,9 @@ let parse: string => result<config, string> = yamlContent => {
   }
 }
 
-// Load .fluxo.yaml from a given directory
+// Load .blueprint.yaml from a given directory
 let loadFrom: string => promise<result<option<config>, string>> = async dir => {
-  let configPath = Bindings.Path.join(dir, ".fluxo.yaml")
+  let configPath = Bindings.Path.join(dir, ".blueprint.yaml")
 
   let exists = await Bindings.Fs.fileExists(configPath)
   if !exists {

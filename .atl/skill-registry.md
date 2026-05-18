@@ -1,10 +1,10 @@
-# Skill Registry — fluxo
+# Skill Registry — blueprint
 
 ## Project Context
 
-- **Project**: fluxo
+- **Project**: blueprint
 - **Type**: ReScript template/code generator (hygen-inspired)
-- **Location**: /home/metalbolicx/Documents/fluxo
+- **Location**: /home/metalbolicx/Documents/blueprint
 - **Artifact Store**: engram
 
 ## Detected Stack
@@ -62,4 +62,4 @@
 
 ## Notes
 
-- Package.json "name": "blueprint" but repo is "fluxo" — naming inconsistency
+- Package.json "name": "blueprint" — naming is now consistent

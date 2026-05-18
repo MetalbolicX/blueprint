@@ -1,7 +1,7 @@
 # Tutorials
 
 > [!Note|style:flat|label=Language-agnostic]
-> These tutorials show Go, TypeScript, and Python — but Fluxo outputs plain text. The same mechanism works for Rust, SQL, YAML, Terraform, or any text format.
+> These tutorials show Go, TypeScript, and Python — but Blueprint outputs plain text. The same mechanism works for Rust, SQL, YAML, Terraform, or any text format.
 
 ## Generate Go model files
 
@@ -73,7 +73,7 @@ func New{{ .Name }}Repository() *{{ .Name }}Repository {
 ### 4. Generate
 
 ```bash
-fluxo generate model --name User
+blueprint generate model --name User
 ```
 
 Output:
@@ -146,7 +146,7 @@ export { {{ .Name | pascalCase }} } from './{{ .Name | pascalCase }}';
 ### 4. Generate
 
 ```bash
-fluxo generate react-component --name UserCard
+blueprint generate react-component --name UserCard
 ```
 
 Output:
@@ -230,7 +230,7 @@ class {{ .Name | pascalCase }}Response(BaseModel):
 ### 4. Generate
 
 ```bash
-fluxo generate fastapi-route --name user
+blueprint generate fastapi-route --name user
 ```
 
 Output:
@@ -256,7 +256,7 @@ after: func RegisterRoutes\(
     router.Handle("{{ .name | kebabCase }}", handler)
 ```
 
-Running `fluxo generate model --name Product` finds the line `func RegisterRoutes(` in the existing file and inserts the route registration after it.
+Running `blueprint generate model --name Product` finds the line `func RegisterRoutes(` in the existing file and inserts the route registration after it.
 
 > [!Warning|style:flat|label:Regex caution]
 > The `after` and `before` patterns are compiled as Go regexp. Always escape special characters (`\.`, `\(`, `\)`, etc.).
@@ -301,10 +301,10 @@ sh: python3 scripts/validate.py
 
 ## Handling conflicts
 
-When generated files overlap with existing files, Fluxo asks what to do:
+When generated files overlap with existing files, Blueprint asks what to do:
 
 ```
-[fluxo] File conflicts detected:
+[blueprint] File conflicts detected:
   - src/models/user.go (source: user.go)
 
 Options: [y]es to all, [n]o to all, [s]elect individually, [a]bort
