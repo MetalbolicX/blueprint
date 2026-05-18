@@ -4,69 +4,51 @@
 
 ```mermaid
 sequenceDiagram
-    participant CLI as cmd/fluxo
+    participant CLI as dist/main.mjs
     participant Engine as engine
     participant Phase0 as phase0
     participant Phase1 as phase1
     participant Phase2 as phase2
     participant FS as Filesystem
 
-    CLI->>Engine: Execute(ctx, manifestPath, outputRoot, context)
-    Engine->>Engine: Read & parse manifest.yaml
-    Engine->>Engine: Discover templates (files/*.ejs.t)
-    Engine->>Engine: Build Context (cwd, name variants, attributes)
+    CLI->>Engine: run(generator, name, cliAttributes, outputDir, force)
+    Engine->>Engine: Read & parse manifest.yaml (via generator.manifest)
+    Engine->>Engine: Discover templates (_templates/<gen>/<action>/*.ejs.t)
+    Engine->>Engine: Build Context (cwd, name variants, attributes, cliAttributes)
 
-    Engine->>Phase0: Execute(index, promptValues, force)
-    Phase0->>Phase0: Resolve prompts (interactive or defaults)
-    Phase0-->>Engine: Resolved values
+    Engine->>Phase0: run(rl, generator, context, outputDir, force)
+    Phase0->>Phase0: Resolve prompts (interactive or force defaults)
+    Phase0-->>Engine: resolvedAttributes + conflicts
 
-    Engine->>Phase1: Execute(resolvedValues, index, outputRoot)
-    Phase1->>Phase1: Create staging dir (os.TempDir)
-    Phase1->>Phase1: Render templates via text/template
-    Phase1->>Phase1: Apply injections to existing files
-    Phase1->>Phase1: Execute shell commands (sh:)
-    Phase1-->>Engine: Staged files + injection log
+    Engine->>Phase1: run(templates, mergedContext, outputDir, conflictDecisions)
+    Phase1->>Phase1: Create staging dir (Os.makeStagingDir)
+    Phase1->>Phase1: Render templates via EJS
+    Phase1-->>Engine: Staged files + shell commands
 
-    Engine->>Phase2: Execute(stagedFiles, outputRoot)
-    Phase2->>FS: Write files to output root
+    Engine->>Phase2: run(stagingDir, outputDir, renderedFiles)
+    Phase2->>FS: Copy files from staging to output
     Phase2->>FS: Clean up staging dir
     Phase2-->>Engine: Committed files
 
-    Engine->>Engine: Run post_generate hooks
-    Engine-->>CLI: Result
+    Engine-->>CLI: Result(filesCreated, commandsExecuted)
 ```
 
 ## Package structure
 
 ```
-cmd/
-└── fluxo/
-    └── main.go              CLI entry point
-
-internal/
-├── engine/
-│   └── engine.go            Pipeline orchestrator, Context struct
-├── manifest/
-│   └── manifest.go          manifest.yaml parsing & validation
-├── discovery/
-│   └── discovery.go         FS traversal, template index
-├── phases/
-│   ├── phase0/
-│   │   ├── phase0.go        Prompt routing & conflict detection
-│   │   └── prompt_resolver.go  Interactive prompt resolution
-│   ├── phase1/
-│   │   ├── phase1.go        Staging, rendering, injection dispatch
-│   │   └── shell.go         Shell command execution
-│   └── phase2/
-│       └── phase2.go        Atomic commit & rollback
-├── templates/
-│   ├── template.go          Template struct & Directives
-│   ├── frontmatter.go       Frontmatter parsing, ApplyInjection
-│   └── funcmaps.go          Go template FuncMaps
-├── hooks/
-│   └── hooks.go             Pre/post generate hook execution
-└── conflicts/
-    └── conflicts.go         Bulk conflict resolution
+src/
+├── interfaces/cli/          CLI entry point (Cli.res, Main.res)
+├── application/
+│   ├── engine/              Pipeline orchestrator (Engine.res)
+│   └── pipeline/            Phase0/1/2 (Phase0.res, Phase1.res, Phase2.res)
+├── infrastructure/
+│   ├── discovery/           FS traversal, template index (Discovery.res)
+│   ├── rendering/           EJS template rendering (Renderer.res)
+│   ├── prompts/             Interactive prompt resolution (PromptResolver.res)
+│   └── bindings/            Node.js/third-party FFI (NodeJs.res, Bindings.res)
+├── domain/
+│   └── context/             Context building, name variants, merge (Context.res)
+└── main/                    Main module wrapper
 ```
 
 ## Three-phase execution

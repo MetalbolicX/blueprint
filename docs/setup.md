@@ -2,31 +2,23 @@
 
 ## Requirements
 
-- Go 1.22+
+- Node.js 18+
+- pnpm
 
-<!-- tabs:start -->
-
-#### **From source**
+## Install
 
 ```bash
 git clone https://github.com/fluxo/fluxo.git
 cd fluxo
-go build -o bin/fluxo ./cmd/fluxo
+pnpm install
+pnpm bundle
 ```
 
-Add `bin/` to your `$PATH`, or move the binary:
+The bundled CLI is at `dist/main.mjs`. Run it directly or link it:
 
 ```bash
-mv bin/fluxo /usr/local/bin/
+node dist/main.mjs --help
 ```
-
-#### **Go install**
-
-```bash
-go install github.com/fluxo/fluxo/cmd/fluxo@latest
-```
-
-<!-- tabs:end -->
 
 ## Initialize a project
 
