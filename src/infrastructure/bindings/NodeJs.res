@@ -279,6 +279,7 @@ module Util = {
   type cliOptions = {
     help?: bool,
     version?: bool,
+    name?: string,
     input?: string,
     output?: string,
     format?: string,
@@ -316,6 +317,7 @@ module Util = {
 
   let getString: (cliOptions, string) => option<string> = (values, key) => {
     switch key {
+    | "name" => values.name
     | "input" => values.input
     | "output" => values.output
     | "format" => values.format

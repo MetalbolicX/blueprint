@@ -114,7 +114,7 @@ let main: unit => promise<unit> = async () => {
           allowPositionals: true,
         })
 
-        let name = switch parsed.values.input {
+        let name = switch parsed.values.name {
         | Some(n) => n
         | None => classification
         }
@@ -130,6 +130,34 @@ let main: unit => promise<unit> = async () => {
 
         let cliAttributes = Dict.make()
         Dict.set(cliAttributes, "name", name)
+
+        // Scan remaining args for arbitrary --key value pairs
+        let flagArgs = Array.slice(args, ~start=2)
+        let len = Array.length(flagArgs)
+        let i = ref(0)
+        while i.contents < len {
+          let arg = Array.getUnsafe(flagArgs, i.contents)
+          if String.startsWith(arg, "--") {
+            let eqIdx = String.indexOf(arg, "=")
+            let key = if eqIdx >= 0 {
+              String.slice(arg, ~start=2, ~end=eqIdx)
+            } else {
+              String.slice(arg, ~start=2)
+            }
+            if key != "name" && key != "force" && key != "output" {
+              let value = if eqIdx >= 0 {
+                String.slice(arg, ~start=eqIdx + 1)
+              } else if i.contents + 1 < len && !String.startsWith(Array.getUnsafe(flagArgs, i.contents + 1), "-") {
+                i := i.contents + 1
+                Array.getUnsafe(flagArgs, i.contents)
+              } else {
+                "true"
+              }
+              Dict.set(cliAttributes, key, value)
+            }
+          }
+          i := i.contents + 1
+        }
 
         await runGenerate(
           ~classification,

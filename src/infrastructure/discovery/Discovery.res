@@ -87,29 +87,49 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
 
         switch stat {
         | Some(s) if s.isDirectory() => {
-          let templateFiles = try {
+          // Hygen convention: _templates/<generator>/<action>/<template>.ejs.t
+          let actionEntries = try {
             await Bindings.Fs.readdir(genPath, ~options={withFileTypes: false})
           } catch {
-          | JsExn(obj) =>
-            // Silent — errors on non-template files are expected
-            let _msg = switch JsExn.message(obj) {
-            | Some(m) => m
-            | None => "unknown"
-            }
-            []
+          | JsExn(_) => []
           }
 
-          let tmplPromises = templateFiles->Array.map(async fname => {
-            if _isTemplateFile(fname) {
-              let fpath = Bindings.Path.join(genPath, fname)
-              await _loadTemplate(fpath)
-            } else {
-              None
+          let actionTmplPromises = actionEntries->Array.map(async actionName => {
+            let actionPath = Bindings.Path.join(genPath, actionName)
+            let actionStat = try {
+              Some(await Bindings.Fs.stat(actionPath))
+            } catch {
+            | _ => None
+            }
+
+            switch actionStat {
+            | Some(dirStat) if dirStat.isDirectory() => {
+              let files = try {
+                await Bindings.Fs.readdir(actionPath, ~options={withFileTypes: false})
+              } catch {
+              | JsExn(_) => []
+              }
+
+              let filePromises = files->Array.map(fname => {
+                if _isTemplateFile(fname) {
+                  let fpath = Bindings.Path.join(actionPath, fname)
+                  _loadTemplate(fpath)
+                } else {
+                  Promise.resolve(None)
+                }
+              })
+
+              let loaded = await Promise.all(filePromises)
+              loaded->Array.filterMap(x => x)
+            }
+            | _ => []
             }
           })
 
-          let loaded = await Promise.all(tmplPromises)
-          let templates = loaded->Array.filterMap(x => x)
+          let allActionTemplates = await Promise.all(actionTmplPromises)
+          let templates = allActionTemplates->Array.reduce([], (acc, t) =>
+            acc->Array.concat(t)
+          )
           let manifest = await _loadManifest(genPath)
 
           Some({

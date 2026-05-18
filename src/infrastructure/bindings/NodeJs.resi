@@ -170,6 +170,7 @@ module Util: {
   type cliOptions = {
     help?: bool,
     version?: bool,
+    name?: string,
     input?: string,
     output?: string,
     format?: string,
