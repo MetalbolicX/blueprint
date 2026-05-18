@@ -87,4 +87,32 @@ suite("Frontmatter", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  test("isFileReference: detects dot-slash path", () => {
+    assert_true(Frontmatter.isFileReference("./scripts/post.sh"))
+  })
+
+  test("isFileReference: detects parent-relative path", () => {
+    assert_true(Frontmatter.isFileReference("../shared/validate.py"))
+  })
+
+  test("isFileReference: detects extension-only filename", () => {
+    assert_true(Frontmatter.isFileReference("script.py"))
+  })
+
+  test("isFileReference: treats inline npm command as non-file", () => {
+    assert_false(Frontmatter.isFileReference("npm run format"))
+  })
+
+  test("isFileReference: treats multi-word echo command as non-file", () => {
+    assert_false(Frontmatter.isFileReference("echo hello world"))
+  })
+
+  test("isFileReference: detects extension with relative dir", () => {
+    assert_true(Frontmatter.isFileReference("scripts/setup.go"))
+  })
+
+  test("isFileReference: no extension single token is non-file", () => {
+    assert_false(Frontmatter.isFileReference("make"))
+  })
 })

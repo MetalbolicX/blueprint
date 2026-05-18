@@ -54,4 +54,128 @@ suite("Phase2", () => {
       Promise.resolve()
     })
   })
+
+  testAsync("executeShellCommands: runs script file target", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let scriptPath = NodeJs.Path.join(tmpDir, "post.sh")
+    let markerPath = NodeJs.Path.join(tmpDir, "script-ran.txt")
+
+    let scriptBody = "#!/bin/bash\necho ok > \"" ++ markerPath ++ "\"\n"
+
+    NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(scriptPath, scriptBody))
+    ->Promise.then(_ => {
+      NodeJs.ChildProcess.execShellCommand(~command="chmod +x post.sh", ~cwd=tmpDir)
+    })
+    ->Promise.then(_ => {
+      let commands = [
+        {
+          Template.target: Template.ScriptFile(scriptPath),
+          sourcePath: "template.ejs.t",
+        },
+      ]
+      Phase2.executeShellCommands(~commands, ~cwd=tmpDir)
+    })
+    ->Promise.then(result => {
+      switch result {
+      | Ok(count) => {
+          assert_eq(count, 1)
+          resolve()
+          Promise.resolve()
+        }
+      | Error(_) => {
+          assert_false(true)
+          resolve()
+          Promise.resolve()
+        }
+      }
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: missing script returns clear error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let missingPath = NodeJs.Path.join(tmpDir, "missing.sh")
+    let commands = [
+      {
+        Template.target: Template.ScriptFile(missingPath),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    NodeJs.Fs.fileExists(missingPath)
+    ->Promise.then(exists => {
+      assert_false(exists)
+      Phase2.executeShellCommands(~commands, ~cwd=tmpDir)
+    })
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Script file not found"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: non-executable script returns clear error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let scriptPath = NodeJs.Path.join(tmpDir, "not-exec.sh")
+    let scriptBody = "#!/bin/bash\necho should-not-run\n"
+    let commands = [
+      {
+        Template.target: Template.ScriptFile(scriptPath),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(scriptPath, scriptBody))
+    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "not executable"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: inline command uses shell interpreter", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let markerPath = NodeJs.Path.join(tmpDir, "inline-shell.txt")
+    let command = "printf shell-ok > \"" ++ markerPath ++ "\""
+    let commands = [
+      {
+        Template.target: Template.InlineCommand(command),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir))
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => {
+          assert_false(true)
+          Promise.resolve()
+        }
+      | Ok(count) => {
+          assert_eq(count, 1)
+          NodeJs.Fs.fileExists(markerPath)->Promise.then(exists => {
+            assert_true(exists)
+            Promise.resolve()
+          })
+        }
+      }
+    })
+    ->Promise.then(_ => {
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

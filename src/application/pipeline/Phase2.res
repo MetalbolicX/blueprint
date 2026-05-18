@@ -26,8 +26,9 @@ let executeShellCommands: (
       switch r {
       | Error(e) => Promise.resolve(Error(e))
       | Ok(_) =>
-        ChildProcess.execShellCommand(~command=cmd.command, ~cwd)->Promise.then(
-          result => {
+        switch cmd.target {
+        | InlineCommand(command) =>
+          ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
             switch result {
             | Ok(_) => {
                 count.contents = count.contents + 1
@@ -35,8 +36,24 @@ let executeShellCommands: (
               }
             | Error(e) => Promise.resolve(Error("Shell command failed: " ++ e))
             }
-          },
-        )
+          })
+        | ScriptFile(path) =>
+          Fs.fileExists(path)->Promise.then(exists => {
+            if !exists {
+              Promise.resolve(Error("Script file not found: " ++ path))
+            } else {
+              (async () => {
+                try {
+                  let _ = ChildProcess.execFileSync(path, ~options={cwd, encoding: "utf8"})
+                  count.contents = count.contents + 1
+                  Ok()
+                } catch {
+                | _ => Error("Script file not executable: " ++ path)
+                }
+              })()
+            }
+          })
+        }
       }
     })
   })

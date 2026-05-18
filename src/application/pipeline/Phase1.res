@@ -77,7 +77,14 @@ let _renderTemplate: (
 
       let shellCmds = template.directives->Array.filterMap(d => {
         switch d {
-        | Sh(cmd) => Some({command: cmd, sourcePath: template.sourcePath})
+        | Sh(rawString) =>
+          if Frontmatter.isFileReference(rawString) {
+            let templateDir = Path.dirname(template.sourcePath)
+            let resolvedPath = Path.resolve(templateDir, rawString)
+            Some({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
+          } else {
+            Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
+          }
         | _ => None
         }
       })

@@ -69,4 +69,54 @@ suite("Phase1", () => {
     | None => assert_false(true)
     }
   })
+
+  testAsync("run: resolves ScriptFile path relative to template directory", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let expectedScriptPath = NodeJs.Path.join(templateDir, "scripts/post.sh")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.Sh("./scripts/post.sh"),
+      ],
+      body: "export default '<%= Name %>'",
+    }
+
+    NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.shellCommands), 1)
+          switch phase1.shellCommands[0] {
+          | Some(shellCommand) =>
+            switch shellCommand.target {
+            | Template.ScriptFile(path) => assert_eq(path, expectedScriptPath)
+            | Template.InlineCommand(_) => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+          Phase2.rollback(phase1.stagingDir)->ignore
+        }
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

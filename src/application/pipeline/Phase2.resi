@@ -9,6 +9,11 @@ type phase2Error = {
   partialCommit?: array<string>,
 }
 
+let executeShellCommands: (
+  ~commands: array<Template.shellCommand>,
+  ~cwd: string,
+) => promise<result<int, string>>
+
 let run: (
   ~stagingDir: string,
   ~outputDir: string,

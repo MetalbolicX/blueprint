@@ -44,12 +44,24 @@ let runGenerate: (
       NodeJs.NodeProcess.exit(1)
     }
   | Some(generator) => {
+      let cwd = NodeJs.NodeProcess.cwd()
+      let configResult = await Config.loadFrom(cwd)
+      let config = switch configResult {
+      | Ok(c) => c
+      | Error(e) => {
+          Console.error("Error loading .blueprint.yaml: " ++ e)
+          NodeJs.NodeProcess.exit(1)
+          None
+        }
+      }
+
       let result = await Engine.run(
         ~generator,
         ~name,
         ~cliAttributes,
         ~outputDir,
         ~force,
+        ~config?,
       )
 
       switch result {

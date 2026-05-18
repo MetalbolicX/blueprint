@@ -212,10 +212,7 @@ module ChildProcess = {
         encoding: "utf8",
       }
       let result = await exec(command, ~options)
-      switch result.status {
-      | Some(0) => Ok(result.stdout)
-      | _ => Error(result.stderr)
-      }
+      Ok(result.stdout)
     } catch {
     | JsExn(obj) =>
       let message = switch JsExn.message(obj) {

@@ -31,7 +31,8 @@ let executeHook: (
   ~command: string,
   ~cwd: string,
   ~timeout: int,
-) => promise<result<hookResult, string>> = async (~command, ~cwd, ~timeout) => {
+  ~hookType: hookType,
+) => promise<result<hookResult, string>> = async (~command, ~cwd, ~timeout, ~hookType) => {
   let (interpreter, args) = parseCommand(command)
 
   try {
@@ -53,7 +54,7 @@ let executeHook: (
     }
 
     if exitCode == 0 {
-      Ok({hookType: PreGenerate, output: result.stdout, exitCode})
+      Ok({hookType, output: result.stdout, exitCode})
     } else {
       Error("Hook exited with code " ++ Int.toString(exitCode) ++ ": " ++ result.stderr)
     }
@@ -67,10 +68,10 @@ let executeHook: (
   }
 }
 
-// Execute pre_generate and post_generate hooks
-let run: (~config: Config.config, ~cwd: string) => promise<result<unit, string>> = async (
+let run: (~config: Config.config, ~cwd: string, ~hookType: hookType) => promise<result<unit, string>> = async (
   ~config,
   ~cwd,
+  ~hookType,
 ) => {
   let timeout = switch config.hooks {
   | Some(h) =>
@@ -81,42 +82,27 @@ let run: (~config: Config.config, ~cwd: string) => promise<result<unit, string>>
   | None => 5000
   }
 
-  // Run pre_generate hook
-  let preResult: result<unit, string> = switch config.hooks {
+  let command = switch config.hooks {
   | Some(h) =>
-    switch h.preGenerate {
-    | Some(cmd) => {
-        let result = await executeHook(~command=cmd, ~cwd, ~timeout)
-        switch result {
-        | Ok(_) => Ok()
-        | Error(e) => Error("pre_generate hook failed: " ++ e)
-        }
-      }
-    | None => Ok()
+    switch hookType {
+    | PreGenerate => h.preGenerate
+    | PostGenerate => h.postGenerate
     }
-  | None => Ok()
+  | None => None
   }
 
-  switch preResult {
-  | Error(_) => preResult
-  | Ok() => {
-      // Run post_generate hook
-      let postResult: result<unit, string> = switch config.hooks {
-      | Some(h) =>
-        switch h.postGenerate {
-        | Some(cmd) => {
-            let result = await executeHook(~command=cmd, ~cwd, ~timeout)
-            switch result {
-            | Ok(_) => Ok()
-            | Error(e) => Error("post_generate hook failed: " ++ e)
-            }
-          }
-        | None => Ok()
+  switch command {
+  | None => Ok()
+  | Some(cmd) => {
+      let result = await executeHook(~command=cmd, ~cwd, ~timeout, ~hookType)
+      switch result {
+      | Ok(_) => Ok()
+      | Error(e) =>
+        switch hookType {
+        | PreGenerate => Error("pre_generate hook failed: " ++ e)
+        | PostGenerate => Error("post_generate hook failed: " ++ e)
         }
-      | None => Ok()
       }
-
-      postResult
     }
   }
 }

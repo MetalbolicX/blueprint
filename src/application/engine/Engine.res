@@ -9,18 +9,37 @@ type generateResult = {
   classification: string,
 }
 
+let runPostHook: (
+  ~config: option<Config.config>,
+  ~cwd: string,
+  ~result: generateResult,
+) => promise<result<generateResult, string>> = async (~config, ~cwd, ~result) => {
+  switch config {
+  | None => Ok(result)
+  | Some(c) => {
+      let hookResult = await Hooks.run(~config=c, ~cwd, ~hookType=Hooks.PostGenerate)
+      switch hookResult {
+      | Error(e) => Error(e)
+      | Ok() => Ok(result)
+      }
+    }
+  }
+}
+
 let run: (
   ~generator: generator,
   ~name: string,
   ~cliAttributes: dict<string>,
   ~outputDir: string,
   ~force: bool,
+  ~config: Config.config=?,
 ) => promise<result<generateResult, string>> = async (
   ~generator,
   ~name,
   ~cliAttributes,
   ~outputDir,
   ~force,
+  ~config=?,
 ) => {
   let rl = Bindings.Readline.createInterface(
     ~input=Bindings.Readline.stdin,
@@ -41,7 +60,19 @@ let run: (
     (),
   )
 
-  let phase0Result = await Phase0.run(
+  let preHookResult: result<unit, string> = switch config {
+  | None => Ok()
+  | Some(c) => await Hooks.run(~config=c, ~cwd=outputDir, ~hookType=Hooks.PreGenerate)
+  }
+
+  switch preHookResult {
+  | Error(e) => {
+      rl.close()
+      Error(e)
+    }
+  | Ok() => {
+
+      let phase0Result = await Phase0.run(
     ~rl,
     ~generator,
     ~context,
@@ -49,12 +80,12 @@ let run: (
     ~force,
   )
 
-  switch phase0Result {
-  | Error(e) => {
-      rl.close()
-      Error(e)
-    }
-  | Ok(p0) => {
+      switch phase0Result {
+      | Error(e) => {
+          rl.close()
+          Error(e)
+        }
+      | Ok(p0) => {
       let conflictResult = await ConflictResolver.resolveConflicts(
         ~rl,
         ~conflicts=p0.conflicts->Array.map(c => {
@@ -106,18 +137,22 @@ let run: (
                   Error(e.message)
                 }
               | Ok(p2) => {
-                  rl.close()
-                  Ok({
+                  let result = {
                     filesCreated: p2.filesCreated,
                     filesInjected: p2.filesInjected,
                     commandsExecuted: p2.commandsExecuted,
                     classification: generator.name,
-                  })
+                  }
+                  let finalResult = await runPostHook(~config, ~cwd=outputDir, ~result)
+                  rl.close()
+                  finalResult
                 }
               }
             }
           }
         }
+      }
+    }
       }
     }
   }

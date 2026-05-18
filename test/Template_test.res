@@ -93,11 +93,22 @@ suite("Template", () => {
 
   test("shellCommand: structure", () => {
     let sc = {
-      Template.command: "npm run format",
+      Template.target: Template.InlineCommand("npm run format"),
       sourcePath: "/templates/Hello.tsx.ejs.t",
     }
 
-    assert_eq(sc.command, "npm run format")
+    switch sc.target {
+    | Template.InlineCommand(cmd) => assert_eq(cmd, "npm run format")
+    | _ => assert_false(true)
+    }
     assert_eq(sc.sourcePath, "/templates/Hello.tsx.ejs.t")
+  })
+
+  test("shellTarget: ScriptFile variant", () => {
+    let target = Template.ScriptFile("/templates/scripts/post.sh")
+    switch target {
+    | Template.ScriptFile(path) => assert_eq(path, "/templates/scripts/post.sh")
+    | _ => assert_false(true)
+    }
   })
 })

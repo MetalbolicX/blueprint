@@ -21,7 +21,11 @@ type renderedFile = {
   isInjection: bool,
 }
 
+type shellTarget =
+  | InlineCommand(string)
+  | ScriptFile(string)
+
 type shellCommand = {
-  command: string,
+  target: shellTarget,
   sourcePath: string,
 }

@@ -11,6 +11,7 @@ let run: (
   ~cliAttributes: dict<string>,
   ~outputDir: string,
   ~force: bool,
+  ~config: Config.config=?,
 ) => promise<result<generateResult, string>>
 
 let runWithConfig: (

@@ -24,7 +24,11 @@ type renderedFile = {
 }
 
 // Shell command to execute after Phase1
+type shellTarget =
+  | InlineCommand(string)
+  | ScriptFile(string)
+
 type shellCommand = {
-  command: string,
+  target: shellTarget,
   sourcePath: string, // source template that declared the sh: directive
 }
