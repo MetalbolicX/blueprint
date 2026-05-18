@@ -108,7 +108,7 @@ let main: unit => promise<unit> = async () => {
         Dict.set(options, "output", {Bindings.Util.type_: "string"})
 
         let parsed = Bindings.ParseArgs.parseArgs({
-          args: args->Array.sliceToEnd(~start=2),
+          args: Array.slice(args, ~start=2),
           options,
           strict: false,
           allowPositionals: true,
