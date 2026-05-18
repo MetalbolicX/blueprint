@@ -2,97 +2,108 @@
 
 A fast, transactional template generator — a modern replacement for Hygen.
 
-Generate code, config files, or any text from templates with atomic commits, declarative prompts, and no runtime dependencies. **Language-agnostic** — the same engine drives Go, TypeScript, Python, Rust, SQL, YAML, or any text output.
+Generate code, config files, or any text from templates with atomic commits, declarative prompts, and no runtime dependencies. **Language-agnostic** — the same engine drives TypeScript, Go, Python, Rust, SQL, YAML, or any text output.
 
 ```bash
-fluxo generate component --name User --force --output src/
+npx blueprint generate react-component --name User --path src/components
 ```
 
-> [!Tip|style:flat|label=Any language]
-> Fluxo templates output plain text. Go examples here are just one use case. Scroll for TypeScript, Python, and everything in between.
+## Installation
 
-## Quick path
-
-1. **Install** — `go install github.com/fluxo/fluxo/cmd/fluxo@latest`
-2. **Init** — `fluxo init` scaffolds `.fluxo.yaml`
-3. **Author** — create a manifest + `files/` templates:
-
-<!-- tabs:start -->
-
-#### **Go**
-
+```bash
+npm install -g blueprint
 ```
-templates/
-└── handler/
-    ├── manifest.yaml
-    └── files/
-        └── handler.go.ejs.t
+
+## Quick start
+
+1. **Init** — `blueprint init` scaffolds `.fluxo.yaml`
+2. **Author** — create a manifest + template files:
+
+```bash
+_templates/
+└── component/
+    └── new/
+        ├── manifest.yaml
+        └── files/
+            └── Component.tsx.ejs.ts
 ```
 
 ```yaml
----
-to: handlers/{{ .Name | snakeCase }}.go
----
-package handlers
+# manifest.yaml
+name: component
+classification: component
+prompts:
+  - name: name
+    type: input
+    description: "Component name (PascalCase)"
+    default: MyComponent
+  - name: path
+    type: input
+    description: "Output path"
+    default: src/components
+```
 
-type {{ .Name }}Handler struct {
-    ID string
+```yaml
+# files/Component.tsx.ejs.ts
+---
+to: <%= path %>/<%= name %>.tsx
+---
+import React from 'react'
+
+interface <%= name %>Props {
+  children?: React.ReactNode
 }
 
-func New{{ .Name }}Handler() *{{ .Name }}Handler {
-    return &{{ .Name }}Handler{}
+export const <%= name %>: React.FC<<%= name %>Props> = ({ children }) => {
+  return <div className="<%= h.kebabCase(name) %>"><%= children %></div>
 }
 ```
 
-#### **TypeScript**
+3. **Generate** — `blueprint generate component --name Button --path src/ui`
 
-```
-templates/
-└── react-component/
-    ├── manifest.yaml
-    └── files/
-        └── Component.tsx.ejs.t
-```
+## CLI usage
 
-```yaml
----
-to: components/{{ .Name | pascalCase }}.tsx
----
-import React from 'react';
+```bash
+# Show help
+blueprint --help
 
-interface {{ .Name }}Props {}
+# Scaffold .fluxo.yaml
+blueprint init
 
-export const {{ .Name }}: React.FC<{{ .Name }}Props> = () => {
-  return <div>{{ .name }}</div>;
-};
-```
+# Generate from a template classification
+blueprint generate <classification> [options]
 
-#### **Python**
-
-```
-templates/
-└── fastapi-route/
-    ├── manifest.yaml
-    └── files/
-        └── route.py.ejs.t
+# Options:
+#   --name <name>     Component name (PascalCase)
+#   -n, --name <name> Short form
+#   --force           Skip prompts, overwrite existing files
+#   -f, --force       Short form
+#   --output <dir>    Output directory
+#   -o, --output <dir> Short form
+#   --<key> <value>   Arbitrary attributes passed to templates
 ```
 
-```yaml
----
-to: routes/{{ .name | snakeCase }}.py
----
-from fastapi import APIRouter
+### Examples
 
-router = APIRouter()
+```bash
+# Basic generation with prompts
+blueprint generate react-component
 
-@router.get("/{{ .name | kebabCase }}")
-async def get_{{ .name | snakeCase }}():
-    return {"message": "{{ .name }}"}
+# With explicit name (skips name prompt)
+blueprint generate react-component --name Button
+
+# Force overwrite existing files
+blueprint generate react-component --name Button --force
+
+# Custom output directory
+blueprint generate react-component --name Button --output src/ui
+
+# Pass custom attributes
+blueprint generate react-component --name Button --path src/components --framework react18
+
+# Use short flags
+blueprint generate react-component -n Button -f -o src/ui
 ```
-
-<!-- tabs:end -->
-
-4. **Generate** — `fluxo generate component --name User`
 
 ## Template format
 
@@ -108,19 +119,37 @@ prompts:
     type: input
     description: "Package or module name"
     default: main
+  - name: framework
+    type: select
+    description: "Framework"
+    options:
+      - react
+      - vue
+      - svelte
+  - name: includeTests
+    type: confirm
+    description: "Include test file?"
+    default: true
 ```
 
-### Template files (`files/*.ejs.t`)
+### Template files (`*.ejs.t`)
 
-Frontmatter defines the operation; body is the template:
+Frontmatter defines the operation; body is the template. Uses EJS syntax.
 
 ```yaml
 ---
-to: src/{{ .Name | pascalCase }}.go
+to: src/<%= name %>.tsx
+inject: React.FC<<%= name %>Props>
 ---
-package {{ .package }}
+import React from 'react'
 
-type {{ .Name }} struct{}
+interface <%= name %>Props {
+  children?: React.ReactNode
+}
+
+export const <%= name %>: React.FC<<%= name %>Props> = ({ children }) => {
+  return <div className="<%= h.kebabCase(name) %>"><%= children %></div>
+}
 ```
 
 ## Frontmatter directives
@@ -136,40 +165,101 @@ type {{ .Name }} struct{}
 | `force` | bool | Overwrite existing file |
 | `sh` | string | Shell command to execute after render |
 
+### Directive examples
+
+**to** — Write to a specific path:
+```yaml
+---
+to: src/<%= name %>.tsx
+---
+```
+
+**inject** — Replace content matching a regex:
+```yaml
+---
+inject: const \w+ = new
+---
+const newInstance = new Constructor()
+```
+
+**after** — Insert after a regex match:
+```yaml
+---
+after: class \w+
+---
+  // Added after class definition
+```
+
+**before** — Insert before a regex match:
+```yaml
+---
+before: export default
+---
+// Header comment
+```
+
+**prepend** — Add to the beginning of a file:
+```yaml
+---
+prepend: true
+---
+// This goes at the top
+```
+
+**append** — Add to the end of a file:
+```yaml
+---
+append: true
+---
+// This goes at the bottom
+```
+
+**force** — Overwrite without prompting:
+```yaml
+---
+to: src/<%= name %>.tsx
+force: true
+---
+```
+
+**sh** — Execute shell command after render:
+```yaml
+---
+to: src/<%= name %>.tsx
+sh: prettier --write src/<%= name %>.tsx
+---
+```
+
 ## Context variables
 
-Available inside every template:
+Available inside every template via EJS:
 
-| Variable | Source |
-|----------|--------|
-| `{{ .cwd }}` | Current working directory |
-| `{{ .actionfolder }}` | Generator action folder path |
-| `{{ .name }}` | Component name (lowercase) |
-| `{{ .Name }}` | Component name (PascalCase) |
-| `{{ .names }}` | Pluralized lowercase |
-| `{{ .Names }}` | Pluralized PascalCase |
-| `{{ .attributes }}` | CLI `--key value` pairs |
-| Any prompt answer | By prompt name |
+| Variable | Description |
+|----------|-------------|
+| `<%= name %>` | Component name (lowercase) |
+| `<%= Name %>` | Component name (PascalCase) |
+| `<%= names %>` | Pluralized lowercase |
+| `<%= Names %>` | Pluralized PascalCase |
+| `<%= cwd %>` | Current working directory |
+| `<%= actionfolder %>` | Generator action folder path |
+| `<%= path %>` | User-provided `path` attribute |
+| `<%= package %>` | User-provided `package` attribute |
+| Any prompt answer | Available by its name |
 
 ## FuncMaps (template helpers)
 
-Available via Go `text/template`:
+Available as `h.*` in templates:
 
-| Function | Example |
-|----------|---------|
-| `{{ \| pascalCase }}` | `hello_world` → `HelloWorld` |
-| `{{ \| camelCase }}` | `hello_world` → `helloWorld` |
-| `{{ \| kebabCase }}` | `HelloWorld` → `hello-world` |
-| `{{ \| snakeCase }}` | `HelloWorld` → `hello_world` |
-| `{{ \| upper }}` | → `HELLO` |
-| `{{ \| lower }}` | → `hello` |
-| `{{ \| trim }}` | Strips whitespace |
-
-## Safety
-
-- **Transactional**: renders to `os.TempDir()`, commits atomically — no partial writes
-- **Rollback**: on any failure (render error, shell error), staged files are cleaned up
-- **Conflict resolution**: bulk prompt — `[y]es to all, [n]o to all, [s]elect individually, [a]bort`
+| Function | Example | Result |
+|----------|---------|--------|
+| `h.pascalCase(str)` | `<%= h.pascalCase("hello_world") %>` | `HelloWorld` |
+| `h.camelCase(str)` | `<%= h.camelCase("hello_world") %>` | `helloWorld` |
+| `h.kebabCase(str)` | `<%= h.kebabCase("HelloWorld") %>` | `hello-world` |
+| `h.snakeCase(str)` | `<%= h.snakeCase("HelloWorld") %>` | `hello_world` |
+| `h.upper(str)` | `<%= h.upper("hello") %>` | `HELLO` |
+| `h.lower(str)` | `<%= h.lower("HELLO") %>` | `hello` |
+| `h.trim(str)` | `<%= h.trim("  hello  ") %>` | `hello` |
+| `h.title(str)` | `<%= h.title("hello world") %>` | `Hello World` |
 
 ## Hooks
 
@@ -177,12 +267,18 @@ Lifecycle hooks in `.fluxo.yaml`:
 
 ```yaml
 hooks:
-  pre_generate: bash scripts/validate.sh
-  post_generate: node scripts/postgen.js
+  pre_generate: echo "Starting generation..."
+  post_generate: prettier --write generated/
   timeout: 30s
 ```
 
 Supported interpreters: `bash`, `sh`, `node`, `python3`, `pwsh`.
+
+## Safety
+
+- **Transactional**: renders to temp staging dir, commits atomically — no partial writes
+- **Rollback**: on any failure (render error, shell error), staged files are cleaned up
+- **Conflict resolution**: bulk prompt — `[y]es to all, [n]o to all, [s]elect individually, [a]bort`
 
 ## Docs
 

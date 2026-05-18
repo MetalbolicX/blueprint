@@ -1,0 +1,11 @@
+name: python-fastapi
+classification: python-fastapi
+prompts:
+  - name: name
+    type: input
+    description: "Route name (PascalCase)"
+    default: Route
+  - name: description
+    type: input
+    description: "Route description"
+    default: API endpoint

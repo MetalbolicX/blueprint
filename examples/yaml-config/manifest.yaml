@@ -1,0 +1,19 @@
+name: yaml-config
+classification: yaml-config
+prompts:
+  - name: name
+    type: input
+    description: "Config name"
+    default: config
+  - name: environment
+    type: select
+    description: "Environment"
+    options:
+      - development
+      - staging
+      - production
+    default: development
+  - name: port
+    type: input
+    description: "Port number"
+    default: "3000"

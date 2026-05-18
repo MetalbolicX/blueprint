@@ -1,0 +1,11 @@
+name: go-handler
+classification: go-handler
+prompts:
+  - name: name
+    type: input
+    description: "Handler name (PascalCase)"
+    default: Handler
+  - name: package
+    type: input
+    description: "Go package name"
+    default: handlers

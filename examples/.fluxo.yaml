@@ -1,0 +1,25 @@
+# Fluxo configuration
+# Copy this file to your project root and customize as needed
+
+generators:
+  - name: react-component
+    classification: react-component
+    template_root: examples/react-component
+    output_root: src
+  - name: go-handler
+    classification: go-handler
+    template_root: examples/go-handler
+    output_root: handlers
+  - name: python-fastapi
+    classification: python-fastapi
+    template_root: examples/python-fastapi
+    output_root: app/routes
+  - name: yaml-config
+    classification: yaml-config
+    template_root: examples/yaml-config
+    output_root: config
+
+hooks:
+  pre_generate: ""
+  post_generate: ""
+  timeout: 30s
