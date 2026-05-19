@@ -60,16 +60,12 @@ let executeHook: (
     encoding: "utf8",
   }
 
-  // Use promisified exec to properly detect timeout
-  // The callback style exec gives us (err, stdout, stderr) directly
-  let execWithTimeout: (string, int) => promise<result<ChildProcess.execResult, string>> = async (_cmd, _timeoutMs) => {
+  // Use ChildProcess.execAsync for proper timeout handling
+  // This uses the callback-based exec API internally with proper signal/killed detection
+  let execWithTimeout: (string, int) => promise<result<ChildProcess.execResult, string>> = async (cmd, timeoutMs) => {
     try {
-      let result = await %raw("(async () => {
-        const {exec} = await import('node:child_process');
-        const {promisify} = await import('node:util');
-        const execP = promisify(exec);
-        return execP(cmd, {timeout: timeoutMs});
-      })()")
+      let options: ChildProcess.execOptions = {timeout: timeoutMs}
+      let result = await Bindings.ChildProcess.execAsync(cmd, ~options)
       Ok(result)
     } catch {
     | JsExn(e) =>
@@ -100,14 +96,23 @@ let executeHook: (
   switch result {
   | Error(e) => Error(e)
   | Ok(r) =>
-    let code = switch r.status {
-    | Some(c) => c
-    | None => 0
-    }
-    if code != 0 {
-      Error("Hook exited with code " ++ Int.toString(code))
+    // If process was killed (timeout), treat as error
+    if r.killed {
+      let signal = switch r.signalCode {
+      | Some(s) => " (signal: " ++ s ++ ")"
+      | None => ""
+      }
+      Error("Hook timed out and was killed" ++ signal)
     } else {
-      Ok({hookType, output: r.stdout, exitCode: code})
+      let code = switch r.status {
+      | Some(c) => c
+      | None => 0
+      }
+      if code != 0 {
+        Error("Hook exited with code " ++ Int.toString(code))
+      } else {
+        Ok({hookType, output: r.stdout, exitCode: code})
+      }
     }
   }
 }

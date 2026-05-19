@@ -198,7 +198,60 @@ module ChildProcess = {
   }
 
   @module("node:child_process")
-  external exec: (string, ~options: execOptions=?) => promise<execResult> = "exec"
+  external exec: (string, ~options: execOptions=?) => childProcess = "exec"
+
+  // Callback-based exec for proper async handling
+  // The callback receives (error, stdout, stderr)
+  type execCallback = (Js.Nullable.t<Js.Exn.t>, string, string) => unit
+
+  @module("node:child_process")
+  external execWithCallback: (
+    string,
+    ~options: execOptions=?,
+    ~callback: execCallback,
+  ) => childProcess = "exec"
+
+  // Extract Node.js error properties (signal, killed) from Js.Exn.t
+  // This is the ONLY %raw needed - for error property access ReScript can't express
+  // Returns tuple: (signalCode, killed)
+  let extractExecError: Js.Exn.t => (option<string>, bool) =
+    %raw("(e) => [e.signal || null, e.killed || false]")
+
+  // Properly typed async exec using callback API internally
+  let execAsync: (
+    string,
+    ~options: execOptions=?,
+  ) => promise<execResult> = (cmd, ~options=?) => {
+    Promise.make((resolve, _reject) => {
+      let opts = switch options {
+      | Some(o) => o
+      | None => {}
+      }
+      let _ = execWithCallback(cmd, ~options=opts, ~callback=(err, stdout, stderr) => {
+        if Js.Nullable.isNullable(err) {
+          resolve({
+            stdout,
+            stderr,
+            status: Some(0),
+            signalCode: None,
+            killed: false,
+          })
+        } else {
+          let errObj = Js.Nullable.toOption(err)->Option.getExn
+          let (signal, killed) = extractExecError(errObj)
+          // Extract exit code from error - defaults to 1 if not present
+          let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
+          resolve({
+            stdout,
+            stderr,
+            status: Some(code),
+            signalCode: signal,
+            killed,
+          })
+        }
+      })
+    })
+  }
 
   @module("node:child_process")
   external execSync: (string, ~options: spawnOptions=?) => string = "execSync"
@@ -231,8 +284,16 @@ module ChildProcess = {
         shell: true,
         encoding: "utf8",
       }
-      let result = await exec(command, ~options)
-      Ok(result.stdout)
+      let result = await execAsync(command, ~options)
+      if result.killed {
+        Error("Command timed out")
+      } else {
+        switch result.status {
+        | Some(0) => Ok(result.stdout)
+        | Some(code) => Error("Command exited with code " ++ Int.toString(code))
+        | None => Error("Command exited unexpectedly")
+        }
+      }
     } catch {
     | JsExn(obj) =>
       let message = switch JsExn.message(obj) {

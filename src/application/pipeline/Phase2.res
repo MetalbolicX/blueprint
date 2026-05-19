@@ -87,7 +87,7 @@ let executeShellCommands: (
             | Some(args) => toolDef.command ++ " " ++ args->Array.join(" ")
             | None => toolDef.command
             }
-            ChildProcess.exec(fullCommand, ~options=execOpts)->Promise.then(result => {
+            Bindings.ChildProcess.execAsync(fullCommand, ~options=execOpts)->Promise.then(result => {
               switch result.status {
               | Some(0) => {
                   count.contents = count.contents + 1
@@ -134,8 +134,42 @@ let executeShellCommands: (
             }
           }
         | ScriptFile(path) =>
-          // ScriptFile is deprecated - scripts must be declared as tools
-          Promise.resolve(Error("Scripts must be declared as tools: " ++ path))
+          // ScriptFile handling: check existence and run directly
+          // Shell with shell:true will handle the execution
+          NodeJs.Fs.fileExists(path)->Promise.then(exists => {
+            if !exists {
+              Promise.resolve(Error("Script file not found: " ++ path))
+            } else {
+              // Execute script with shell - let the shell handle executable check
+              let execOpts: Bindings.ChildProcess.execOptions = {
+                cwd: cwd,
+                env: safeEnv,
+                shell: true,
+                encoding: "utf8",
+              }
+              // Run script directly - shell will find and execute it
+              Bindings.ChildProcess.execAsync(path, ~options=execOpts)->Promise.then(result => {
+                if result.killed {
+                  Promise.resolve(Error("Script timed out and was killed"))
+                } else {
+                  switch result.status {
+                  | Some(0) => {
+                      count.contents = count.contents + 1
+                      Promise.resolve(Ok())
+                    }
+                  | status =>
+                    Promise.resolve(Error("Script exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+                  }
+                }
+              })->Promise.catch(e => {
+                let msg = switch Js.Exn.message(e->Obj.magic) {
+                | Some(m) => m
+                | None => "unknown"
+                }
+                Promise.resolve(Error("Script execution failed: " ++ msg))
+              })
+            }
+          })
         }
       }
     })
