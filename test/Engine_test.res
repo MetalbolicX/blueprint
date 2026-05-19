@@ -82,7 +82,7 @@ suite("Engine", () => {
   testAsync("run: aborts pipeline when preGenerate hook fails", resolve => {
     let cfg: Config.config = {
       hooks: {
-        preGenerate: "exit 1",
+        preGenerate: {command: "exit 1"},
         timeout: 1,
       },
     }
@@ -115,7 +115,7 @@ suite("Engine", () => {
   testAsync("run: returns error when postGenerate hook fails", resolve => {
     let cfg: Config.config = {
       hooks: {
-        postGenerate: "exit 1",
+        postGenerate: {command: "exit 1"},
         timeout: 1,
       },
     }
@@ -148,7 +148,7 @@ suite("Engine", () => {
   testAsync("run: returns Ok when preGenerate hook succeeds", resolve => {
     let cfg: Config.config = {
       hooks: {
-        preGenerate: "echo ok",
+        preGenerate: {command: "echo ok"},
         timeout: 1,
       },
     }
@@ -181,8 +181,8 @@ suite("Engine", () => {
   testAsync("run: returns Ok when both hooks succeed", resolve => {
     let cfg: Config.config = {
       hooks: {
-        preGenerate: "echo pre-ok",
-        postGenerate: "echo post-ok",
+        preGenerate: {command: "echo pre-ok"},
+        postGenerate: {command: "echo post-ok"},
         timeout: 1,
       },
     }

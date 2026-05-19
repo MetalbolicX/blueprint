@@ -18,12 +18,6 @@ let frontmatterRegex: RegExp.t = /^---\n([\s\S]*?)\n---\n/
 
 let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 
-let fileExtensionRegex: RegExp.t = /\.\w+$/
-
-let isFileReference: string => bool = value => {
-  Js.String.startsWith(value, "./") || Js.String.startsWith(value, "../") || RegExp.test(fileExtensionRegex, value)
-}
-
 // Helper to check directive type
 let checkDirective: (string, string) => option<directive> = (key, value) => {
   if key == "to" {
@@ -42,6 +36,10 @@ let checkDirective: (string, string) => option<directive> = (key, value) => {
     Some(Force)
   } else if key == "sh" {
     Some(Sh(value))
+  } else if key == "tool" {
+    Some(Tool(value))
+  } else if key == "fetch" {
+    Some(Fetch(value))
   } else {
     None
   }

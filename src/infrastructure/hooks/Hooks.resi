@@ -6,11 +6,17 @@ type hookResult = {
   exitCode: int,
 }
 
-let parseCommand: string => (string, string)
 let executeHook: (
-  ~command: string,
+  ~hook: Config.hookCommand,
   ~cwd: string,
   ~timeout: int,
   ~hookType: hookType,
+  ~shellEnv: option<Config.shellEnv>,
 ) => promise<result<hookResult, string>>
-let run: (~config: Config.config, ~cwd: string, ~hookType: hookType) => promise<result<unit, string>>
+
+let run: (
+  ~config: Config.config,
+  ~projectRoot: string,
+  ~hookType: hookType,
+  ~shellConfig: option<Config.shellConfig>,
+) => promise<result<unit, string>>

@@ -16,4 +16,5 @@ let run: (
   ~context: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~shellConfig: option<Config.shellConfig>,
 ) => promise<result<phase1Result, phase1Error>>

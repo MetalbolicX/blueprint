@@ -74,7 +74,7 @@ suite("Phase2", () => {
           sourcePath: "template.ejs.t",
         },
       ]
-      Phase2.executeShellCommands(~commands, ~cwd=tmpDir)
+      Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None)
     })
     ->Promise.then(result => {
       switch result {
@@ -106,7 +106,7 @@ suite("Phase2", () => {
     NodeJs.Fs.fileExists(missingPath)
     ->Promise.then(exists => {
       assert_false(exists)
-      Phase2.executeShellCommands(~commands, ~cwd=tmpDir)
+      Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None)
     })
     ->Promise.then(result => {
       switch result {
@@ -132,7 +132,7 @@ suite("Phase2", () => {
 
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(scriptPath, scriptBody))
-    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir))
+    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None))
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -156,7 +156,7 @@ suite("Phase2", () => {
     ]
 
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
-    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir))
+    ->Promise.then(_ => Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None))
     ->Promise.then(result => {
       switch result {
       | Error(_) => {

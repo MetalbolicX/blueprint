@@ -11,13 +11,14 @@ type generateResult = {
 
 let runPostHook: (
   ~config: option<Config.config>,
-  ~cwd: string,
+  ~projectRoot: string,
   ~result: generateResult,
-) => promise<result<generateResult, string>> = async (~config, ~cwd, ~result) => {
+) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result) => {
   switch config {
   | None => Ok(result)
   | Some(c) => {
-      let hookResult = await Hooks.run(~config=c, ~cwd, ~hookType=Hooks.PostGenerate)
+      let shellConfig = c.shell
+      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig)
       switch hookResult {
       | Error(e) => Error(e)
       | Ok() => Ok(result)
@@ -60,10 +61,13 @@ let run: (
     (),
   )
 
-  let preHookResult: result<unit, string> = switch config {
-  | None => Ok()
-  | Some(c) => await Hooks.run(~config=c, ~cwd=outputDir, ~hookType=Hooks.PreGenerate)
-  }
+let preHookResult: result<unit, string> = switch config {
+          | None => Ok()
+          | Some(c) => {
+              let shellConfig = c.shell
+              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig)
+            }
+          }
 
   switch preHookResult {
   | Error(e) => {
@@ -111,11 +115,17 @@ let run: (
             (),
           )
 
+          let shellConfig = switch config {
+          | Some(c) => c.shell
+          | None => None
+          }
+
           let phase1Result = await Phase1.run(
             ~templates=generator.templates,
             ~context=mergedContext,
             ~outputDir,
             ~conflictDecisions=Some(decisions),
+            ~shellConfig,
           )
 
           switch phase1Result {
@@ -129,6 +139,7 @@ let run: (
                 ~outputDir,
                 ~renderedFiles=p1.renderedFiles,
                 ~shellCommands=p1.shellCommands,
+                ~shellConfig=shellConfig,
               )
 
               switch phase2Result {
@@ -143,7 +154,7 @@ let run: (
                     commandsExecuted: p2.commandsExecuted,
                     classification: generator.name,
                   }
-                  let finalResult = await runPostHook(~config, ~cwd=outputDir, ~result)
+                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result)
                   rl.close()
                   finalResult
                 }

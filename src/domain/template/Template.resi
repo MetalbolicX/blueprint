@@ -7,6 +7,8 @@ type directive =
   | Append
   | Force
   | Sh(string)
+  | Tool(string)
+  | Fetch(string)
 
 type template = {
   sourcePath: string,
@@ -24,6 +26,12 @@ type renderedFile = {
 type shellTarget =
   | InlineCommand(string)
   | ScriptFile(string)
+  | Fetch(string)
+  | ToolCall({
+    name: string,
+    toolDef: Config.shellTool,
+    sourcePath: string,
+  })
 
 type shellCommand = {
   target: shellTarget,

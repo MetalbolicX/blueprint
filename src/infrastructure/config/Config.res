@@ -1,21 +1,257 @@
 // Config parsing — load and parse .blueprint.yaml hooks config
 // Mirrors Go version's Config struct
 
+type shellTool = {
+  name: string,
+  command: string,
+  args?: array<string>,
+}
+
+type shellEnv = {
+  vars: dict<string>,
+}
+
+type hookCommand = {
+  command: string,
+  args?: array<string>,
+}
+
 type hooksConfig = {
-  preGenerate?: string,
-  postGenerate?: string,
+  preGenerate?: hookCommand,
+  postGenerate?: hookCommand,
   timeout?: int,
+}
+
+type shellConfig = {
+  enabled: bool,
+  tools?: array<shellTool>,
+  env?: shellEnv,
 }
 
 type config = {
   hooks?: hooksConfig,
   output?: string,
+  shell?: shellConfig,
 }
 
-let parseHooks: JSON.t => option<hooksConfig> = json => {
+// Global config (loaded from ~/.config/blueprint/config.yaml)
+type globalConfig = {
+  templates: array<string>,
+  allowDangerousCommands: bool,
+  forceOverwrite: bool,
+  dryRun: bool,
+  timeout: int,
+  defaultAttributes: dict<string>,
+}
+
+// Merged config — effective values after project overrides global
+type mergedConfig = {
+  templates: array<string>,         // from global (no project override for templates)
+  allowDangerousCommands: bool,    // project or global
+  forceOverwrite: bool,             // project or global
+  dryRun: bool,                     // project or global
+  timeout: int,                     // project hooks.timeout or global
+  defaultAttributes: dict<string>,  // global defaults with project overrides
+  shell?: shellConfig,              // merged shell config
+}
+
+let defaultGlobalConfig: globalConfig = {
+  templates: [],
+  allowDangerousCommands: false,
+  forceOverwrite: false,
+  dryRun: false,
+  timeout: 5,
+  defaultAttributes: Dict.make(),
+}
+
+let _parseDictString: (dict<JSON.t>, string) => option<string> = (dict, key) => {
+  switch Dict.get(dict, key) {
+  | Some(JSON.String(s)) => Some(s)
+  | _ => None
+  }
+}
+
+let _parseDictInt: (dict<JSON.t>, string) => option<int> = (dict, key) => {
+  switch Dict.get(dict, key) {
+  | Some(JSON.Number(n)) => Some(Js.Math.floor(n))
+  | _ => None
+  }
+}
+
+let _parseDictBool: (dict<JSON.t>, string) => option<bool> = (dict, key) => {
+  switch Dict.get(dict, key) {
+  | Some(JSON.Boolean(b)) => Some(b)
+  | _ => None
+  }
+}
+
+let _parseTemplates: JSON.t => array<string> = json => {
+  switch json {
+  | JSON.Array(arr) => {
+      let strings = arr->Array.map(item => {
+        switch item {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      })
+      strings->Array.filterMap(x => x)
+    }
+  | _ => []
+  }
+}
+
+let _parseDefaultAttributes: JSON.t => dict<string> = json => {
   switch json {
   | JSON.Object(dict) => {
-      let preGenerate = switch Dict.get(dict, "pre_generate") {
+      let result = Dict.make()
+      dict
+      ->Dict.toArray
+      ->Array.forEach(((key, value)) => {
+        switch value {
+        | JSON.String(s) => Dict.set(result, key, s)
+        | _ => ()
+        }
+      })
+      result
+    }
+  | _ => Dict.make()
+  }
+}
+
+let parseGlobal: string => result<globalConfig, string> = yamlContent => {
+  try {
+    let json = Bindings.Yaml.parse(yamlContent)
+    switch json {
+    | JSON.Object(dict) => {
+        let templates = switch Dict.get(dict, "templates") {
+        | Some(v) => _parseTemplates(v)
+        | None => []
+        }
+        let allowDangerousCommands = switch Dict.get(dict, "allow_dangerous_commands") {
+        | Some(v) =>
+          switch v {
+          | JSON.Boolean(b) => b
+          | _ => false
+          }
+        | None => false
+        }
+        let forceOverwrite = switch Dict.get(dict, "force_overwrite") {
+        | Some(v) =>
+          switch v {
+          | JSON.Boolean(b) => b
+          | _ => false
+          }
+        | None => false
+        }
+        let dryRun = switch Dict.get(dict, "dry_run") {
+        | Some(v) =>
+          switch v {
+          | JSON.Boolean(b) => b
+          | _ => false
+          }
+        | None => false
+        }
+        let timeout = switch Dict.get(dict, "timeout") {
+        | Some(v) =>
+          switch v {
+          | JSON.Number(n) => Js.Math.floor(n)
+          | _ => 5
+          }
+        | None => 5
+        }
+        let defaultAttributes = switch Dict.get(dict, "default_attributes") {
+        | Some(v) => _parseDefaultAttributes(v)
+        | None => Dict.make()
+        }
+        Ok({
+          templates,
+          allowDangerousCommands,
+          forceOverwrite,
+          dryRun,
+          timeout,
+          defaultAttributes,
+        })
+      }
+    | _ => Ok(defaultGlobalConfig)
+    }
+  } catch {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
+    | Some(m) => m
+    | None => "Failed to parse global config"
+    }
+    Error(msg)
+  }
+}
+
+// Resolve XDG-style global config path: ~/.config/blueprint/config.yaml
+let _globalConfigPath: string => string = homeDir => {
+  Bindings.Path.join(Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint"), "config.yaml")
+}
+
+let loadGlobal: unit => promise<result<option<globalConfig>, string>> = async () => {
+  let homeDir = Bindings.Os.homedir()
+  let configPath = _globalConfigPath(homeDir)
+
+  let exists = await Bindings.Fs.fileExists(configPath)
+  if !exists {
+    Ok(None)
+  } else {
+    try {
+      let content = await Bindings.Fs.readFile(configPath, ~options={encoding: "utf8"})
+      let result = parseGlobal(content)
+      switch result {
+      | Ok(cfg) => Ok(Some(cfg))
+      | Error(e) => Error(e)
+      }
+    } catch {
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
+      | Some(m) => m
+      | None => "Failed to read global config"
+      }
+      Error(msg)
+    }
+  }
+}
+
+// Merge project + global configs. Project values take precedence.
+let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig = (
+  ~global,
+  ~project,
+) => {
+  let effectiveTimeout = switch project {
+  | Some(p) =>
+    switch p.hooks {
+    | Some(h) =>
+      switch h.timeout {
+      | Some(t) => t
+      | None => global.timeout
+      }
+    | None => global.timeout
+    }
+  | None => global.timeout
+  }
+  // Migration: allow_dangerous_commands: true → shell.enabled: true
+  let effectiveShell = switch project {
+  | Some(p) => p.shell
+  | None => None
+  }
+  {
+    templates: global.templates,
+    allowDangerousCommands: global.allowDangerousCommands,
+    forceOverwrite: global.forceOverwrite,
+    dryRun: global.dryRun,
+    timeout: effectiveTimeout,
+    defaultAttributes: global.defaultAttributes,
+    shell: ?effectiveShell,
+  }
+}
+
+let parseHookCommand: JSON.t => option<hookCommand> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let command = switch Dict.get(dict, "command") {
       | Some(v) =>
         switch v {
         | JSON.String(s) => Some(s)
@@ -23,12 +259,48 @@ let parseHooks: JSON.t => option<hooksConfig> = json => {
         }
       | None => None
       }
-
-      let postGenerate = switch Dict.get(dict, "post_generate") {
+      let args = switch Dict.get(dict, "args") {
       | Some(v) =>
         switch v {
-        | JSON.String(s) => Some(s)
+        | JSON.Array(arr) => {
+            let strings = arr->Array.map(item => {
+              switch item {
+              | JSON.String(s) => Some(s)
+              | _ => None
+              }
+            })
+            Some(strings->Array.filterMap(x => x))
+          }
         | _ => None
+        }
+      | None => None
+      }
+      switch command {
+      | Some(c) => Some({command: c, args: ?args})
+      | None => None
+      }
+    }
+  | _ => None
+  }
+}
+
+let parseHooks: JSON.t => option<hooksConfig> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let preGenerate: option<hookCommand> = switch Dict.get(dict, "pre_generate") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some({command: s}) // Legacy: simple string mapped to command
+        | _ => parseHookCommand(v)
+        }
+      | None => None
+      }
+
+      let postGenerate: option<hookCommand> = switch Dict.get(dict, "post_generate") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some({command: s}) // Legacy: simple string mapped to command
+        | _ => parseHookCommand(v)
         }
       | None => None
       }
@@ -47,6 +319,108 @@ let parseHooks: JSON.t => option<hooksConfig> = json => {
       } else {
         Some({preGenerate: ?preGenerate, postGenerate: ?postGenerate, timeout: ?timeout})
       }
+    }
+  | _ => None
+  }
+}
+
+let parseShellTool: JSON.t => option<shellTool> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let name = switch Dict.get(dict, "name") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
+      }
+      let command = switch Dict.get(dict, "command") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
+      }
+      let args = switch Dict.get(dict, "args") {
+      | Some(v) =>
+        switch v {
+        | JSON.Array(arr) => {
+            let strings = arr->Array.map(item => {
+              switch item {
+              | JSON.String(s) => Some(s)
+              | _ => None
+              }
+            })
+            Some(strings->Array.filterMap(x => x))
+          }
+        | _ => None
+        }
+      | None => None
+      }
+      switch (name, command) {
+      | (Some(n), Some(c)) => Some({name: n, command: c, args: ?args})
+      | _ => None
+      }
+    }
+  | _ => None
+  }
+}
+
+let parseShellEnv: JSON.t => option<shellEnv> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let result: shellEnv = {vars: Dict.make()}
+      dict
+      ->Dict.toArray
+      ->Array.forEach(((key, value)) => {
+        switch value {
+        | JSON.String(s) => Dict.set(result.vars, key, s)
+        | _ => ()
+        }
+      })
+      if Dict.size(result.vars) > 0 {
+        Some(result)
+      } else {
+        None
+      }
+    }
+  | _ => None
+  }
+}
+
+let parseShellConfig: JSON.t => option<shellConfig> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let enabled = switch Dict.get(dict, "enabled") {
+      | Some(v) =>
+        switch v {
+        | JSON.Boolean(b) => b
+        | _ => false
+        }
+      | None => false
+      }
+      let tools = switch Dict.get(dict, "tools") {
+      | Some(v) =>
+        switch v {
+        | JSON.Array(arr) => {
+            let parsed = arr->Array.map(parseShellTool)->Array.filterMap(x => x)
+            if Array.length(parsed) > 0 {
+              Some(parsed)
+            } else {
+              None
+            }
+          }
+        | _ => None
+        }
+      | None => None
+      }
+      let env = switch Dict.get(dict, "env") {
+      | Some(v) => parseShellEnv(v)
+      | None => None
+      }
+      Some({enabled, tools: ?tools, env: ?env})
     }
   | _ => None
   }
@@ -72,7 +446,12 @@ let parse: string => result<config, string> = yamlContent => {
         | None => None
         }
 
-        Ok({hooks: ?hooks, output: ?output})
+        let shell = switch Dict.get(dict, "shell") {
+        | Some(v) => parseShellConfig(v)
+        | None => None
+        }
+
+        Ok({hooks: ?hooks, output: ?output, shell: ?shell})
       }
     | _ => Ok({})
     }

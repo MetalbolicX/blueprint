@@ -88,31 +88,43 @@ suite("Frontmatter", () => {
     }
   })
 
-  test("isFileReference: detects dot-slash path", () => {
-    assert_true(Frontmatter.isFileReference("./scripts/post.sh"))
+  test("parse: tool directive", () => {
+    let content = "---\ntool: format\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Tool(name)) => assert_eq(name, "format")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
   })
 
-  test("isFileReference: detects parent-relative path", () => {
-    assert_true(Frontmatter.isFileReference("../shared/validate.py"))
+  test("parse: fetch directive", () => {
+    let content = "---\nfetch: https://raw.githubusercontent.com/.../gitignore\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Fetch(url)) => assert_eq(url, "https://raw.githubusercontent.com/.../gitignore")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
   })
 
-  test("isFileReference: detects extension-only filename", () => {
-    assert_true(Frontmatter.isFileReference("script.py"))
-  })
-
-  test("isFileReference: treats inline npm command as non-file", () => {
-    assert_false(Frontmatter.isFileReference("npm run format"))
-  })
-
-  test("isFileReference: treats multi-word echo command as non-file", () => {
-    assert_false(Frontmatter.isFileReference("echo hello world"))
-  })
-
-  test("isFileReference: detects extension with relative dir", () => {
-    assert_true(Frontmatter.isFileReference("scripts/setup.go"))
-  })
-
-  test("isFileReference: no extension single token is non-file", () => {
-    assert_false(Frontmatter.isFileReference("make"))
+  test("parse: tool and fetch produce correct variants", () => {
+    let content = "---\ntool: mytool\nfetch: https://example.com/file\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      assert_eq(Array.length(parsed.directives), 2)
+      switch parsed.directives[0] {
+      | Some(Template.Tool(name)) => assert_eq(name, "mytool")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
   })
 })

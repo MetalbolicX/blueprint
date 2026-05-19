@@ -14,7 +14,7 @@ type renderContext = {
 }
 
 // Extract variable name from EJS "not defined" error messages
-let _extractUndefinedVar: string => option<string> = msg => {
+let extractUndefinedVar: string => option<string> = msg => {
   let marker = " is not defined"
   switch Js.String.indexOf(marker, msg) {
   | -1 => None
@@ -31,7 +31,8 @@ let _extractUndefinedVar: string => option<string> = msg => {
         i := -1
       }
     }
-    Some(String.slice(msg, ~start=varStart.contents, ~end=varEnd))
+    let name = String.slice(msg, ~start=varStart.contents, ~end=varEnd)
+    if String.length(name) > 0 { Some(name) } else { None }
   }
 }
 
@@ -74,11 +75,11 @@ let render: (template, renderContext) => result<string, string> = (tmpl, ctx) =>
     | Some(m) => m
     | None => "Unknown render error"
     }
-    let enhanced = switch _extractUndefinedVar(msg) {
-    | Some(varName) =>
+    let enhanced = switch extractUndefinedVar(msg) {
+    | Some(varName) if String.length(varName) > 0 =>
       "Template variable '" ++ varName ++ "' is required but was not provided. "
       ++ "Pass it via --" ++ varName ++ " <value> on the command line."
-    | None => msg
+    | _ => msg
     }
     Error(enhanced)
   }

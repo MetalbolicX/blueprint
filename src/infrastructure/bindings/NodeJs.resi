@@ -126,6 +126,7 @@ module ChildProcess: {
   let exec: (string, ~options: execOptions=?) => promise<execResult>
   let execSync: (string, ~options: spawnOptions=?) => string
   let execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string
+  let execFile: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult>
   let execShellCommand: (~command: string, ~cwd: string=?) => promise<result<string, string>>
 }
 

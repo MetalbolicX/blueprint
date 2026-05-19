@@ -2,6 +2,7 @@
 // Mirrors Go version's hooks/hooks.go
 
 open Bindings
+open EnvFilter
 
 type hookType = PreGenerate | PostGenerate
 
@@ -11,52 +12,95 @@ type hookResult = {
   exitCode: int,
 }
 
-// Parse hook command string into interpreter + args
-// e.g. "bash scripts/validate.sh" -> ["bash", "scripts/validate.sh"]
-let parseCommand: string => (string, string) = cmd => {
-  let parts = cmd->String.split(" ")
-  let interpreter = switch parts[0] {
-  | Some(p) => p
-  | None => "bash"
-  }
-  let args = {
-    let sliced = parts->Array.slice(~start=1)
-    sliced->Array.join(" ")
-  }
-  (interpreter, args)
+// Check if a command looks like a path (needs path restriction)
+// Paths include: ./script.sh, ../script.sh, /etc/passwd, bin/echo
+// Non-paths (allowed without restriction): echo, exit, ls, npm, etc.
+let _isPath: string => bool = cmd => {
+  Js.String.includes("/", cmd)
 }
 
-// Execute a single hook
+// Execute a single hook using structured hookCommand
 let executeHook: (
-  ~command: string,
+  ~hook: Config.hookCommand,
   ~cwd: string,
   ~timeout: int,
   ~hookType: hookType,
-) => promise<result<hookResult, string>> = async (~command, ~cwd, ~timeout, ~hookType) => {
-  let (interpreter, args) = parseCommand(command)
+  ~shellEnv: option<Config.shellEnv>,
+) => promise<result<hookResult, string>> = async (
+  ~hook,
+  ~cwd,
+  ~timeout,
+  ~hookType,
+  ~shellEnv,
+) => {
+  // Build safe env for child process
+  let buildEnvEntry: (string, string) => EnvFilter.shellEnvEntry = (k, v) => {
+    {key: k, value: v}
+  }
+  let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = s => {
+    let entries: array<EnvFilter.shellEnvEntry> = s.vars->Dict.toArray->Array.map(((k, v)) => {
+      buildEnvEntry(k, v)
+    })
+    {vars: entries}
+  }
+  // Handle null/undefined/None gracefully - all mean no shell env config
+  let envFilterConfig: option<EnvFilter.shellEnvConfig> = switch shellEnv {
+  | Some(s) => Some(buildEnvFilterConfig(s))
+  | None => None
+  }
+  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, NodeJs.NodeProcess.env->Obj.magic)
+
+  // Check for path restriction on any command that looks like a path
+  let isPath = _isPath(hook.command)
+
+  // Helper to build execFile options
+  let execFileOpts: ChildProcess.execOptions = {
+    cwd: cwd,
+    env: safeEnv,
+    encoding: "utf8",
+    timeout: timeout,
+  }
+
+  // Helper to build exec options with shell
+  let execOpts: ChildProcess.execOptions = {
+    cwd: cwd,
+    env: safeEnv,
+    shell: true,
+    encoding: "utf8",
+    timeout: timeout,
+  }
 
   try {
-    let fullCmd = interpreter ++ " " ++ args
-
-    let result = await ChildProcess.exec(
-      fullCmd,
-      ~options={
-        cwd,
-        shell: true,
-        timeout,
-        encoding: "utf8",
-      },
-    )
-
-    let exitCode = switch result.status {
-    | Some(code) => code
-    | None => 0
-    }
-
-    if exitCode == 0 {
-      Ok({hookType, output: result.stdout, exitCode})
+    // Execute the command (path restriction applied inside if branches)
+    let result = if isPath {
+      let resolvedPath = Path.resolve(cwd, hook.command)
+      if !PathSecurity.isWithinTree(resolvedPath, cwd) {
+        Error("Hook script outside project tree: " ++ hook.command)
+      } else {
+        switch hook.args {
+        | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
+        | None => Ok(await ChildProcess.exec(hook.command, ~options=execOpts))
+        }
+      }
     } else {
-      Error("Hook exited with code " ++ Int.toString(exitCode) ++ ": " ++ result.stderr)
+      switch hook.args {
+      | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
+      | None => Ok(await ChildProcess.exec(hook.command, ~options=execOpts))
+      }
+    }
+    // result is result<execResult, string> at this point
+    switch result {
+    | Error(e) => Error(e)
+    | Ok(r) =>
+      let code = switch r.status {
+      | Some(c) => c
+      | None => 0
+      }
+      if code == 0 {
+        Ok({hookType, output: r.stdout, exitCode: code})
+      } else {
+        Error("Hook exited with code " ++ Int.toString(code))
+      }
     }
   } catch {
   | JsExn(obj) =>
@@ -68,10 +112,22 @@ let executeHook: (
   }
 }
 
-let run: (~config: Config.config, ~cwd: string, ~hookType: hookType) => promise<result<unit, string>> = async (
+// Build shellEnv from shellConfig
+let _buildShellEnv: option<Config.shellConfig> => option<Config.shellEnv> = shellConfig => {
+  shellConfig->Option.flatMap(s => s.env)
+}
+
+// Run hooks for a given hook type
+let run: (
+  ~config: Config.config,
+  ~projectRoot: string,
+  ~hookType: hookType,
+  ~shellConfig: option<Config.shellConfig>,
+) => promise<result<unit, string>> = async (
   ~config,
-  ~cwd,
+  ~projectRoot,
   ~hookType,
+  ~shellConfig,
 ) => {
   let timeout = switch config.hooks {
   | Some(h) =>
@@ -82,7 +138,7 @@ let run: (~config: Config.config, ~cwd: string, ~hookType: hookType) => promise<
   | None => 5000
   }
 
-  let command = switch config.hooks {
+  let hookCmd: option<Config.hookCommand> = switch config.hooks {
   | Some(h) =>
     switch hookType {
     | PreGenerate => h.preGenerate
@@ -91,10 +147,11 @@ let run: (~config: Config.config, ~cwd: string, ~hookType: hookType) => promise<
   | None => None
   }
 
-  switch command {
+  switch hookCmd {
   | None => Ok()
-  | Some(cmd) => {
-      let result = await executeHook(~command=cmd, ~cwd, ~timeout, ~hookType)
+  | Some(hook) => {
+      let shellEnv = _buildShellEnv(shellConfig)
+      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv)
       switch result {
       | Ok(_) => Ok()
       | Error(e) =>

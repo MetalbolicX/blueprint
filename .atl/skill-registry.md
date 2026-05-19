@@ -56,10 +56,6 @@
 
 ## Testing Commands
 
-- ReScript build: `rtk pnpm res:build`
-- ReScript tests: `rtk pnpm res:test`
-- Bundle: `rtk pnpm bundle`
-
-## Notes
-
-- Package.json "name": "blueprint" — naming is now consistent
+- ReScript build: `pnpm res:build`
+- ReScript tests: `pnpm res:test`
+- Bundle: `pnpm bundle`

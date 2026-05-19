@@ -12,6 +12,7 @@ type phase2Error = {
 let executeShellCommands: (
   ~commands: array<Template.shellCommand>,
   ~cwd: string,
+  ~shellConfig: option<Config.shellConfig>,
 ) => promise<result<int, string>>
 
 let run: (
@@ -19,6 +20,7 @@ let run: (
   ~outputDir: string,
   ~renderedFiles: array<(string, string)>,
   ~shellCommands: array<Template.shellCommand>,
+  ~shellConfig: option<Config.shellConfig>,
 ) => promise<result<phase2Result, phase2Error>>
 
 let rollback: string => promise<unit>

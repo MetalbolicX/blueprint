@@ -111,4 +111,60 @@ suite("Template", () => {
     | _ => assert_false(true)
     }
   })
+
+  test("directive: Tool variant", () => {
+    let dir = Template.Tool("format")
+    switch dir {
+    | Template.Tool(name) => assert_eq(name, "format")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("directive: Fetch variant", () => {
+    let dir = Template.Fetch("https://raw.githubusercontent.com/.../gitignore")
+    switch dir {
+    | Template.Fetch(url) => assert_eq(url, "https://raw.githubusercontent.com/.../gitignore")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("shellTarget: ToolCall variant", () => {
+    let target = Template.ToolCall({
+      name: "format",
+      toolDef: {
+        name: "format",
+        command: "npx prettier --write",
+      },
+      sourcePath: "/templates/Hello.tsx.ejs.t",
+    })
+    switch target {
+    | Template.ToolCall(tc) =>
+      assert_eq(tc.name, "format")
+      assert_eq(tc.toolDef.command, "npx prettier --write")
+      assert_eq(tc.sourcePath, "/templates/Hello.tsx.ejs.t")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("shellCommand: with ToolCall target", () => {
+    let sc = {
+      Template.target: Template.ToolCall({
+        name: "lint",
+        toolDef: {
+          name: "lint",
+          command: "npx eslint",
+          args: ["--fix", "."],
+        },
+        sourcePath: "/templates/Hello.tsx.ejs.t",
+      }),
+      sourcePath: "/templates/Hello.tsx.ejs.t",
+    }
+
+    switch sc.target {
+    | Template.ToolCall(tc) =>
+      assert_eq(tc.name, "lint")
+      assert_eq(tc.sourcePath, "/templates/Hello.tsx.ejs.t")
+    | _ => assert_false(true)
+    }
+  })
 })

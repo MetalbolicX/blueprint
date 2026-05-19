@@ -201,6 +201,10 @@ module ChildProcess = {
   external execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string =
     "execFileSync"
 
+  @module("node:child_process")
+  external execFile: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult> =
+    "execFile"
+
   let execShellCommand: (
     ~command: string,
     ~cwd: string=?,

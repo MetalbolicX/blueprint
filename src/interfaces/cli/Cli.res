@@ -5,6 +5,7 @@ let printUsage = () => {
   Console.log("")
   Console.log("Commands:")
   Console.log("  init                   Scaffold a .blueprint.yaml config file")
+  Console.log("  init --global          Scaffold a global ~/.config/blueprint/config.yaml")
   Console.log("  generate <class>       Run template generation")
   Console.log("")
   Console.log("Options (generate):")
@@ -12,6 +13,28 @@ let printUsage = () => {
   Console.log("  --force                Skip prompts, overwrite files")
   Console.log("  --output <dir>         Output directory (default: generated)")
   Console.log("  --<key> <value>        Arbitrary attributes passed to templates")
+}
+
+let runInitGlobal: unit => promise<unit> = async () => {
+  let homeDir = Bindings.Os.homedir()
+  let configDir = Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint")
+  let configPath = Bindings.Path.join(configDir, "config.yaml")
+
+  // Check if global config already exists
+  let exists = await Bindings.Fs.fileExists(configPath)
+  if exists {
+    Console.error("Error: Global config already exists at " ++ configPath)
+    NodeJs.NodeProcess.exit(1)
+  } else {
+    // Create the directory if it doesn't exist
+    let dirExists = await Bindings.Fs.fileExists(configDir)
+    if !dirExists {
+      let _ = await Bindings.Fs.mkdir(configDir, ~options={recursive: true})
+    }
+    let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nallow_dangerous_commands: false\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\n"
+    let _ = await Bindings.Fs.writeFile(configPath, content)
+    Console.log("Scaffolded global config at " ++ configPath)
+  }
 }
 
 let runInit: unit => promise<unit> = async () => {
@@ -36,7 +59,31 @@ let runGenerate: (
   ~outputDir: string,
   ~cliAttributes: dict<string>,
 ) => promise<unit> = async (~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
-  let generators = await Discovery.discover()
+  // Load global config (from ~/.config/blueprint/config.yaml)
+  let globalConfigResult = await Config.loadGlobal()
+  let globalConfig = switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => Config.defaultGlobalConfig
+  | Error(_) => Config.defaultGlobalConfig // fallback silently
+  }
+
+  let cwd = NodeJs.NodeProcess.cwd()
+  let configResult = await Config.loadFrom(cwd)
+  let projectConfig = switch configResult {
+  | Ok(c) => c
+  | Error(e) => {
+      Console.error("Error loading .blueprint.yaml: " ++ e)
+      NodeJs.NodeProcess.exit(1)
+      None
+    }
+  }
+
+  let mergedConfig = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
+
+  // Build search paths: project paths first, then global paths
+  let projectPaths = ["_templates", "templates", "generators"]
+  let allPaths = Array.concat(projectPaths, mergedConfig.templates)
+  let generators = await Discovery.discover(~searchPaths=allPaths, ())
 
   switch Discovery.findByClassification(generators, classification) {
   | None => {
@@ -44,15 +91,15 @@ let runGenerate: (
       NodeJs.NodeProcess.exit(1)
     }
   | Some(generator) => {
-      let cwd = NodeJs.NodeProcess.cwd()
-      let configResult = await Config.loadFrom(cwd)
-      let config = switch configResult {
-      | Ok(c) => c
-      | Error(e) => {
-          Console.error("Error loading .blueprint.yaml: " ++ e)
-          NodeJs.NodeProcess.exit(1)
-          None
-        }
+      // Build effective config for Engine (using merged timeout)
+      // Keep project hooks as-is but use merged timeout
+      let effectiveConfig: Config.config = {
+        output: ?projectConfig->Option.flatMap(c => c.output),
+        hooks: ?Some({
+          preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
+          postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),
+          timeout: mergedConfig.timeout,
+        }),
       }
 
       let result = await Engine.run(
@@ -61,7 +108,7 @@ let runGenerate: (
         ~cliAttributes,
         ~outputDir,
         ~force,
-        ~config?,
+        ~config=effectiveConfig,
       )
 
       switch result {
@@ -100,7 +147,15 @@ let main: unit => promise<unit> = async () => {
 
     switch command {
     | "init" => {
-        await runInit()
+        // Check for --global flag or --help/-h
+        if args->Array.includes("--global") {
+          await runInitGlobal()
+        } else if args->Array.includes("--help") || args->Array.includes("-h") {
+          printUsage()
+          NodeJs.NodeProcess.exit(0)
+        } else {
+          await runInit()
+        }
       }
 
     | "generate" => {

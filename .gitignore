@@ -158,3 +158,5 @@ dist
 
 # For elm language
 /elm-stuff
+node_modules/
+.atl/

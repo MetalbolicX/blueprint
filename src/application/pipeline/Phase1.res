@@ -16,6 +16,14 @@ type phase1Error = {
   message: string,
 }
 
+// Lookup a tool by name in the shell config
+let _findToolByName: (array<Config.shellTool>, string) => option<Config.shellTool> = (
+  tools,
+  name,
+) => {
+  tools->Array.find(tool => tool.name == name)
+}
+
 // Resolve target path from "to" directive using context
 let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
   directive,
@@ -54,9 +62,11 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
 let _renderTemplate: (
   ~template: template,
   ~context: Context.context,
+  ~shellConfig: option<Config.shellConfig>,
 ) => promise<result<(string, string, string, array<shellCommand>), string>> = async (
   ~template,
   ~context,
+  ~shellConfig,
 ) => {
   // Build render context for EJS
   let renderCtx = Context.toRenderContext(context)
@@ -77,14 +87,29 @@ let _renderTemplate: (
 
       let shellCmds = template.directives->Array.filterMap(d => {
         switch d {
-        | Sh(rawString) =>
-          if Frontmatter.isFileReference(rawString) {
-            let templateDir = Path.dirname(template.sourcePath)
-            let resolvedPath = Path.resolve(templateDir, rawString)
-            Some({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
-          } else {
-            Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
+        | Fetch(url) =>
+          // Fetch directive: Phase2 handles the actual fetching
+          Some({target: Fetch(url), sourcePath: template.sourcePath})
+        | Tool(name) => {
+            // Tool directive: lookup in shellConfig tools
+            let tools = switch shellConfig {
+            | Some(cfg) => cfg.tools->Option.getOr([])
+            | None => []
+            }
+            switch _findToolByName(tools, name) {
+            | Some(toolDef) =>
+              Some({target: ToolCall({name, toolDef, sourcePath: template.sourcePath}), sourcePath: template.sourcePath})
+            | None =>
+              // Tool not found - we'll collect error but Phase1 doesn't fail the whole pipeline
+              // Phase2 will report the error when trying to execute
+              Some({target: InlineCommand("tool-not-found: " ++ name), sourcePath: template.sourcePath})
+            }
           }
+        | Sh(rawString) =>
+          // All sh: values are treated as legacy inline commands
+          // isFileReference removed: scripts must be declared as tools
+          // Phase2 will handle shell.enabled checks and exact-match validation
+          Some({target: InlineCommand("legacy-sh: " ++ rawString), sourcePath: template.sourcePath})
         | _ => None
         }
       })
@@ -104,12 +129,15 @@ let run: (
   ~context: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~shellConfig: option<Config.shellConfig>,
 ) => promise<result<phase1Result, phase1Error>> = async (
   ~templates as _templates,
   ~context as _context,
   ~outputDir as _outputDir,
   ~conflictDecisions as _conflictDecisions,
+  ~shellConfig,
 ) => {
+  let effectiveShellConfig = shellConfig
   let stagingDir = Os.makeStagingDir()
 
   let mkdirResult: result<unit, phase1Error> = try {
@@ -132,7 +160,7 @@ let run: (
     let errorRef: ref<option<phase1Error>> = ref(None)
 
     let renderOps = _templates->Array.map(async tmpl => {
-      switch await _renderTemplate(~template=tmpl, ~context=_context) {
+      switch await _renderTemplate(~template=tmpl, ~context=_context, ~shellConfig=effectiveShellConfig) {
       | Error(e) =>
         errorRef.contents = Some({stagingDir, message: e})
       | Ok((sourcePath, targetPath, renderedBody, shellCmds)) =>

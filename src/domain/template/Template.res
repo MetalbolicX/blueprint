@@ -7,7 +7,9 @@ type directive =
   | Prepend // prepend to file start
   | Append // append to file end
   | Force // overwrite without confirmation
-  | Sh(string) // shell command after render
+  | Sh(string) // legacy shell command (warn)
+  | Tool(string) // tool name lookup
+  | Fetch(string) // fetch URL content
 
 type template = {
   sourcePath: string, // absolute path to .ejs.t file
@@ -27,8 +29,14 @@ type renderedFile = {
 type shellTarget =
   | InlineCommand(string)
   | ScriptFile(string)
+  | Fetch(string) // fetch URL content (Phase2 downloads and writes)
+  | ToolCall({
+    name: string,
+    toolDef: Config.shellTool,
+    sourcePath: string,
+  })
 
 type shellCommand = {
   target: shellTarget,
-  sourcePath: string, // source template that declared the sh: directive
+  sourcePath: string, // source template that declared the directive
 }

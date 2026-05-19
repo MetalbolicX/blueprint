@@ -5,4 +5,4 @@ type parsedFrontmatter = {
 
 let parse: string => result<parsedFrontmatter, string>
 
-let isFileReference: string => bool
+
