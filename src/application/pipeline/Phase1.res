@@ -106,10 +106,8 @@ let _renderTemplate: (
             }
           }
         | Sh(rawString) =>
-          // All sh: values are treated as legacy inline commands
-          // isFileReference removed: scripts must be declared as tools
-          // Phase2 will handle shell.enabled checks and exact-match validation
-          Some({target: InlineCommand("legacy-sh: " ++ rawString), sourcePath: template.sourcePath})
+          // sh: directives are legacy — exact-match validation in Phase2
+          Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
         | _ => None
         }
       })

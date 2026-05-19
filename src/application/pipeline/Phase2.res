@@ -101,7 +101,6 @@ let executeShellCommands: (
             })
           }
         | InlineCommand(command) => {
-            // Check if shell is enabled
             let shellEnabled = switch shellConfig {
             | Some(cfg) => cfg.enabled
             | None => false
@@ -109,16 +108,29 @@ let executeShellCommands: (
             if !shellEnabled {
               Promise.resolve(Error("Shell execution disabled"))
             } else {
-              // Legacy path: exec with shell:true
-              ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
-                switch result {
-                | Ok(_) => {
-                    count.contents = count.contents + 1
-                    Promise.resolve(Ok())
-                  }
-                | Error(e) => Promise.resolve(Error("Shell command failed: " ++ e))
+              // Allowlist validation: command's first token must match a tool.command
+              let baseCmd = command->String.split(" ")->Array.get(0)->Option.getOr(command)
+              let isAllowed = switch shellConfig {
+              | Some(cfg) =>
+                switch cfg.tools {
+                | Some(tools) => tools->Array.some(tool => tool.command == baseCmd)
+                | None => false
                 }
-              })
+              | None => false
+              }
+              if !isAllowed {
+                Promise.resolve(Error("Command not in tools allowlist: " ++ command))
+              } else {
+                ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
+                  switch result {
+                  | Ok(_) => {
+                      count.contents = count.contents + 1
+                      Promise.resolve(Ok())
+                    }
+                  | Error(e) => Promise.resolve(Error("Shell command failed: " ++ e))
+                  }
+                })
+              }
             }
           }
         | ScriptFile(path) =>
