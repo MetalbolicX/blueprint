@@ -11,7 +11,7 @@ allow_dangerous_commands: true
 "
     let parsed = Config.parse(legacyConfig)
     switch parsed {
-    | Ok(cfg) => {
+    | Ok(_cfg) => {
         // Note: allow_dangerous_commands is no longer parsed into shell.enabled
         // The migration is handled at mergeConfig level
         assert_true(true)

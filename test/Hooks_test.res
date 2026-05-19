@@ -92,7 +92,7 @@ suite("Hooks", () => {
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_true(true)
-      | Error(e) => {
+      | Error(_e) => {
           assert_false(true)
         }
       }
@@ -164,7 +164,7 @@ suite("Hooks", () => {
     Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None)
     ->Promise.then(result => {
       switch result {
-      | Error(msg) => assert_true(true) // Timeout error expected
+      | Error(_msg) => assert_true(true) // Timeout error expected
       | Ok(_) => assert_false(true) // Should not succeed
       }
       resolve()

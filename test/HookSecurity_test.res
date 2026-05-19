@@ -38,7 +38,7 @@ suite("HookSecurity", () => {
 
   test("executeHook: timeout is respected", () => {
     // Hook with very short timeout should fail
-    let hook: Config.hookCommand = {
+    let _hook: Config.hookCommand = {
       command: "sleep 10",
     }
 
