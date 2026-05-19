@@ -211,4 +211,39 @@ suite("Engine", () => {
     })
     ->ignore
   })
+
+  testAsync("run: readline is always closed even on error", resolve => {
+    let gen: Discovery.generator = {
+      name: "component",
+      path: "/tmp/blueprint-test-nonexistent",
+      templates: [],
+    }
+
+    // Use a failing hook to trigger error path
+    let cfg: Config.config = {
+      hooks: {
+        preGenerate: {command: "exit 1"},
+        timeout: 1,
+      },
+    }
+
+    Engine.run(
+      ~generator=gen,
+      ~name="Button",
+      ~cliAttributes=Dict.make(),
+      ~outputDir="/tmp/blueprint-test-output",
+      ~force=true,
+      ~config=cfg,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "pre_generate"))
+      }
+      // Test passes if we get here without hanging (readline was closed)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

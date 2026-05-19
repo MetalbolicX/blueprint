@@ -3,6 +3,7 @@
  *
  * Each module groups related bindings from a built-in Node module.
  */
+
 module Fs = {
   type fileHandle
 
@@ -41,6 +42,10 @@ module Fs = {
 
   @module("node:fs") @scope("promises")
   external access: (string, ~mode: int=?) => promise<unit> = "access"
+
+  // Sync mkdir for internal use
+  @module("node:fs")
+  external mkdirSync: (string, ~options: mkdirOptions=?) => string = "mkdirSync"
 
   let fOk = 0
 
@@ -145,8 +150,19 @@ module Os = {
   external userInfo: (~options: userInfoOptions=?) => userInfoResult = "userInfo"
 
   let makeStagingDir: unit => string = () => {
-    let randomPart = Math.random()->Float.toString->String.slice(~start=2)
-    Path.join(tmpdir(), "blueprint-" ++ randomPart)
+    let ts = Date.now()->Float.toInt->Int.toString
+    let r = Math.random()->Float.toString
+    let r2 = String.split(r, ".")->Array.get(1)->Option.getOr("x")
+    let dir = "blueprint-" ++ ts ++ "-" ++ r2
+    let tmp = tmpdir()
+    let fullPath = Path.join(tmp, dir)
+    // Ensure directory exists using sync API
+    try {
+      let _ = Fs.mkdirSync(fullPath, ~options={recursive: true})
+      fullPath
+    } catch {
+    | _ => fullPath  // If mkdirSync fails, return path anyway
+    }
   }
 }
 
@@ -171,7 +187,7 @@ module ChildProcess = {
   external spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess =
     "spawn"
 
-  type execResult = {stdout: string, stderr: string, status: option<int>}
+  type execResult = {stdout: string, stderr: string, status: option<int>, signalCode: option<string>, killed: bool}
 
   type execOptions = {
     cwd?: string,
@@ -341,6 +357,11 @@ module NodeProcess = {
   @module("node:process") external env: dict<string> = "env"
   @module("node:process") external exit: int => unit = "exit"
   @module("node:process") external cwd: unit => string = "cwd"
+}
+
+module NodeTimers = {
+  @module("node:timers") external setTimeout: (unit => unit, int) => int = "setTimeout"
+  @module("node:timers") external clearTimeout: int => unit = "clearTimeout"
 }
 
 module ParseArgs = Util

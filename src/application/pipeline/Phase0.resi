@@ -8,6 +8,12 @@ type phase0Result = {
   conflicts: array<conflictFile>,
 }
 
+let detectConflicts: (
+  ~templates: array<Template.template>,
+  ~outputDir: string,
+  ~force: bool,
+) => promise<array<conflictFile>>
+
 let run: (
   ~rl: Bindings.Readline.readlineInterface,
   ~generator: Discovery.generator,

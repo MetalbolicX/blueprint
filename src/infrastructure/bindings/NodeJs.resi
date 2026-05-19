@@ -102,7 +102,7 @@ module ChildProcess: {
     signal?: string,
   }
 
-  type execResult = {stdout: string, stderr: string, status: option<int>}
+  type execResult = {stdout: string, stderr: string, status: option<int>, signalCode: option<string>, killed: bool}
 
   type execOptions = {
     cwd?: string,

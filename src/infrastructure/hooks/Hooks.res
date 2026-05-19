@@ -58,57 +58,57 @@ let executeHook: (
     cwd: cwd,
     env: safeEnv,
     encoding: "utf8",
-    timeout: timeout,
   }
 
-  // Helper to build exec options with shell
-  let execOpts: ChildProcess.execOptions = {
-    cwd: cwd,
-    env: safeEnv,
-    shell: true,
-    encoding: "utf8",
-    timeout: timeout,
-  }
-
-  try {
-    // Execute the command (path restriction applied inside if branches)
-    let result = if isPath {
-      let resolvedPath = Path.resolve(cwd, hook.command)
-      if !PathSecurity.isWithinTree(resolvedPath, cwd) {
-        Error("Hook script outside project tree: " ++ hook.command)
-      } else {
-        switch hook.args {
-        | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
-        | None => Ok(await ChildProcess.exec(hook.command, ~options=execOpts))
-        }
+  // Use promisified exec to properly detect timeout
+  // The callback style exec gives us (err, stdout, stderr) directly
+  let execWithTimeout: (string, int) => promise<result<ChildProcess.execResult, string>> = async (_cmd, _timeoutMs) => {
+    try {
+      let result = await %raw("(async () => {
+        const {exec} = await import('node:child_process');
+        const {promisify} = await import('node:util');
+        const execP = promisify(exec);
+        return execP(cmd, {timeout: timeoutMs});
+      })()")
+      Ok(result)
+    } catch {
+    | JsExn(e) =>
+      let msg = switch JsExn.message(e) {
+      | Some(m) => m
+      | None => "unknown error"
       }
+      Error(msg)
+    }
+  }
+
+  let result = if isPath {
+    let resolvedPath = Path.resolve(cwd, hook.command)
+    if !PathSecurity.isWithinTree(resolvedPath, cwd) {
+      Error("Hook script outside project tree: " ++ hook.command)
     } else {
       switch hook.args {
       | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
-      | None => Ok(await ChildProcess.exec(hook.command, ~options=execOpts))
+      | None => await execWithTimeout(hook.command, timeout)
       }
     }
-    // result is result<execResult, string> at this point
-    switch result {
-    | Error(e) => Error(e)
-    | Ok(r) =>
-      let code = switch r.status {
-      | Some(c) => c
-      | None => 0
-      }
-      if code == 0 {
-        Ok({hookType, output: r.stdout, exitCode: code})
-      } else {
-        Error("Hook exited with code " ++ Int.toString(code))
-      }
+  } else {
+    switch hook.args {
+    | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
+    | None => await execWithTimeout(hook.command, timeout)
     }
-  } catch {
-  | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => "Hook execution failed: " ++ m
-    | None => "Hook execution failed"
+  }
+  switch result {
+  | Error(e) => Error(e)
+  | Ok(r) =>
+    let code = switch r.status {
+    | Some(c) => c
+    | None => 0
     }
-    Error(msg)
+    if code != 0 {
+      Error("Hook exited with code " ++ Int.toString(code))
+    } else {
+      Ok({hookType, output: r.stdout, exitCode: code})
+    }
   }
 }
 

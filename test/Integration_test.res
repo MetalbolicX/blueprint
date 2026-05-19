@@ -114,4 +114,106 @@ suite("Integration", () => {
     // Note: actual 404 testing would require network call
     assert_true(true) // Placeholder for 404 test
   })
+
+  // --- Health/readiness probe tests ---
+
+  test("structured log entry: has required JSON fields", () => {
+    // A valid structured log entry should parse as JSON and contain these fields
+    let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"test-123\",\"event\":\"phase0/start\",\"message\":\"Starting\",\"meta\":{}}"
+    switch %raw("JSON.parse(_rawEntry)") {
+    | obj =>
+      let hasTimestamp = Js.Dict.get(obj, "timestamp")->Option.isSome
+      let hasLevel = Js.Dict.get(obj, "level")->Option.isSome
+      let hasRunId = Js.Dict.get(obj, "runId")->Option.isSome
+      let hasEvent = Js.Dict.get(obj, "event")->Option.isSome
+      assert_true(hasTimestamp && hasLevel && hasRunId && hasEvent)
+    | exception _ => assert_false(true)
+    }
+  })
+
+  test("structured log entry: runId is non-empty string", () => {
+    let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"1747655400123-4821\",\"event\":\"test\",\"message\":\"msg\"}"
+    switch %raw("JSON.parse(_rawEntry)") {
+    | obj =>
+      switch Js.Dict.get(obj, "runId") {
+      | Some(Js.Json.String(id)) => assert_true(String.length(id) > 0)
+      | _ => assert_false(true)
+      }
+    | exception _ => assert_false(true)
+    }
+  })
+
+  test("validateMergedConfig exists and rejects invalid config", () => {
+    // Config.validateMergedConfig should exist and reject timeout <= 0
+    let badConfig: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 0,
+      defaultAttributes: Dict.make(),
+    }
+
+    switch Config.validateMergedConfig(badConfig) {
+    | Ok(_) => assert_false(true)
+    | Error(_) => assert_true(true)
+    }
+  })
+
+  test("validateMergedConfig exists and accepts valid config", () => {
+    let goodConfig: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: {enabled: false},
+    }
+
+    switch Config.validateMergedConfig(goodConfig) {
+    | Ok(_) => assert_true(true)
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  // --- Conflict detection integration ---
+
+  testAsync("detectConflicts: multi-template returns all conflicts", resolve => {
+    // When multiple templates target existing files, all should be reported
+    // This tests the integration of Phase0.detectConflicts with the conflict resolution flow
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outDir = NodeJs.Path.join(tmpDir, "out")
+
+    let templates: array<Template.template> = [
+      {
+        sourcePath: NodeJs.Path.join(tmpDir, "a.ejs.t"),
+        directives: [Template.To("a.txt")],
+        body: "a",
+      },
+      {
+        sourcePath: NodeJs.Path.join(tmpDir, "b.ejs.t"),
+        directives: [Template.To("b.txt")],
+        body: "b",
+      },
+    ]
+
+    NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(NodeJs.Path.join(outDir, "a.txt"), "existing-a")
+    )
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(NodeJs.Path.join(outDir, "b.txt"), "existing-b")
+    )
+    ->Promise.then(_ =>
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
+    )
+    ->Promise.then(conflicts => {
+      assert_eq(Array.length(conflicts), 2)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

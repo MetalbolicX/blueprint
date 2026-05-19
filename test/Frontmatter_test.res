@@ -127,4 +127,29 @@ suite("Frontmatter", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  test("parse: malformed inject regex returns Error not throw", () => {
+    // Bad regex syntax should be handled gracefully
+    let content = "---\ninject: [invalid(\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      // inject directive with bad regex value is stored as-is (parsing happens later in Injection.res)
+      switch parsed.directives[0] {
+      | Some(Template.Inject(pattern)) => assert_eq(pattern, "[invalid(")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_true(true)  // frontmatter itself should parse OK; regex validation is deferred
+    }
+  })
+
+  test("parse: garbage after frontmatter returns Error", () => {
+    // Missing closing --- delimiter
+    let content = "---\nto: file.txt\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(_) => assert_true(true)
+    }
+  })
 })

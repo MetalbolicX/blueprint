@@ -276,11 +276,29 @@ let parseHookCommand: JSON.t => option<hookCommand> = json => {
       | None => None
       }
       switch command {
-      | Some(c) => Some({command: c, args: ?args})
+      | Some(c) =>
+        switch args {
+        | Some(a) => Some({command: c, args: a})
+        | None => Some({command: c})
+        }
       | None => None
       }
     }
   | _ => None
+  }
+}
+
+// Validate merged config for fail-fast enforcement
+// Returns Ok if config is valid, Error(message) if not
+let validateMergedConfig: mergedConfig => result<unit, string> = cfg => {
+  if cfg.timeout < 1 {
+    Error("timeout must be >= 1, got " ++ Int.toString(cfg.timeout))
+  } else {
+    switch cfg.shell {
+    | Some(s) if s.enabled && s.tools->Option.isNone =>
+      Error("shell.enabled=true requires tools to be defined")
+    | _ => Ok()
+    }
   }
 }
 

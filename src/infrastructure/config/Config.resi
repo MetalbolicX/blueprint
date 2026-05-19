@@ -55,6 +55,7 @@ let parseGlobal: string => result<globalConfig, string>
 let loadFrom: string => promise<result<option<config>, string>>
 let loadGlobal: unit => promise<result<option<globalConfig>, string>>
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig
+let validateMergedConfig: mergedConfig => result<unit, string>
 let defaultGlobalConfig: globalConfig
 let defaultOutputDir: string
 let defaultTimeout: int

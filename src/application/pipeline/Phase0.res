@@ -36,8 +36,41 @@ let detectConflicts: (
   ~outputDir: string,
   ~force: bool,
 ) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force) => {
-  let _ = (templates, outputDir, force)
-  []
+  // Collect all To directive checks as a flat array
+  let toChecks =
+    templates->Array.reduce([], (acc, tmpl) => {
+      let found = tmpl.directives->Array.filterMap(d => {
+        switch d {
+        | To(path) => Some((tmpl.sourcePath, path))
+        | _ => None
+        }
+      })
+      Array.concat(acc, found)
+    })
+
+  // Build an array of promises for existence checks
+  let checkPromises: array<promise<option<conflictFile>>> =
+    toChecks->Array.map(((sourcePath, targetPath)) => {
+      let fullTarget = Path.join(outputDir, targetPath)
+      Fs.fileExists(fullTarget)->Promise.then(exists =>
+        if exists {
+          Promise.resolve(Some({sourcePath, targetPath: fullTarget}))
+        } else {
+          Promise.resolve(None)
+        }
+      )
+    })
+
+  // Await all promises and filter out None values
+  let results = await Promise.all(checkPromises)
+  let allConflicts: array<conflictFile> = []
+  results->Array.forEach(opt => {
+    switch opt {
+    | Some(cf) => allConflicts->Array.push(cf)->ignore
+    | None => ()
+    }
+  })
+  allConflicts
 }
 
 // Run Phase0: resolve prompts and detect conflicts

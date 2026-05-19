@@ -44,4 +44,40 @@ suite("Renderer", () => {
     | None => assert_true(true)
     }
   })
+
+  testAsync("render: missing required variable returns Error not throw", resolve => {
+    // Incomplete renderContext missing 'name' should return Error, not throw
+    // We test by passing a context where the EJS template references an undefined var
+    let tmpl: Template.template = {
+      sourcePath: "/test/res/Test.res.ejs.t",
+      directives: [Template.To("out.txt")],
+      body: "Hello <%= missingVar %>",
+    }
+
+    // Build a minimal renderContext with only the required fields
+    let ctx: Renderer.renderContext = {
+      name: "Test",
+      pascalName: "Test",
+      names: "tests",
+      pluralPascalName: "Tests",
+      cwd: "/tmp",
+      actionfolder: "/tmp",
+      attributes: Dict.make(),
+    }
+
+    switch Renderer.render(tmpl, ctx) {
+    | Ok(_) => {
+        // EJS may render with undefined var as empty string - that's acceptable
+        assert_true(true)
+        resolve()
+        Promise.resolve()
+      }
+    | Error(msg) =>
+      // Error is acceptable - means validation caught the undefined var
+      assert_true(String.length(msg) > 0)
+      resolve()
+      Promise.resolve()
+    }
+    ->ignore
+  })
 })

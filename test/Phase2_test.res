@@ -39,6 +39,92 @@ suite("Phase2", () => {
     }
   })
 
+  test("validateMergedConfig: accepts valid merged config", () => {
+    let merged: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: {enabled: false},
+    }
+
+    switch Config.validateMergedConfig(merged) {
+    | Ok(_) => assert_true(true)
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("validateMergedConfig: rejects negative timeout", () => {
+    let merged: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: -1,
+      defaultAttributes: Dict.make(),
+    }
+
+    switch Config.validateMergedConfig(merged) {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.includes(msg, "timeout"))
+    }
+  })
+
+  test("validateMergedConfig: rejects zero timeout", () => {
+    let merged: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 0,
+      defaultAttributes: Dict.make(),
+    }
+
+    switch Config.validateMergedConfig(merged) {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.includes(msg, "timeout"))
+    }
+  })
+
+  test("validateMergedConfig: rejects shell enabled without tools", () => {
+    let merged: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: {enabled: true},
+    }
+
+    switch Config.validateMergedConfig(merged) {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.includes(msg, "tools"))
+    }
+  })
+
+  test("validateMergedConfig: accepts shell enabled with tools", () => {
+    let merged: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: {
+        enabled: true,
+        tools: [{name: "format", command: "echo"}],
+      },
+    }
+
+    switch Config.validateMergedConfig(merged) {
+    | Ok(_) => assert_true(true)
+    | Error(_) => assert_false(true)
+    }
+  })
+
   testAsync("rollback: removes staging directory", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let _ = NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
