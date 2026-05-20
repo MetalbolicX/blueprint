@@ -92,15 +92,15 @@ When `inject`, `after`, `before`, `prepend`, or `append` is set, the template mo
 
 ```yaml
 ---
-to: src/handlers/{{ .Name | pascalCase }}.go
+to: src/handlers/<%= h.pascalCase(Name) %>.go
 force: true
 ---
 package handlers
 
 import "fmt"
 
-func {{ .Name }}Handler(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "{{ .name }} endpoint")
+func <%= Name %>Handler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "<%= name %> endpoint")
 }
 ```
 
@@ -112,14 +112,14 @@ Available in every template by default.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `{{ .cwd }}` | string | Working directory where blueprint was invoked |
-| `{{ .actionfolder }}` | string | Absolute path to the generator's manifest directory |
-| `{{ .name }}` | string | Component name (lowercased, from `--name` or prompt) |
-| `{{ .Name }}` | string | PascalCased component name |
-| `{{ .names }}` | string | Pluralized lowercase (`name + "s"`) |
-| `{{ .Names }}` | string | Pluralized PascalCase (`Name + "s"`) |
-| `{{ .attributes }}` | map | CLI flags as `map[string]string` |
-| `{{ .<prompt_name> }}` | any | Resolved prompt value by name |
+| `<%= cwd %>` | string | Working directory where blueprint was invoked |
+| `<%= actionfolder %>` | string | Absolute path to the generator's manifest directory |
+| `<%= name %>` | string | Component name (lowercased, from `--name` or prompt) |
+| `<%= Name %>` | string | PascalCased component name |
+| `<%= names %>` | string | Pluralized lowercase (`name + "s"`) |
+| `<%= Names %>` | string | Pluralized PascalCase (`Name + "s"`) |
+| `*merged*` | map | CLI attributes merged as individual variables |
+| `<%= promptName %>` | any | Resolved prompt value by name |
 
 **Priority (highest wins):** CLI attributes > prompt answers > prompt defaults > native defaults
 
@@ -127,7 +127,7 @@ Available in every template by default.
 
 ## FuncMaps
 
-Template helper functions registered in Go `text/template`.
+Template helper functions available via the `h.*` prefix in EJS templates.
 
 | Function | Input | Output |
 |----------|-------|--------|

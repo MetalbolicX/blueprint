@@ -1,6 +1,6 @@
 # Fluxo documentation
 
-Fast, transactional, Go-based template generator — a modern Hygen replacement.
+Fast, transactional template generator — a modern Hygen replacement.
 
 - **Quick start**: [Setup](setup.md)
 - **CLI reference**: [API Reference](api-reference.md)

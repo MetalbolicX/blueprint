@@ -42,12 +42,12 @@ prompts:
 
 ```yaml
 ---
-to: models/{{ .Name | snakeCase }}.go
+to: models/<%= h.snakeCase(Name) %>.go
 ---
-package {{ .package }}
+package <%= package %>
 
-// {{ .Name }} represents a {{ .name }} entity.
-type {{ .Name }} struct {
+// <%= Name %> represents a <%= name %> entity.
+type <%= Name %> struct {
     ID string `json:"id"`
 }
 ```
@@ -56,17 +56,17 @@ type {{ .Name }} struct {
 
 ```yaml
 ---
-to: repos/{{ .Name | snakeCase }}_repo.go
+to: repos/<%= h.snakeCase(Name) %>_repo.go
 ---
 package repos
 
 import "models"
 
-// {{ .Name }}Repository handles {{ .name }} persistence.
-type {{ .Name }}Repository struct{}
+// <%= Name %>Repository handles <%= name %> persistence.
+type <%= Name %>Repository struct{}
 
-func New{{ .Name }}Repository() *{{ .Name }}Repository {
-    return &{{ .Name }}Repository{}
+func New<%= Name %>Repository() *<%= Name %>Repository {
+    return &<%= Name %>Repository{}
 }
 ```
 
@@ -116,19 +116,19 @@ prompts:
 
 ```yaml
 ---
-to: src/components/{{ .Name | pascalCase }}/{{ .Name | pascalCase }}.tsx
+to: src/components/<%= h.pascalCase(Name) %>/<%= h.pascalCase(Name) %>.tsx
 ---
 import React from 'react';
-{{ if .withStyles }}import styles from './{{ .Name | pascalCase }}.module.css';{{ end }}
+<% if (withStyles) { %>import styles from './<%= h.pascalCase(Name) %>.module.css';<% } %>
 
-interface {{ .Name | pascalCase }}Props {
+interface <%= h.pascalCase(Name) %>Props {
   name: string;
 }
 
-export const {{ .Name | pascalCase }}: React.FC<{{ .Name | pascalCase }}Props> = ({ name }) => {
+export const <%= h.pascalCase(Name) %>: React.FC<<%= h.pascalCase(Name) %>Props> = ({ name }) => {
   return (
-    <div{{ if .withStyles }} className={styles.container}{{ end }}>
-      <h1>{{ "Hello" }}, {name}!</h1>
+    <div<% if (withStyles) { %> className={styles.container}<% } %>>
+      <h1>Hello, {name}!</h1>
     </div>
   );
 };
@@ -138,9 +138,9 @@ export const {{ .Name | pascalCase }}: React.FC<{{ .Name | pascalCase }}Props> =
 
 ```yaml
 ---
-to: src/components/{{ .Name | pascalCase }}/index.ts
+to: src/components/<%= h.pascalCase(Name) %>/index.ts
 ---
-export { {{ .Name | pascalCase }} } from './{{ .Name | pascalCase }}';
+export { <%= h.pascalCase(Name) %> } from './<%= h.pascalCase(Name) %>';
 ```
 
 ### 4. Generate
@@ -198,31 +198,31 @@ prompts:
 
 ```yaml
 ---
-to: routes/{{ .name | snakeCase }}.py
+to: routes/<%= h.snakeCase(name) %>.py
 ---
-from fastapi import APIRouter, Depends{{ if .auth }}, HTTPException, Security{{ end }}
+from fastapi import APIRouter, Depends<% if (auth) { %>, HTTPException, Security<% } %>
 
-router = APIRouter(prefix="/{{ .name }}", tags=["{{ .name }}"])
+router = APIRouter(prefix="/<%= name %>", tags=["<%= name %>"])
 
-{{ if .auth }}from core.auth import get_current_user{{ end }}
+<% if (auth) { %>from core.auth import get_current_user<% } %>
 
-@router.{{ if eq .method "GET" }}get{{ else if eq .method "POST" }}post{{ else if eq .method "PUT" }}put{{ else }}delete{{ end }}("/")
-async def handle_{{ .name | snakeCase }}({{ if .auth }}current_user: dict = Depends(get_current_user){{ end }}):
-    return {"message": "{{ .name | pascalCase }} endpoint"}
+@router.<% if (method === "GET") { %>get<% } else if (method === "POST") { %>post<% } else if (method === "PUT") { %>put<% } else { %>delete<% } %>("/")
+async def handle_<%= h.snakeCase(name) %>(<% if (auth) { %>current_user: dict = Depends(get_current_user)<% } %>):
+    return {"message": "<%= h.pascalCase(name) %> endpoint"}
 ```
 
 **`templates/fastapi-route/files/schema.py.ejs.t`**
 
 ```yaml
 ---
-to: schemas/{{ .name | snakeCase }}.py
+to: schemas/<%= h.snakeCase(name) %>.py
 ---
 from pydantic import BaseModel
 
-class {{ .Name | pascalCase }}Request(BaseModel):
+class <%= h.pascalCase(Name) %>Request(BaseModel):
     pass
 
-class {{ .Name | pascalCase }}Response(BaseModel):
+class <%= h.pascalCase(Name) %>Response(BaseModel):
     id: str
     message: str
 ```
@@ -253,13 +253,13 @@ Modify an existing file by matching a regex pattern.
 inject: pkg/registry/registry.go
 after: func RegisterRoutes\(
 ---
-    router.Handle("{{ .name | kebabCase }}", handler)
+    router.Handle("<%= h.kebabCase(name) %>", handler)
 ```
 
 Running `blueprint generate model --name Product` finds the line `func RegisterRoutes(` in the existing file and inserts the route registration after it.
 
 > [!Warning|style:flat|label:Regex caution]
-> The `after` and `before` patterns are compiled as Go regexp. Always escape special characters (`\.`, `\(`, `\)`, etc.).
+> The `after` and `before` patterns are compiled as JavaScript regex. Always escape special characters (`\.`, `\(`, `\)`, etc.).
 
 ## Use shell commands
 
@@ -267,12 +267,12 @@ Run a shell command after rendering a template.
 
 ```yaml
 ---
-sh: gofmt -w {{ .Name | snakeCase }}.go
-to: {{ .Name | snakeCase }}.go
+sh: gofmt -w <%= h.snakeCase(Name) %>.go
+to: <%= h.snakeCase(Name) %>.go
 ---
-package {{ .package }}
+package <%= package %>
 
-type {{ .Name }} struct{}
+type <%= Name %> struct{}
 ```
 
 The command runs in the staging directory. If it fails, the staged files are rolled back.
