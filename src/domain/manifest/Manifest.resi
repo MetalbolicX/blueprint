@@ -1,11 +1,17 @@
 type promptType = Input | Select | Confirm
 
+type promptValidation = {pattern: string, message: string}
+
+type promptOption = {label: string, value: string}
+
 type prompt = {
   name: string,
   promptType: promptType,
   description: string,
   default?: string,
-  options?: array<string>,
+  @as("when") when_?: string,
+  options?: array<promptOption>,
+  validate?: promptValidation,
 }
 
 type manifest = {

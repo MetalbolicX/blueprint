@@ -1,38 +1,200 @@
 // PromptResolver — interactive prompt resolution via node:readline
-// Supports input, select, and confirm prompt types
+// Supports input, select, and confirm prompt types with declarative evaluation
 // Mirrors Go version's phase0/prompt_resolver.go
 
 open Bindings
 
-@@warning("-34")
-type promptAnswer = {
-  name: string,
-  value: string,
+// Error types for resolver failures
+type resolveError =
+  | EvaluationError({prompt: string, field: string, message: string})
+  | ValidationConfigError({prompt: string, message: string})
+
+// --- EJS expression safety guard ---
+
+// Check that a template contains only interpolation tags (<%= ... %>)
+// Rejects control flow (<% ... %>) and unescaped output (<%- ... %>)
+let _hasUnsafeEjsTags: string => bool = template => {
+  // Match any <% that is NOT followed by =
+  let controlFlowPattern = Js.Re.fromString("<%(?![-=])")
+  // Match <%- (unescaped output)
+  let unescapedPattern = Js.Re.fromString("<%-")
+  Js.Re.test_(controlFlowPattern, template) || Js.Re.test_(unescapedPattern, template)
 }
 
-// Ask a single question based on prompt type
-let askPrompt: (~rl: Readline.readlineInterface, ~prompt: Manifest.prompt) => promise<string> = (
-  ~rl,
-  ~prompt,
+// Evaluate an EJS template string against evaluation context
+// Returns Error on unsafe tags or EJS evaluation failure
+let evalTemplate: (
+  string,
+  ~ctx: {..},
+) => result<string, resolveError> = (template, ~ctx) => {
+  if _hasUnsafeEjsTags(template) {
+    Error(
+      EvaluationError({
+        prompt: "",
+        field: "template",
+        message: "Non-output EJS tags are not allowed; only <%= ... %> is permitted",
+      }),
+    )
+  } else {
+    try {
+      let rendered = Ejs.render(template, ctx->Obj.magic)
+      Ok(rendered)
+    } catch {
+    | JsExn(obj) =>
+      let msg = JsExn.message(obj)->Option.getOr("EJS evaluation failed")
+      Error(
+        EvaluationError({
+          prompt: "",
+          field: "template",
+          message: msg,
+        }),
+      )
+    }
+  }
+}
+
+// Build evaluation context dict for EJS: {context: baseContext, answers: accumulatedAnswers}
+let _buildEvalContext: (
+  ~baseContext: dict<string>,
+  ~answers: dict<string>,
+) => {..} = (~baseContext, ~answers) => {
+  {"context": baseContext, "answers": answers}
+}
+
+// --- Conditional evaluation ---
+
+// Evaluate `when` expression; returns true if prompt should be shown
+let _evaluateWhen: (
+  ~whenExpr: string,
+  ~promptName: string,
+  ~baseContext: dict<string>,
+  ~answers: dict<string>,
+) => result<bool, resolveError> = (~whenExpr, ~promptName, ~baseContext, ~answers) => {
+  let evalCtx = _buildEvalContext(~baseContext, ~answers)
+  switch evalTemplate(whenExpr, ~ctx=evalCtx) {
+  | Ok(rendered) => {
+      let trimmed = String.trim(rendered)->String.toLowerCase
+      Ok(trimmed != "false" && trimmed != "" && trimmed != "0")
+    }
+  | Error(EvaluationError(e)) =>
+    Error(EvaluationError({...e, prompt: promptName, field: "when"}))
+  | Error(err) => Error(err)
+  }
+}
+
+// --- Default evaluation ---
+
+// Evaluate `default` template string
+let _evaluateDefault: (
+  ~defaultExpr: string,
+  ~promptName: string,
+  ~baseContext: dict<string>,
+  ~answers: dict<string>,
+) => result<string, resolveError> = (~defaultExpr, ~promptName, ~baseContext, ~answers) => {
+  let evalCtx = _buildEvalContext(~baseContext, ~answers)
+  switch evalTemplate(defaultExpr, ~ctx=evalCtx) {
+  | Ok(rendered) => Ok(rendered)
+  | Error(EvaluationError(e)) =>
+    Error(EvaluationError({...e, prompt: promptName, field: "default"}))
+  | Error(err) => Error(err)
+  }
+}
+
+// --- Options evaluation ---
+
+// Evaluate select options templates (label/value)
+let _evaluateOptions: (
+  ~opts: array<Manifest.promptOption>,
+  ~promptName: string,
+  ~baseContext: dict<string>,
+  ~answers: dict<string>,
+) => result<array<Manifest.promptOption>, resolveError> = (
+  ~opts,
+  ~promptName,
+  ~baseContext,
+  ~answers,
 ) => {
+  let evalCtx = _buildEvalContext(~baseContext, ~answers)
+  let results: array<option<Manifest.promptOption>> =
+    opts->Array.map(opt => {
+      let labelResult = evalTemplate(opt.label, ~ctx=evalCtx)
+      let valueResult = evalTemplate(opt.value, ~ctx=evalCtx)
+      switch (labelResult, valueResult) {
+      | (Ok(l), Ok(v)) => Some({Manifest.label: l, value: v})
+      | _ => None
+      }
+    })
+  let filtered = results->Array.filterMap(x => x)
+  if Array.length(filtered) == Array.length(opts) {
+    Ok(filtered)
+  } else {
+    Error(
+      EvaluationError({
+        prompt: promptName,
+        field: "options",
+        message: "Failed to evaluate option templates",
+      }),
+    )
+  }
+}
+
+// --- Validation ---
+
+// Compile a regex pattern string, returning error on invalid syntax
+let _compilePattern: (
+  ~pattern: string,
+  ~promptName: string,
+) => result<Js.Re.t, resolveError> = (~pattern, ~promptName) => {
+  try {
+    Ok(Js.Re.fromString(pattern))
+  } catch {
+  | JsExn(obj) =>
+    let msg = JsExn.message(obj)->Option.getOr("Invalid regex pattern")
+    Error(
+      ValidationConfigError({
+        prompt: promptName,
+        message: "Invalid validate.pattern: " ++ msg,
+      }),
+    )
+  }
+}
+
+// Check if a value matches a compiled regex
+let _matchesPattern: (string, Js.Re.t) => bool = (value, re) => {
+  Js.Re.test_(re, value)
+}
+
+// --- Ask a single question (interactive) ---
+
+let askPrompt: (
+  ~rl: Readline.readlineInterface,
+  ~prompt: Manifest.prompt,
+  ~evaluatedDefault: option<string>,
+  ~evaluatedOptions: option<array<Manifest.promptOption>>,
+) => promise<string> = (~rl, ~prompt, ~evaluatedDefault, ~evaluatedOptions) => {
+  let displayDefault = evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
   let questionText =
     prompt.description ++
-    switch prompt.default {
-    | Some(d) => " [" ++ d ++ "]"
-    | None => ""
+    switch displayDefault {
+    | d if d != "" => " [" ++ d ++ "]"
+    | _ => ""
     } ++ ": "
 
   switch prompt.promptType {
   | Manifest.Input => rl.question(questionText)
 
   | Manifest.Select =>
-    // Show numbered options
-    switch prompt.options {
+    // Show numbered options using evaluated options if available
+    let opts = switch evaluatedOptions {
+    | Some(eo) if Array.length(eo) > 0 => Some(eo)
+    | _ => prompt.options
+    }
+    switch opts {
     | Some(opts) if Array.length(opts) > 0 => {
         let optionsText =
           opts
           ->Array.mapWithIndex((opt, i) => {
-            "  " ++ Int.toString(i + 1) ++ ". " ++ opt
+            "  " ++ Int.toString(i + 1) ++ ". " ++ opt.label
           })
           ->Array.join("\n")
 
@@ -45,7 +207,7 @@ let askPrompt: (~rl: Readline.readlineInterface, ~prompt: Manifest.prompt) => pr
           | None => 0
           }
           let selected = switch opts[idx] {
-          | Some(s) => s
+          | Some(s) => s.value
           | None => ""
           }
           Promise.resolve(selected)
@@ -66,46 +228,175 @@ let askPrompt: (~rl: Readline.readlineInterface, ~prompt: Manifest.prompt) => pr
   }
 }
 
-// Resolve all prompts in a manifest, returning answers as dict
+// --- Main resolve function ---
+
 let resolve: (
   ~rl: Readline.readlineInterface,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
-) => promise<dict<string>> = (~rl, ~prompts, ~force) => {
+  ~baseContext: dict<string>,
+) => promise<result<dict<string>, resolveError>> = (~rl, ~prompts, ~force, ~baseContext) => {
   let answers = Dict.make()
 
   if force {
-    // In force mode, use defaults only
-    prompts->Array.forEach(p => {
-      switch p.default {
-      | Some(d) => Dict.set(answers, p.name, d)
-      | None => Dict.set(answers, p.name, "")
-      }
-    })
-    Promise.resolve(answers)
-  } else {
-    // Interactive mode — ask each prompt
-    let rec loop = (idx, prompts) => {
+    // Force mode: evaluate when/default, skip interactive I/O
+    let rec forceLoop = (idx, prompts) => {
       if idx >= Array.length(prompts) {
-        Promise.resolve(answers)
+        Promise.resolve(Ok(answers))
       } else {
         switch prompts[idx] {
         | Some(prompt) =>
-          askPrompt(~rl, ~prompt)->Promise.then(answer => {
-            let finalAnswer = if String.trim(answer) == "" {
-              prompt.default->Option.getOr("")
-            } else {
-              answer
+          // Evaluate `when` — skip if false
+          switch (prompt: Manifest.prompt).when_ {
+          | Some(whenExpr) =>
+            switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+            | Ok(false) => forceLoop(idx + 1, prompts)
+            | Ok(true) => assignForceDefault(prompt, prompts, idx)
+            | Error(e) => Promise.resolve(Error(e))
             }
-            answers->Dict.set(prompt.name, finalAnswer)
-            loop(idx + 1, prompts)
-          })
-        | None => Promise.resolve(answers)
+          | None => assignForceDefault(prompt, prompts, idx)
+          }
+        | None => Promise.resolve(Ok(answers))
+        }
+      }
+    }
+    and assignForceDefault = (prompt, prompts, idx) => {
+      switch prompt.default {
+      | Some(defaultExpr) =>
+        switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+        | Ok(d) => {
+            Dict.set(answers, prompt.name, d)
+            forceLoop(idx + 1, prompts)
+          }
+        | Error(e) => Promise.resolve(Error(e))
+        }
+      | None => {
+          Dict.set(answers, prompt.name, "")
+          forceLoop(idx + 1, prompts)
         }
       }
     }
 
-    loop(0, prompts)->Promise.then(_ => Promise.resolve(answers))
+    forceLoop(0, prompts)
+  } else {
+    // Interactive mode — ask each prompt with evaluation
+    let rec interactiveLoop = (idx, prompts) => {
+      if idx >= Array.length(prompts) {
+        Promise.resolve(Ok(answers))
+      } else {
+        switch prompts[idx] {
+        | Some(prompt) =>
+          // Evaluate `when` — skip if false
+          switch (prompt: Manifest.prompt).when_ {
+          | Some(whenExpr) =>
+            switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+            | Ok(false) => interactiveLoop(idx + 1, prompts)
+            | Ok(true) => handleInteractivePrompt(prompt, prompts, idx)
+            | Error(e) => Promise.resolve(Error(e))
+            }
+          | None => handleInteractivePrompt(prompt, prompts, idx)
+          }
+        | None => Promise.resolve(Ok(answers))
+        }
+      }
+    }
+    and handleInteractivePrompt = (prompt, prompts, idx) => {
+      // Evaluate default
+      let defaultResult = switch prompt.default {
+      | Some(defaultExpr) =>
+        switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+        | Ok(d) => Ok(Some(d))
+        | Error(e) => Error(e)
+        }
+      | None => Ok(None)
+      }
+
+      switch defaultResult {
+      | Error(e) => Promise.resolve(Error(e))
+      | Ok(evaluatedDefault) =>
+        // Evaluate options for select prompts
+        let optionsResult = switch prompt.options {
+        | Some(opts) =>
+          switch _evaluateOptions(~opts, ~promptName=prompt.name, ~baseContext, ~answers) {
+          | Ok(eo) => Ok(Some(eo))
+          | Error(e) => Error(e)
+          }
+        | None => Ok(None)
+        }
+
+        switch optionsResult {
+        | Error(e) => Promise.resolve(Error(e))
+        | Ok(evaluatedOptions) =>
+          // Compile validation pattern once (if present)
+          let patternResult = switch prompt.validate {
+          | Some(v) =>
+            switch _compilePattern(~pattern=v.pattern, ~promptName=prompt.name) {
+            | Ok(re) => Ok(Some((re, v.message)))
+            | Error(e) => Error(e)
+            }
+          | None => Ok(None)
+          }
+
+          switch patternResult {
+          | Error(e) => Promise.resolve(Error(e))
+          | Ok(compiledPattern) =>
+            // Ask and validate with retry loop
+            promptWithRetry(
+              ~rl,
+              ~prompt,
+              ~evaluatedDefault,
+              ~evaluatedOptions,
+              ~compiledPattern,
+              ~prompts,
+              ~idx,
+            )
+          }
+        }
+      }
+    }
+    and promptWithRetry = (
+      ~rl,
+      ~prompt,
+      ~evaluatedDefault,
+      ~evaluatedOptions,
+      ~compiledPattern,
+      ~prompts,
+      ~idx,
+    ) => {
+      askPrompt(~rl, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
+        let finalAnswer = if String.trim(answer) == "" {
+          evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
+        } else {
+          answer
+        }
+
+        // Validate
+        switch compiledPattern {
+        | Some((re, errMsg)) =>
+          if _matchesPattern(finalAnswer, re) {
+            Dict.set(answers, prompt.name, finalAnswer)
+            interactiveLoop(idx + 1, prompts)
+          } else {
+            // Show error message and retry
+            Console.log("Error: " ++ errMsg)
+            promptWithRetry(
+              ~rl,
+              ~prompt,
+              ~evaluatedDefault,
+              ~evaluatedOptions,
+              ~compiledPattern,
+              ~prompts,
+              ~idx,
+            )
+          }
+        | None =>
+          Dict.set(answers, prompt.name, finalAnswer)
+          interactiveLoop(idx + 1, prompts)
+        }
+      })
+    }
+
+    interactiveLoop(0, prompts)
   }
 }
 

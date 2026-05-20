@@ -83,7 +83,7 @@ let run: (
 ) => promise<result<phase0Result, string>> = async (
   ~rl,
   ~generator,
-  ~context as _context,
+  ~context,
   ~outputDir,
   ~force,
 ) => {
@@ -93,13 +93,25 @@ let run: (
   | None => None
   }
 
-  let resolvedAttributes = switch prompts {
-  | Some(ps) if Array.length(ps) > 0 => await PromptResolver.resolve(~rl, ~prompts=ps, ~force)
-  | _ => Dict.make()
+  let baseContext = context.attributes
+
+  let resolvedAttributesResult = switch prompts {
+  | Some(ps) if Array.length(ps) > 0 =>
+    await PromptResolver.resolve(~rl, ~prompts=ps, ~force, ~baseContext)
+  | _ => Ok(Dict.make())
   }
 
-  // Detect file conflicts
-  let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force)
-
-  Ok({resolvedAttributes, conflicts})
+  switch resolvedAttributesResult {
+  | Ok(resolvedAttributes) => {
+      // Detect file conflicts
+      let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force)
+      Ok({resolvedAttributes, conflicts})
+    }
+  | Error(PromptResolver.EvaluationError({prompt, field, message})) =>
+    Error(
+      "Prompt evaluation error [" ++ prompt ++ "." ++ field ++ "]: " ++ message,
+    )
+  | Error(PromptResolver.ValidationConfigError({prompt, message})) =>
+    Error("Prompt validation config error [" ++ prompt ++ "]: " ++ message)
+  }
 }

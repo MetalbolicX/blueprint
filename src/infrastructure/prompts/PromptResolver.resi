@@ -1,5 +1,12 @@
+type resolveError =
+  | EvaluationError({prompt: string, field: string, message: string})
+  | ValidationConfigError({prompt: string, message: string})
+
+let evalTemplate: (string, ~ctx: {..}) => result<string, resolveError>
+
 let resolve: (
   ~rl: Bindings.Readline.readlineInterface,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
-) => promise<dict<string>>
+  ~baseContext: dict<string>,
+) => promise<result<dict<string>, resolveError>>

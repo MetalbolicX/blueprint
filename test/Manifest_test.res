@@ -159,4 +159,112 @@ suite("Manifest", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  test("parse: prompt with when field", () => {
+    let yaml = "name: test\nclassification: test\nprompts:\n  - name: color\n    type: input\n    description: Color\n    when: answers.theme == \"custom\"\n"
+    let result = Manifest.parse(yaml)
+    switch result {
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            assert_eq(p.name, "color")
+            switch p.when_ {
+            | Some(w) => assert_eq(w, "answers.theme == \"custom\"")
+            | None => assert_false(true)
+            }
+          }
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: prompt with validate pattern and message", () => {
+    let yaml = "name: test\nclassification: test\nprompts:\n  - name: email\n    type: input\n    description: Email\n    validate:\n      pattern: \"^[a-z]+@[a-z]+\\\\.[a-z]+$\"\n      message: Must be a valid email\n"
+    let result = Manifest.parse(yaml)
+    switch result {
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            assert_eq(p.name, "email")
+            switch p.validate {
+            | Some(v) => {
+                assert_true(String.length(v.pattern) > 0)
+                assert_eq(v.message, "Must be a valid email")
+              }
+            | None => assert_false(true)
+            }
+          }
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(e) => {
+        Console.log(e)
+        assert_false(true)
+      }
+    }
+  })
+
+  test("parse: select prompt with options as objects", () => {
+    let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - label: React Component\n        value: component\n      - label: Custom Hook\n        value: hook\n"
+    let result = Manifest.parse(yaml)
+    switch result {
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            assert_eq(p.promptType, Manifest.Select)
+            switch p.options {
+            | Some(opts) => {
+                assert_eq(Array.length(opts), 2)
+                switch opts[0] {
+                | Some(o) => {
+                    assert_eq(o.label, "React Component")
+                    assert_eq(o.value, "component")
+                  }
+                | None => assert_false(true)
+                }
+              }
+            | None => assert_false(true)
+            }
+          }
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: backward compat — options as plain string array", () => {
+    let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - component\n      - hook\n      - utility\n"
+    let result = Manifest.parse(yaml)
+    switch result {
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            switch p.options {
+            | Some(opts) => {
+                assert_eq(Array.length(opts), 3)
+                // Plain strings should map to label=value
+                switch opts[0] {
+                | Some(o) => {
+                    assert_eq(o.label, "component")
+                    assert_eq(o.value, "component")
+                  }
+                | None => assert_false(true)
+                }
+              }
+            | None => assert_false(true)
+            }
+          }
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
 })

@@ -3,12 +3,18 @@
 
 type promptType = Input | Select | Confirm
 
+type promptValidation = {pattern: string, message: string}
+
+type promptOption = {label: string, value: string}
+
 type prompt = {
   name: string,
   promptType: promptType,
   description: string,
   default?: string,
-  options?: array<string>,
+  @as("when") when_?: string,
+  options?: array<promptOption>,
+  validate?: promptValidation,
 }
 
 type manifest = {
@@ -76,7 +82,7 @@ let parse: string => result<manifest, string> = yamlContent => {
     }
 
     // Helper to get array of strings
-    let getStringArray = (obj, key) => {
+    let _getStringArray = (obj, key) => {
       switch obj {
       | JSON.Object(dict) =>
         switch dict->Dict.get(key) {
@@ -129,9 +135,61 @@ let parse: string => result<manifest, string> = yamlContent => {
                   let name = getString(promptJson, "name")
                   let desc = getString(promptJson, "description")->Option.getOr("")
                   let defaultVal = getOptString(promptJson, "default")
-                  let opts = getStringArray(promptJson, "options")
+                  let whenVal = getOptString(promptJson, "when")
                   let typeStr = getString(promptJson, "type")->Option.getOr("input")
                   let pt = parsePromptType(typeStr)->Option.getOr(Input)
+
+                  // Parse options: support both string arrays and {label, value} objects
+                  let opts = switch promptJson {
+                  | JSON.Object(pd) =>
+                    switch pd->Dict.get("options") {
+                    | Some(JSON.Array(optArr)) =>
+                      let parsed =
+                        optArr->Array.map(optJson => {
+                          switch optJson {
+                          | JSON.String(s) => Some({label: s, value: s})
+                          | JSON.Object(_optDict) => {
+                              let lbl = getString(optJson, "label")
+                              let val = getString(optJson, "value")
+                              switch (lbl, val) {
+                              | (Some(l), Some(v)) => Some({label: l, value: v})
+                              | _ => None
+                              }
+                            }
+                          | _ => None
+                          }
+                        })
+                      let filtered = parsed->Array.filterMap(x => x)
+                      if Array.length(filtered) == Array.length(optArr) {
+                        Some(filtered)
+                      } else {
+                        None
+                      }
+                    | _ => None
+                    }
+                  | _ => None
+                  }
+
+                  // Parse validate: {pattern, message}
+                  let validate = switch promptJson {
+                  | JSON.Object(pd) =>
+                    switch pd->Dict.get("validate") {
+                    | Some(JSON.Object(vDict)) =>
+                      let pattern = Dict.get(vDict, "pattern")
+                      let message = Dict.get(vDict, "message")
+                      switch (pattern, message) {
+                      | (Some(JSON.String(p)), Some(JSON.String(m))) =>
+                        if p != "" {
+                          Some({pattern: p, message: m})
+                        } else {
+                          None
+                        }
+                      | _ => None
+                      }
+                    | _ => None
+                    }
+                  | _ => None
+                  }
 
                   switch name {
                   | Some(n) =>
@@ -140,7 +198,9 @@ let parse: string => result<manifest, string> = yamlContent => {
                       promptType: pt,
                       description: desc,
                       default: ?defaultVal,
+                      when_: ?whenVal,
                       options: ?opts,
+                      validate: ?validate,
                     })
                   | None => None
                   }
@@ -197,6 +257,14 @@ let validate: manifest => result<unit, array<validationError>> = manifest => {
           {field: "prompts.options", message: "select prompt requires options"},
           errors,
         )->ignore
+      }
+      switch p.validate {
+      | Some(v) if v.pattern == "" =>
+        Js.Array.push(
+          {field: "prompts.validate.pattern", message: "validate.pattern cannot be empty"},
+          errors,
+        )->ignore
+      | _ => ()
       }
     })
   | None => ()
