@@ -18,6 +18,10 @@ generators:
     classification: yaml-config
     template_root: examples/yaml-config
     output_root: config
+  - name: js-project
+    classification: js-project
+    template_root: _templates/js-project
+    output_root: .
 
 hooks:
   pre_generate: ""

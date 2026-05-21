@@ -1,0 +1,41 @@
+name: js-project
+classification: js-project
+prompts:
+  - name: name
+    type: input
+    description: "Project name (kebab-case)"
+    default: my-project
+  - name: description
+    type: input
+    description: "Project description"
+    default: ""
+  - name: author
+    type: input
+    description: "Author name"
+    default: ""
+  - name: githubUsername
+    type: input
+    description: "GitHub username"
+    default: ""
+  - name: license
+    type: input
+    description: "License"
+    default: MIT
+  - name: flavor
+    type: list
+    description: "Project type"
+    choices:
+      - name: node
+        description: "Node.js ESM package (library/CLI)"
+      - name: browser
+        description: "Browser app (Vite)"
+    default: node
+  - name: lang
+    type: list
+    description: "Language"
+    choices:
+      - name: js
+        description: "JavaScript"
+      - name: ts
+        description: "TypeScript"
+    default: js
