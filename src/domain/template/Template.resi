@@ -1,11 +1,16 @@
 type directive =
   | To(string)
+  | From(string)
   | Inject(string)
   | After(string)
   | Before(string)
+  | AtLine(int)
+  | SkipIf(string)
   | Prepend
   | Append
+  | EofLast
   | Force
+  | UnlessExists
   | Sh(string)
   | Tool(string)
   | Fetch(string)

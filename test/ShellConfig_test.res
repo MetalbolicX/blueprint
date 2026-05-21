@@ -176,7 +176,7 @@ shell:
   test("parseShellConfig: hooks.command is parsed as hookCommand", () => {
     let yaml = "
 hooks:
-  preGenerate:
+  pre_generate:
     command: ./scripts/pre-generate.sh
 "
     let parsed = Config.parse(yaml)
@@ -199,7 +199,7 @@ hooks:
   test("parseShellConfig: hooks.args is optional and parsed correctly", () => {
     let yaml = "
 hooks:
-  postGenerate:
+  post_generate:
     command: npx prettier
     args:
       - --write

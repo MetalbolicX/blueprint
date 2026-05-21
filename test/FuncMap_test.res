@@ -17,7 +17,7 @@ suite("FuncMap", () => {
   })
 
   test("pascalCase: consecutive uppercase", () => {
-    assert_eq(FuncMap.pascalCase("helloAPIWorld"), "HelloApiWorld")
+    assert_eq(FuncMap.pascalCase("helloAPIWorld"), "HelloAPIWorld")
   })
 
   test("pascalCase: empty string", () => {

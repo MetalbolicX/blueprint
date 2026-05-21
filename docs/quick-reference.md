@@ -29,12 +29,17 @@ prompts:
 
 ```
 to:      <path>               # output path
+from:    <path>               # external template source file
 inject:  <regex>              # replace matched
 after:   <regex>              # insert after match
 before:  <regex>              # insert before match
+at_line: <number>             # insert at specific line (1-based)
+skip_if: <regex>              # skip injection when regex matches target content
 prepend: true|false           # add to file start
 append:  true|false           # add to file end
+eof_last: true|false          # trim trailing newline from injected payload
 force:   true|false           # overwrite existing
+unless_exists: true|false     # skip render when target file already exists
 sh:      <command>            # shell cmd post-render
 ```
 
@@ -79,6 +84,7 @@ Discovery.discover(~searchPaths=?, unit) => promise<array<generator>>
 
 Frontmatter.parse(str) => result<{directives, body}, string>
 Injection.apply(~existingContent, ~renderedContent, ~directive)
+  # optional ~allDirectives supports combined flags (e.g., skip_if + eof_last)
   => result<{content, applied}, string>
 Renderer.render(template, context) => result<string, string>
 FuncMap.makeHelpers() => helpers
@@ -116,6 +122,17 @@ hooks:
   post_generate: <command>
   timeout: <duration>   # default 5s
 ```
+
+## ~/.config/blueprint/config.yaml
+
+\`\`\`yaml
+templates: [<path>]
+allow_dangerous_commands: true|false   # default false
+force_overwrite: true|false            # default false
+dry_run: true|false                    # default false
+timeout: <int>                         # default 5
+default_attributes: {k: v}
+\`\`\`
 
 ## Phase flow
 

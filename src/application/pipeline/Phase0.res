@@ -35,17 +35,30 @@ let detectConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
-) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force) => {
-  // Collect all To directive checks as a flat array
+) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force as _force) => {
+  // Collect all To directive checks as a flat array.
+  // unless_exists templates are intentionally excluded from conflict detection,
+  // because existing target files should be silently skipped.
   let toChecks =
     templates->Array.reduce([], (acc, tmpl) => {
-      let found = tmpl.directives->Array.filterMap(d => {
+      let hasUnlessExists = tmpl.directives->Array.some(d => {
         switch d {
-        | To(path) => Some((tmpl.sourcePath, path))
-        | _ => None
+        | Template.UnlessExists => true
+        | _ => false
         }
       })
-      Array.concat(acc, found)
+
+      if hasUnlessExists {
+        acc
+      } else {
+        let found = tmpl.directives->Array.filterMap(d => {
+          switch d {
+          | To(path) => Some((tmpl.sourcePath, path))
+          | _ => None
+          }
+        })
+        Array.concat(acc, found)
+      }
     })
 
   // Build an array of promises for existence checks

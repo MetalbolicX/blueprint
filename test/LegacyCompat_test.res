@@ -60,7 +60,7 @@ allow_dangerous_commands: false
     // When sh: directive is used (not tool:), Frontmatter should log warning
     // The warning is emitted during Frontmatter.parse
     // We can't easily test log output, but we can verify the directive variant exists
-    let result = Frontmatter.parse("---js: sh: npm run lint ---")
+    let result = Frontmatter.parse("---js\nsh: npm run lint\n---")
     switch result {
     | Ok(parsed) => {
         // Should contain Sh variant (legacy)
@@ -78,7 +78,7 @@ allow_dangerous_commands: false
 
   test("tool: directive takes precedence over legacy sh:", () => {
     // New code should use tool: directive instead of sh:
-    let result = Frontmatter.parse("---js: tool: format ---")
+    let result = Frontmatter.parse("---js\ntool: format\n---")
     switch result {
     | Ok(parsed) => {
         let hasTool = parsed.directives->Array.some(d => {

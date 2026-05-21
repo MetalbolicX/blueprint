@@ -156,6 +156,42 @@ hooks:
   timeout: <duration>        # e.g. "30s", "5m" (default: 5s)
 ```
 
+## Global configuration
+
+`~/.config/blueprint/config.yaml` applies to all projects. Project-level `.blueprint.yaml` values override global ones where applicable.
+
+\`\`\`yaml
+# Template search paths (discovered in addition to _templates/)
+templates:
+  - ~/my-org/shared-templates
+
+# Allow shell commands in templates (default: false)
+allow_dangerous_commands: false
+
+# Force overwrite existing files without prompting (default: false)
+force_overwrite: false
+
+# Dry-run mode — render but don't write files (default: false)
+dry_run: false
+
+# Default timeout for hooks in seconds (default: 5)
+timeout: 10
+
+# Default CLI attributes — merged into every generation
+default_attributes:
+  organization: acme-corp
+  license: MIT
+\`\`\`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| \`templates\` | array | \`[]\` | Additional template search paths |
+| \`allow_dangerous_commands\` | bool | \`false\` | Allow \`sh:\` directives in templates |
+| \`force_overwrite\` | bool | \`false\` | Skip prompts, overwrite existing files |
+| \`dry_run\` | bool | \`false\` | Render templates without writing output |
+| \`timeout\` | int | \`5\` | Hook execution timeout in seconds |
+| \`default_attributes\` | dict | \`{}\` | Default CLI attributes for all generations |
+
 ---
 
 ## Exit codes

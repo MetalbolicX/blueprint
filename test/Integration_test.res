@@ -122,10 +122,10 @@ suite("Integration", () => {
     let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"test-123\",\"event\":\"phase0/start\",\"message\":\"Starting\",\"meta\":{}}"
     switch %raw("JSON.parse(_rawEntry)") {
     | obj =>
-      let hasTimestamp = Js.Dict.get(obj, "timestamp")->Option.isSome
-      let hasLevel = Js.Dict.get(obj, "level")->Option.isSome
-      let hasRunId = Js.Dict.get(obj, "runId")->Option.isSome
-      let hasEvent = Js.Dict.get(obj, "event")->Option.isSome
+      let hasTimestamp = %raw("obj.timestamp != null")->Obj.magic
+      let hasLevel = %raw("obj.level != null")->Obj.magic
+      let hasRunId = %raw("obj.runId != null")->Obj.magic
+      let hasEvent = %raw("obj.event != null")->Obj.magic
       assert_true(hasTimestamp && hasLevel && hasRunId && hasEvent)
     | exception _ => assert_false(true)
     }
@@ -135,10 +135,8 @@ suite("Integration", () => {
     let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"1747655400123-4821\",\"event\":\"test\",\"message\":\"msg\"}"
     switch %raw("JSON.parse(_rawEntry)") {
     | obj =>
-      switch Js.Dict.get(obj, "runId") {
-      | Some(Js.Json.String(id)) => assert_true(String.length(id) > 0)
-      | _ => assert_false(true)
-      }
+      let runId = %raw("String(obj.runId)")
+      assert_true(String.length(runId) > 0 && runId !== "undefined" && runId !== "null")
     | exception _ => assert_false(true)
     }
   })

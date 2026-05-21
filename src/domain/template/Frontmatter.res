@@ -22,18 +22,31 @@ let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 let checkDirective: (string, string) => option<directive> = (key, value) => {
   if key == "to" {
     Some(To(value))
+  } else if key == "from" {
+    Some(From(value))
   } else if key == "inject" {
     Some(Inject(value))
   } else if key == "after" {
     Some(After(value))
   } else if key == "before" {
     Some(Before(value))
+  } else if key == "at_line" {
+    switch Int.fromString(value) {
+    | Some(n) => Some(AtLine(n))
+    | None => None
+    }
+  } else if key == "skip_if" {
+    Some(SkipIf(value))
   } else if key == "prepend" && (value == "" || value == "true") {
     Some(Prepend)
   } else if key == "append" && (value == "" || value == "true") {
     Some(Append)
+  } else if key == "eof_last" && (value == "" || value == "true") {
+    Some(EofLast)
   } else if key == "force" && (value == "" || value == "true") {
     Some(Force)
+  } else if key == "unless_exists" && (value == "" || value == "true") {
+    Some(UnlessExists)
   } else if key == "sh" {
     Some(Sh(value))
   } else if key == "tool" {

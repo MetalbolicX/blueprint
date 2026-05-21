@@ -101,6 +101,71 @@ suite("Frontmatter", () => {
     }
   })
 
+  test("parse: from directive", () => {
+    let content = "---\nfrom: ./partials/header.ejs\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.From(path)) => assert_eq(path, "./partials/header.ejs")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: unless_exists directive", () => {
+    let content = "---\nunless_exists: true\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.UnlessExists) => assert_true(true)
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: at_line directive", () => {
+    let content = "---\nat_line: 3\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.AtLine(line)) => assert_eq(line, 3)
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: skip_if directive", () => {
+    let content = "---\nskip_if: __INIT__\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.SkipIf(pattern)) => assert_eq(pattern, "__INIT__")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: eof_last directive", () => {
+    let content = "---\neof_last: true\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.EofLast) => assert_true(true)
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
   test("parse: fetch directive", () => {
     let content = "---\nfetch: https://raw.githubusercontent.com/.../gitignore\n---\ncontent\n"
     let result = Frontmatter.parse(content)

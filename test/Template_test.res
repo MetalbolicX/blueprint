@@ -19,6 +19,14 @@ suite("Template", () => {
     }
   })
 
+  test("directive: From variant", () => {
+    let dir = Template.From("./partials/component.ejs")
+    switch dir {
+    | Template.From(path) => assert_eq(path, "./partials/component.ejs")
+    | _ => assert_false(true)
+    }
+  })
+
   test("directive: After variant", () => {
     let dir = Template.After("// INJECT HERE")
     switch dir {
@@ -51,6 +59,38 @@ suite("Template", () => {
     }
   })
 
+  test("directive: AtLine variant", () => {
+    let dir = Template.AtLine(3)
+    switch dir {
+    | Template.AtLine(line) => assert_eq(line, 3)
+    | _ => assert_false(true)
+    }
+  })
+
+  test("directive: SkipIf variant", () => {
+    let dir = Template.SkipIf("already-added")
+    switch dir {
+    | Template.SkipIf(pattern) => assert_eq(pattern, "already-added")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("directive: EofLast variant", () => {
+    let dir = Template.EofLast
+    switch dir {
+    | Template.EofLast => assert_true(true)
+    | _ => assert_false(true)
+    }
+  })
+
+  test("directive: UnlessExists variant", () => {
+    let dir = Template.UnlessExists
+    switch dir {
+    | Template.UnlessExists => assert_true(true)
+    | _ => assert_false(true)
+    }
+  })
+
   test("directive: Force variant", () => {
     let dir = Template.Force
     switch dir {
@@ -76,7 +116,7 @@ suite("Template", () => {
 
     assert_eq(tmpl.sourcePath, "/templates/Hello.tsx.ejs.t")
     assert_eq(Array.length(tmpl.directives), 1)
-    assert_eq(Js.String.includes(tmpl.body, "export"), true)
+    assert_eq(String.includes(tmpl.body, "export"), true)
   })
 
   test("renderedFile: structure", () => {

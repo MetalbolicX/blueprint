@@ -1,12 +1,17 @@
 // Directive variants parsed from YAML frontmatter
 type directive =
   | To(string) // target file path
+  | From(string) // external template file path
   | Inject(string) // regex pattern for injection
   | After(string) // insert after regex match
   | Before(string) // insert before regex match
+  | AtLine(int) // inject at specific line number
+  | SkipIf(string) // skip injection if regex matches existing content
   | Prepend // prepend to file start
   | Append // append to file end
+  | EofLast // trim newline at end of injected payload
   | Force // overwrite without confirmation
+  | UnlessExists // only render when target file does not exist
   | Sh(string) // legacy shell command (warn)
   | Tool(string) // tool name lookup
   | Fetch(string) // fetch URL content

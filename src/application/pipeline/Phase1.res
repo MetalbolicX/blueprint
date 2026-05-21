@@ -59,65 +59,139 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
 }
 
 // Render a single template
+let _hasUnlessExists: template => bool = template => {
+  template.directives->Array.some(d => {
+    switch d {
+    | UnlessExists => true
+    | _ => false
+    }
+  })
+}
+
+let _loadTemplateBodyFromDirective: template => promise<result<template, string>> = async template => {
+  switch template.directives->Array.find(d => {
+    switch d {
+    | From(_) => true
+    | _ => false
+    }
+  }) {
+  | Some(From(fromPath)) => {
+      let baseDir = Path.dirname(template.sourcePath)
+      let resolvedPath = if Path.isAbsolute(fromPath) {
+        fromPath
+      } else {
+        Path.join(baseDir, fromPath)
+      }
+
+      try {
+        let externalBody = await Fs.readFile(resolvedPath)
+        Ok({...template, body: externalBody})
+      } catch {
+      | JsExn(obj) =>
+        let msg = switch JsExn.message(obj) {
+        | Some(m) => m
+        | None => "Read failed"
+        }
+        Error("Failed to read 'from' template " ++ resolvedPath ++ ": " ++ msg)
+      }
+    }
+  | _ => Ok(template)
+  }
+}
+
+let _collectShellCommands: (template, option<Config.shellConfig>) => array<shellCommand> = (
+  template,
+  shellConfig,
+) => {
+  template.directives->Array.filterMap(d => {
+    switch d {
+    | Fetch(url) =>
+      // Fetch directive: Phase2 handles the actual fetching
+      Some({target: Fetch(url), sourcePath: template.sourcePath})
+    | Tool(name) => {
+        // Tool directive: lookup in shellConfig tools
+        let tools = switch shellConfig {
+        | Some(cfg) => cfg.tools->Option.getOr([])
+        | None => []
+        }
+        switch _findToolByName(tools, name) {
+        | Some(toolDef) =>
+          Some({target: ToolCall({name, toolDef, sourcePath: template.sourcePath}), sourcePath: template.sourcePath})
+        | None =>
+          // Tool not found - we'll collect error but Phase1 doesn't fail the whole pipeline
+          // Phase2 will report the error when trying to execute
+          Some({target: InlineCommand("tool-not-found: " ++ name), sourcePath: template.sourcePath})
+        }
+      }
+    | Sh(rawString) =>
+      // sh: directives are legacy — exact-match validation in Phase2
+      Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
+    | _ => None
+    }
+  })
+}
+
 let _renderTemplate: (
   ~template: template,
   ~context: Context.context,
+  ~outputDir: string,
   ~shellConfig: option<Config.shellConfig>,
-) => promise<result<(string, string, string, array<shellCommand>), string>> = async (
+) => promise<result<option<(string, string, string, array<shellCommand>)>, string>> = async (
   ~template,
   ~context,
+  ~outputDir,
   ~shellConfig,
 ) => {
-  // Build render context for EJS
-  let renderCtx = Context.toRenderContext(context)
+  // Find "to" directive for target path
+  let targetPathOpt =
+    template.directives
+    ->Array.find(d => {
+      switch d {
+      | To(_) => true
+      | _ => false
+      }
+    })
+    ->Option.flatMap(d => resolveTargetPath(d, context))
 
-  // Render body
-  switch Renderer.render(template, renderCtx) {
-  | Ok(renderedBody) => {
-      // Find "to" directive for target path
-      let targetPathOpt =
-        template.directives
-        ->Array.find(d => {
-          switch d {
-          | To(_) => true
-          | _ => false
-          }
-        })
-        ->Option.flatMap(d => resolveTargetPath(d, context))
-
-      let shellCmds = template.directives->Array.filterMap(d => {
-        switch d {
-        | Fetch(url) =>
-          // Fetch directive: Phase2 handles the actual fetching
-          Some({target: Fetch(url), sourcePath: template.sourcePath})
-        | Tool(name) => {
-            // Tool directive: lookup in shellConfig tools
-            let tools = switch shellConfig {
-            | Some(cfg) => cfg.tools->Option.getOr([])
-            | None => []
-            }
-            switch _findToolByName(tools, name) {
-            | Some(toolDef) =>
-              Some({target: ToolCall({name, toolDef, sourcePath: template.sourcePath}), sourcePath: template.sourcePath})
-            | None =>
-              // Tool not found - we'll collect error but Phase1 doesn't fail the whole pipeline
-              // Phase2 will report the error when trying to execute
-              Some({target: InlineCommand("tool-not-found: " ++ name), sourcePath: template.sourcePath})
+  switch targetPathOpt {
+  | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
+  | Some(targetPath) => {
+      if _hasUnlessExists(template) {
+        let finalTargetPath = Path.join(outputDir, targetPath)
+        let exists = await Fs.fileExists(finalTargetPath)
+        if exists {
+          Ok(None)
+        } else {
+          switch await _loadTemplateBodyFromDirective(template) {
+          | Error(e) => Error(e)
+          | Ok(templateToRender) => {
+              let renderCtx = Context.toRenderContext(context)
+              switch Renderer.render(templateToRender, renderCtx) {
+              | Ok(renderedBody) => {
+                  let shellCmds = _collectShellCommands(template, shellConfig)
+                  Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                }
+              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
+              }
             }
           }
-        | Sh(rawString) =>
-          // sh: directives are legacy — exact-match validation in Phase2
-          Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
-        | _ => None
         }
-      })
-
-      switch targetPathOpt {
-      | Some(targetPath) => Ok((template.sourcePath, targetPath, renderedBody, shellCmds))
-      | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
+      } else {
+        switch await _loadTemplateBodyFromDirective(template) {
+        | Error(e) => Error(e)
+        | Ok(templateToRender) => {
+            let renderCtx = Context.toRenderContext(context)
+            switch Renderer.render(templateToRender, renderCtx) {
+            | Ok(renderedBody) => {
+                let shellCmds = _collectShellCommands(template, shellConfig)
+                Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+              }
+            | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
+            }
+          }
+        }
       }
     }
-  | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
   }
 }
 
@@ -158,10 +232,11 @@ let run: (
     let errorRef: ref<option<phase1Error>> = ref(None)
 
     let renderOps = _templates->Array.map(async tmpl => {
-      switch await _renderTemplate(~template=tmpl, ~context=_context, ~shellConfig=effectiveShellConfig) {
+      switch await _renderTemplate(~template=tmpl, ~context=_context, ~outputDir=_outputDir, ~shellConfig=effectiveShellConfig) {
       | Error(e) =>
         errorRef.contents = Some({stagingDir, message: e})
-      | Ok((sourcePath, targetPath, renderedBody, shellCmds)) =>
+      | Ok(None) => ()
+      | Ok(Some((sourcePath, targetPath, renderedBody, shellCmds))) =>
         let stagedPath = Path.join(stagingDir, targetPath)
         let stagedDir = Path.dirname(stagedPath)
         try {

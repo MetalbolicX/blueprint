@@ -62,7 +62,7 @@ let upper: string => string = String.toUpperCase
 let lower: string => string = String.toLowerCase
 let trim: string => string = String.trim
 let title: string => string = s => {
-  Js.String.split(" ", s)->Array.map(s => s->capitalize->String.toLowerCase)->Array.join(" ")
+  Js.String.split(" ", s)->Array.map(capitalize)->Array.join(" ")
 }
 
 // Export helpers object for EJS

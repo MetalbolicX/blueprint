@@ -272,4 +272,94 @@ suite("Phase1", () => {
     })
     ->ignore
   })
+
+  testAsync("run: From directive uses external file body", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let partialPath = NodeJs.Path.join(templateDir, "partial.ejs")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.From("partial.ejs"),
+      ],
+      body: "fallback",
+    }
+
+    NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(partialPath, "external <%= Name %>"))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.renderedFiles), 1)
+          Phase2.rollback(phase1.stagingDir)->ignore
+        }
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: UnlessExists skips template when target exists", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+    let targetPath = NodeJs.Path.join(outputDir, "src/Button.tsx")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.UnlessExists,
+      ],
+      body: "export default '<%= Name %>'",
+    }
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(targetPath), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(templateDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(targetPath, "existing"))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.renderedFiles), 0)
+          Phase2.rollback(phase1.stagingDir)->ignore
+        }
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

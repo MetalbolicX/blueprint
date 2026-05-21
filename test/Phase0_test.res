@@ -126,4 +126,30 @@ suite("Phase0", () => {
     })
     ->ignore
   })
+
+  testAsync("detectConflicts: unless_exists templates are excluded", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outDir = NodeJs.Path.join(tmpDir, "out")
+    let targetFile = NodeJs.Path.join(outDir, "Hello.tsx")
+    let templates: array<Template.template> = [
+      {
+        sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
+        directives: [Template.To("Hello.tsx"), Template.UnlessExists],
+        body: "content",
+      },
+    ]
+
+    NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
+    ->Promise.then(_ =>
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
+    )
+    ->Promise.then(conflicts => {
+      assert_eq(Array.length(conflicts), 0)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })
