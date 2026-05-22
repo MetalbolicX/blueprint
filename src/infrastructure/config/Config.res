@@ -7,6 +7,12 @@ type shellTool = {
   args?: array<string>,
 }
 
+type scriptDef = {
+  name: string,
+  path: string,
+  args?: array<string>,
+}
+
 type shellEnv = {
   vars: dict<string>,
 }
@@ -25,6 +31,7 @@ type hooksConfig = {
 type shellConfig = {
   enabled: bool,
   tools?: array<shellTool>,
+  scripts?: array<scriptDef>,
   env?: shellEnv,
 }
 
@@ -32,6 +39,12 @@ type config = {
   hooks?: hooksConfig,
   output?: string,
   shell?: shellConfig,
+}
+
+type templateSource = {
+  name: string,
+  source: string,
+  path: string,
 }
 
 // Global config (loaded from ~/.config/blueprint/config.yaml)
@@ -42,6 +55,7 @@ type globalConfig = {
   dryRun: bool,
   timeout: int,
   defaultAttributes: dict<string>,
+  registry: array<templateSource>,
 }
 
 // Merged config — effective values after project overrides global
@@ -62,6 +76,65 @@ let defaultGlobalConfig: globalConfig = {
   dryRun: false,
   timeout: 5,
   defaultAttributes: Dict.make(),
+  registry: [],
+}
+
+let _parseTemplateSource: JSON.t => option<templateSource> = json => {
+  switch json {
+  | JSON.Object(dict) =>
+    let parseStr = key => {
+      switch Dict.get(dict, key) {
+      | Some(JSON.String(s)) => Some(s)
+      | _ => None
+      }
+    }
+    switch (
+      parseStr("name"),
+      parseStr("source"),
+      parseStr("path"),
+    ) {
+    | (Some(name), Some(source), Some(path)) => Some({name, source, path})
+    | _ => None
+    }
+  | _ => None
+  }
+}
+
+let _parseRegistry: JSON.t => array<templateSource> = json => {
+  switch json {
+  | JSON.Array(arr) => arr->Array.map(_parseTemplateSource)->Array.filterMap(x => x)
+  | _ => []
+  }
+}
+
+let _templateSourceToYamlEntry: templateSource => dict<JSON.t> = src => {
+  let entry = Dict.make()
+  Dict.set(entry, "name", JSON.String(src.name))
+  Dict.set(entry, "source", JSON.String(src.source))
+  Dict.set(entry, "path", JSON.String(src.path))
+  entry
+}
+
+let _defaultAttributesToJson: dict<string> => dict<JSON.t> = attrs => {
+  let out = Dict.make()
+  attrs->Dict.toArray->Array.forEach(((k, v)) => Dict.set(out, k, JSON.String(v)))
+  out
+}
+
+let _globalConfigToYamlObject: globalConfig => dict<JSON.t> = cfg => {
+  let root = Dict.make()
+  Dict.set(root, "templates", JSON.Array(cfg.templates->Array.map(s => JSON.String(s))))
+  Dict.set(root, "allow_dangerous_commands", JSON.Boolean(cfg.allowDangerousCommands))
+  Dict.set(root, "force_overwrite", JSON.Boolean(cfg.forceOverwrite))
+  Dict.set(root, "dry_run", JSON.Boolean(cfg.dryRun))
+  Dict.set(root, "timeout", JSON.Number(Int.toFloat(cfg.timeout)))
+  Dict.set(root, "default_attributes", JSON.Object(_defaultAttributesToJson(cfg.defaultAttributes)))
+  Dict.set(
+    root,
+    "registry",
+    JSON.Array(cfg.registry->Array.map(src => JSON.Object(_templateSourceToYamlEntry(src)))),
+  )
+  root
 }
 
 let _parseDictString: (dict<JSON.t>, string) => option<string> = (dict, key) => {
@@ -163,6 +236,10 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
         | Some(v) => _parseDefaultAttributes(v)
         | None => Dict.make()
         }
+        let registry = switch Dict.get(dict, "registry") {
+        | Some(v) => _parseRegistry(v)
+        | None => []
+        }
         Ok({
           templates,
           allowDangerousCommands,
@@ -170,6 +247,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
           dryRun,
           timeout,
           defaultAttributes,
+          registry,
         })
       }
     | _ => Ok(defaultGlobalConfig)
@@ -187,6 +265,35 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
 // Resolve XDG-style global config path: ~/.config/blueprint/config.yaml
 let _globalConfigPath: string => string = homeDir => {
   Bindings.Path.join(Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint"), "config.yaml")
+}
+
+let saveGlobalAtPath: (~configPath: string, globalConfig) => promise<result<unit, string>> = async (
+  ~configPath,
+  cfg,
+) => {
+  try {
+    let configDir = Bindings.Path.dirname(configPath)
+    let dirExists = await Bindings.Fs.fileExists(configDir)
+    if !dirExists {
+      let _ = await Bindings.Fs.mkdir(configDir, ~options={recursive: true})
+    }
+    let yaml = Bindings.Yaml.stringify(JSON.Object(_globalConfigToYamlObject(cfg)))
+    let _ = await Bindings.Fs.writeFile(configPath, yaml)
+    Ok(())
+  } catch {
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
+    | Some(m) => m
+    | None => "Failed to save global config"
+    }
+    Error(msg)
+  }
+}
+
+let saveGlobal: globalConfig => promise<result<unit, string>> = async cfg => {
+  let homeDir = Bindings.Os.homedir()
+  let configPath = _globalConfigPath(homeDir)
+  await saveGlobalAtPath(~configPath, cfg)
 }
 
 let loadGlobal: unit => promise<result<option<globalConfig>, string>> = async () => {
@@ -386,6 +493,50 @@ let parseShellTool: JSON.t => option<shellTool> = json => {
   }
 }
 
+let parseScriptDef: JSON.t => option<scriptDef> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      let name = switch Dict.get(dict, "name") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
+      }
+      let path = switch Dict.get(dict, "path") {
+      | Some(v) =>
+        switch v {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      | None => None
+      }
+      let args = switch Dict.get(dict, "args") {
+      | Some(v) =>
+        switch v {
+        | JSON.Array(arr) => {
+            let strings = arr->Array.map(item => {
+              switch item {
+              | JSON.String(s) => Some(s)
+              | _ => None
+              }
+            })
+            Some(strings->Array.filterMap(x => x))
+          }
+        | _ => None
+        }
+      | None => None
+      }
+      switch (name, path) {
+      | (Some(n), Some(p)) => Some({name: n, path: p, args: ?args})
+      | _ => None
+      }
+    }
+  | _ => None
+  }
+}
+
 let parseShellEnv: JSON.t => option<shellEnv> = json => {
   switch json {
   | JSON.Object(dict) => {
@@ -438,7 +589,22 @@ let parseShellConfig: JSON.t => option<shellConfig> = json => {
       | Some(v) => parseShellEnv(v)
       | None => None
       }
-      Some({enabled, tools: ?tools, env: ?env})
+      let scripts = switch Dict.get(dict, "scripts") {
+      | Some(v) =>
+        switch v {
+        | JSON.Array(arr) => {
+            let parsed = arr->Array.map(parseScriptDef)->Array.filterMap(x => x)
+            if Array.length(parsed) > 0 {
+              Some(parsed)
+            } else {
+              None
+            }
+          }
+        | _ => None
+        }
+      | None => None
+      }
+      Some({enabled, tools: ?tools, scripts: ?scripts, env: ?env})
     }
   | _ => None
   }

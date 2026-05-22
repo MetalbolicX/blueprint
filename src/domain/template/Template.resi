@@ -14,6 +14,7 @@ type directive =
   | Sh(string)
   | Tool(string)
   | Fetch(string)
+  | Script(string)
 
 type template = {
   sourcePath: string,

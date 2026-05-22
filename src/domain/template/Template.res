@@ -15,6 +15,7 @@ type directive =
   | Sh(string) // legacy shell command (warn)
   | Tool(string) // tool name lookup
   | Fetch(string) // fetch URL content
+  | Script(string) // script name for lookup + execution
 
 type template = {
   sourcePath: string, // absolute path to .ejs.t file

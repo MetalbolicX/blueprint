@@ -53,6 +53,8 @@ let checkDirective: (string, string) => option<directive> = (key, value) => {
     Some(Tool(value))
   } else if key == "fetch" {
     Some(Fetch(value))
+  } else if key == "script" {
+    Some(Script(value))
   } else {
     None
   }

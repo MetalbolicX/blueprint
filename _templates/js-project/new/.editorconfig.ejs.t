@@ -1,6 +1,6 @@
 ---
 to: .editorconfig
-sh: curl -sL "https://www.toptal.com/developers/gitignore/api/node" -o .gitignore && npm install
+script: setup
 ---
 # Editor configuration, see https://editorconfig.org
 root = true

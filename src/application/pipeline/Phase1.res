@@ -24,6 +24,14 @@ let _findToolByName: (array<Config.shellTool>, string) => option<Config.shellToo
   tools->Array.find(tool => tool.name == name)
 }
 
+// Lookup a script by name in the shell config
+let _findScriptByName: (array<Config.scriptDef>, string) => option<Config.scriptDef> = (
+  scripts,
+  name,
+) => {
+  scripts->Array.find(script => script.name == name)
+}
+
 // Resolve target path from "to" directive using context
 let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
   directive,
@@ -126,6 +134,23 @@ let _collectShellCommands: (template, option<Config.shellConfig>) => array<shell
     | Sh(rawString) =>
       // sh: directives are legacy — exact-match validation in Phase2
       Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
+    | Script(name) => {
+        // Script directive: lookup in shellConfig scripts
+        let scripts = switch shellConfig {
+        | Some(cfg) => cfg.scripts->Option.getOr([])
+        | None => []
+        }
+        switch _findScriptByName(scripts, name) {
+        | Some(scriptDef) =>
+          let baseDir = Path.dirname(template.sourcePath)
+          let resolvedPath = Path.isAbsolute(scriptDef.path)
+            ? scriptDef.path
+            : Path.join(baseDir, scriptDef.path)
+          Some({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
+        | None =>
+          Some({target: InlineCommand("script-not-found: " ++ name), sourcePath: template.sourcePath})
+        }
+      }
     | _ => None
     }
   })

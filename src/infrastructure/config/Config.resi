@@ -4,6 +4,12 @@ type shellTool = {
   args?: array<string>,
 }
 
+type scriptDef = {
+  name: string,
+  path: string,
+  args?: array<string>,
+}
+
 type shellEnv = {
   vars: dict<string>,
 }
@@ -22,6 +28,7 @@ type hooksConfig = {
 type shellConfig = {
   enabled: bool,
   tools?: array<shellTool>,
+  scripts?: array<scriptDef>,
   env?: shellEnv,
 }
 
@@ -31,6 +38,12 @@ type config = {
   shell?: shellConfig,
 }
 
+type templateSource = {
+  name: string,
+  source: string,
+  path: string,
+}
+
 type globalConfig = {
   templates: array<string>,
   allowDangerousCommands: bool,
@@ -38,6 +51,7 @@ type globalConfig = {
   dryRun: bool,
   timeout: int,
   defaultAttributes: dict<string>,
+  registry: array<templateSource>,
 }
 
 type mergedConfig = {
@@ -57,5 +71,7 @@ let loadGlobal: unit => promise<result<option<globalConfig>, string>>
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig
 let validateMergedConfig: mergedConfig => result<unit, string>
 let defaultGlobalConfig: globalConfig
+let saveGlobalAtPath: (~configPath: string, globalConfig) => promise<result<unit, string>>
+let saveGlobal: globalConfig => promise<result<unit, string>>
 let defaultOutputDir: string
 let defaultTimeout: int
