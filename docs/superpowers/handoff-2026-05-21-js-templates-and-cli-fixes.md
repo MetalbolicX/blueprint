@@ -6,24 +6,51 @@ Add a `--dry-run` CLI flag to Blueprint and fix the empty hooks crash.
 
 ## Context & Summary
 
-Created a `_templates/js-project` generator with 5 templates + manifest for scaffolding JS/TS projects (Node ESM and Browser/Vite). Committed + added to `.blueprint.yaml`. Tested via `blueprint generate js-project` in a temp directory — generated 4 files correctly. `.editorconfig.ejs.t` has `sh: curl ... -o .gitignore && npm install` to auto-fetch `.gitignore` and install dependencies.
+Created a `_templates/js-project` generator with 5 templates + manifest for scaffolding JS/TS projects (Node ESM and Browser/Vite). Added to `.blueprint.yaml`.
 
-**Note**: `sh:` directives require `shell.enabled: true` + tools allowlist in the consuming project's `.blueprint.yaml` or global config.
+In this session: Implemented a new `script:` directive that executes named scripts from the template's `scripts/` folder.
+
+**Template now uses `script: setup`** instead of `sh:` inline commands. The script is defined in YAML config and resolved relative to the template directory.
 
 ## Changes Made In This Session
 
-- ✅ Removed `_templates/js-project/new/scripts/setup.sh.ejs.t` — scripts should not be `.ejs.t` templates, use `sh:` directly
-- ✅ Updated `.editorconfig.ejs.t`: `sh: bash scripts/setup.sh` → `sh: curl ... -o .gitignore && npm install`
-- ✅ Templates reduced from 6 to 5 (removed unnecessary script template)
-- ✅ Design spec committed to `docs/superpowers/specs/2026-05-21-js-templates-design.md`
-- ✅ Handoff committed to `docs/superpowers/handoff-2026-05-21-js-templates-and-cli-fixes.md`
+- ✅ **New `script:` directive** — wired from frontmatter to `ScriptFile` execution
+  - `Template.res`: Added `Script(string)` variant to `directive` type
+  - `Frontmatter.res` + `.mjs`: Parse `script:` key
+  - `Config.res` + `.resi`: Added `scriptDef` type and `scripts?: array<scriptDef>` in `shellConfig`
+  - `Phase1.res`: In `_collectShellCommands` — match `Script(name)`, look up in `shellConfig.scripts`, resolve path relative to template source dir, produce `ScriptFile`
+  - Added `parseScriptDef` in `Config.res` to parse scripts array in YAML
+- ✅ **Created `_templates/js-project/scripts/setup.sh`** — plain bash script (not `.ejs.t`)
+  - `curl ... -o .gitignore && npm install`
+- ✅ **Updated `.editorconfig.ejs.t`** — `sh: curl...` → `script: setup`
+- ✅ Build compiles cleanly (10 modules)
 
 ## External Artifacts
 
 - **Design spec**: `docs/superpowers/specs/2026-05-21-js-templates-design.md`
-- **Templates**: `_templates/js-project/` (5 files under `new/`)
-- **Blueprint config**: `.blueprint.yaml` (js-project entry added at line 21)
+- **Templates**: `_templates/js-project/` (5 template files + 1 script under `scripts/`)
+- **Blueprint config**: `.blueprint.yaml`
 - **Engram**: topic `templates/js-project-init`
+
+## Usage
+
+User's `.blueprint.yaml` needs:
+
+```yaml
+shell:
+  enabled: true
+  scripts:
+    - name: setup
+      path: scripts/setup.sh
+```
+
+Template frontmatter:
+```yaml
+---
+to: .editorconfig
+script: setup
+---
+```
 
 ## Pre-existing Bugs Found (in Blueprint, not our templates)
 
