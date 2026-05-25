@@ -296,3 +296,12 @@ Supported interpreters: `bash`, `sh`, `node`, `python3`, `pwsh`.
 ## Docs
 
 Full documentation at [/docs](/docs), including architecture, API reference, and tutorials.
+
+## Deno Support (Experimental)
+
+Blueprint is extracting its runtime bindings into ports. While Node.js is the default, you can run Blueprint natively using Deno with full parity for filesystem, paths, and subprocess hooks.
+
+```bash
+deno run -A dist/main.mjs generate <classification>
+```
+*Note: This is an opt-in path. If you encounter bugs under Deno, fallback to Node.js. Please report any disparities.*

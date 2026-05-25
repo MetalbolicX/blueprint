@@ -367,20 +367,20 @@ module Readline = {
   @module("node:process") external stdin: streamReadable = "stdin"
   @module("node:process") external stdout: streamWritable = "stdout"
 
-  @module("readline")
+  @module("node:readline")
   external createInterface: (
     ~input: streamReadable,
     ~output: streamWritable=?,
     unit,
   ) => readlineInterface = "createInterface"
 
-  @module("readline")
+  @module("node:readline")
   external moveCursor: (streamReadable, int, int) => unit = "moveCursor"
 
-  @module("readline")
+  @module("node:readline")
   external clearLine: (streamReadable, int) => unit = "clearLine"
 
-  @module("readline")
+  @module("node:readline")
   external cursorTo: (streamReadable, int, ~y: int=?, unit) => unit = "cursorTo"
 }
 

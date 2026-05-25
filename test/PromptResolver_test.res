@@ -359,4 +359,45 @@ suite("PromptResolver", () => {
     })
     ->ignore
   })
+
+  testAsync("resolve: invalid input retries until valid", resolve => {
+    let callCount = ref(0)
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => {
+        callCount.contents = callCount.contents + 1
+        if callCount.contents == 1 {
+          Promise.resolve("invalid_token")
+        } else {
+          Promise.resolve("valid_123")
+        }
+      },
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "token",
+        promptType: Manifest.Input,
+        description: "Token",
+        validate: {pattern: "^valid_", message: "Must start with valid_"},
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(answers) => {
+          assert_eq(callCount.contents, 2)
+          assert_eq(Dict.get(answers, "token"), Some("valid_123"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

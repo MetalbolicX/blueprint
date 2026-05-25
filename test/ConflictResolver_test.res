@@ -80,4 +80,46 @@ let _ = ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts=[], ~force=fals
       },
     )
   })
+
+  testAsync("resolveConflicts: invalid input retries until valid", resolve => {
+    let callCount = ref(0)
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => {
+        callCount.contents = callCount.contents + 1
+        if callCount.contents == 1 {
+          Promise.resolve("invalid")
+        } else {
+          Promise.resolve("yes")
+        }
+      },
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+
+    let conflicts = [
+      {
+        ConflictResolver.sourcePath: "src",
+        targetPath: "tgt"
+      }
+    ]
+
+    ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts, ~force=false)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(decisions) => {
+          assert_eq(Array.length(decisions), 1)
+          assert_eq(callCount.contents, 2)
+          let overwrite = switch decisions[0] {
+          | Some(d) => d.overwrite
+          | None => false
+          }
+          assert_true(overwrite)
+        }
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })
