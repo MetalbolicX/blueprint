@@ -100,11 +100,11 @@ let executeHook: (
     } else {
       switch hook.args {
       | Some(args) => {
-          let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
+    let r = await ChildProcess.execFileAsync(hook.command, ~args, ~options=execFileOpts)
           Ok(execResultToHookResult((r :> Ports.execResult)))
         }
       | None => {
-          let r = await ChildProcess.execFile(hook.command, ~options=execFileOpts)
+          let r = await ChildProcess.execFileAsync(hook.command, ~options=execFileOpts)
           Ok(execResultToHookResult((r :> Ports.execResult)))
         }
       }
@@ -112,7 +112,7 @@ let executeHook: (
   } else {
     switch hook.args {
     | Some(args) => {
-        let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
+        let r = await ChildProcess.execFileAsync(hook.command, ~args, ~options=execFileOpts)
         Ok(execResultToHookResult((r :> Ports.execResult)))
       }
     | None => {

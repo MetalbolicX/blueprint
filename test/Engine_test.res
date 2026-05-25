@@ -11,6 +11,8 @@ let deps: Ports.deps = {
   path: NodeJsPath.make(),
   process: NodeJsProcess.make(),
   shell: NodeJsShell.make(),
+  interactiveIO: NodeJsInteractiveIO.make(()),
+  argParser: NodeJsArgParser.make(),
 }
 
 suite("Engine", () => {

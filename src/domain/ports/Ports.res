@@ -55,6 +55,7 @@ type shellOptions = {
 type shell = {
   execShellCommand: (~command: string, ~cwd: string=?) => promise<result<string, string>>,
   execAsync: (string, ~options: shellOptions=?) => promise<execResult>,
+  execFileAsync: (string, ~args: array<string>=?, ~options: shellOptions=?) => promise<execResult>,
 }
 
 type path = {
@@ -65,9 +66,26 @@ type path = {
   basename: (string, ~ext: string=?) => string,
 }
 
+type interactiveIO = {
+  ask: string => promise<string>,
+  askConfirm: (~question: string, ~defaultYes: bool=?) => promise<bool>,
+  close: unit => unit,
+}
+
+type parsedArgs = {
+  values: dict<string>,
+  positionals: array<string>,
+}
+
+type argParser = {
+  parse: (~args: array<string>, ~strict: bool, ~allowPositionals: bool) => result<parsedArgs, string>,
+}
+
 type deps = {
   fs: fileSystem,
   path: path,
   process: process,
   shell: shell,
+  interactiveIO: interactiveIO,
+  argParser: argParser,
 }

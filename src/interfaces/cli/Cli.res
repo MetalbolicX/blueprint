@@ -414,6 +414,8 @@ let main: unit => promise<unit> = async () => {
     path: pathAdapter,
     process: processAdapter,
     shell: shellAdapter,
+    interactiveIO: NodeJsInteractiveIO.make(()),
+    argParser: NodeJsArgParser.make(),
   }
 
   // argv[0] = node, argv[1] = script path, argv[2+] = actual args

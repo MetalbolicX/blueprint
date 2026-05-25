@@ -271,8 +271,51 @@ module ChildProcess = {
     "execFileSync"
 
   @module("node:child_process")
-  external execFile: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult> =
-    "execFile"
+  external execFileWithCallback: (
+    string,
+    array<string>,
+    ~options: execOptions=?,
+    ~callback: execCallback,
+  ) => childProcess = "execFile"
+
+  let execFileAsync: (
+    string,
+    ~args: array<string>=?,
+    ~options: execOptions=?,
+  ) => promise<execResult> = (cmd, ~args=?, ~options=?) => {
+    Promise.make((resolve, _reject) => {
+      let opts = switch options {
+      | Some(o) => o
+      | None => {}
+      }
+      let argsArr = switch args {
+      | Some(a) => a
+      | None => []
+      }
+      let _ = execFileWithCallback(cmd, argsArr, ~options=opts, ~callback=(err, stdout, stderr) => {
+        if Js.Nullable.isNullable(err) {
+          resolve({
+            stdout,
+            stderr,
+            status: Some(0),
+            signalCode: None,
+            killed: false,
+          })
+        } else {
+          let errObj = Js.Nullable.toOption(err)->Option.getExn
+          let (signal, killed) = extractExecError(errObj)
+          let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
+          resolve({
+            stdout,
+            stderr,
+            status: Some(code),
+            signalCode: signal,
+            killed,
+          })
+        }
+      })
+    })
+  }
 
   let execShellCommand: (
     ~command: string,
