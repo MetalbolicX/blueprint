@@ -1,9 +1,7 @@
 // Phase2: Atomic commit from staging to output, rollback on failure
 // Mirrors Go version's phase2/phase2.go
 
-open Bindings
 open Template
-open PathSecurity
 
 type phase2Result = {
   filesCreated: int,
@@ -22,7 +20,19 @@ let executeShellCommands: (
   ~commands: array<shellCommand>,
   ~cwd: string,
   ~shellConfig: option<Config.shellConfig>,
-) => promise<result<(int, array<string>), string>> = (~commands, ~cwd, ~shellConfig) => {
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
+  ~shell: Ports.shell,
+) => promise<result<(int, array<string>), string>> = (
+  ~commands,
+  ~cwd,
+  ~shellConfig,
+  ~fs,
+  ~path,
+  ~process,
+  ~shell,
+) => {
   let count = ref(0)
   let errors: array<string> = []
 
@@ -40,7 +50,7 @@ let executeShellCommands: (
     | None => None
     }
   })
-  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, NodeJs.NodeProcess.env->Obj.magic)
+  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
 
   let promise = commands->Array.reduce(Promise.resolve(Ok()), (acc, cmd) => {
     acc->Promise.then(r => {
@@ -62,8 +72,8 @@ let executeShellCommands: (
                     })
                     "fetch-" ++ Int.toString(hash) ++ ".tmp"
                   }
-                  let fetchPath = Path.join(cwd, fetchFileName)
-                  Fs.writeFile(fetchPath, content)->Promise.then(_ => {
+                  let fetchPath = path.join(cwd, fetchFileName)
+                  fs.writeFile(fetchPath, content)->Promise.then(_ => {
                     count.contents = count.contents + 1
                     Promise.resolve(Ok())
                   })->Promise.catch(_ => {
@@ -79,7 +89,7 @@ let executeShellCommands: (
             })
           }
         | ToolCall({name, toolDef}) => {
-            let execOpts: Bindings.ChildProcess.execOptions = {
+            let execOpts: Ports.shellOptions = {
               cwd: cwd,
               env: safeEnv,
               shell: true,
@@ -89,7 +99,7 @@ let executeShellCommands: (
             | Some(args) => toolDef.command ++ " " ++ args->Array.join(" ")
             | None => toolDef.command
             }
-            Bindings.ChildProcess.execAsync(fullCommand, ~options=execOpts)->Promise.then(result => {
+            shell.execAsync(fullCommand, ~options=execOpts)->Promise.then(result => {
               switch result.status {
               | Some(0) => {
                   count.contents = count.contents + 1
@@ -127,12 +137,12 @@ let executeShellCommands: (
                 errors->Array.push("Command not in tools allowlist: " ++ command)
                 Promise.resolve(Ok())
               } else {
-                let resolvedCmd = Path.resolve(cwd, baseCmd)
+                let resolvedCmd = path.resolve(cwd, baseCmd)
                 if !PathSecurity.isWithinTree(resolvedCmd, cwd) {
                   errors->Array.push("Command path outside project tree: " ++ baseCmd)
                   Promise.resolve(Ok())
                 } else {
-                  ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
+                  shell.execShellCommand(~command, ~cwd)->Promise.then(result => {
                     switch result {
                     | Ok(_) => {
                         count.contents = count.contents + 1
@@ -148,26 +158,26 @@ let executeShellCommands: (
               }
             }
           }
-        | ScriptFile(path) => {
-            let resolvedPath = Path.resolve(path, "")
+        | ScriptFile(cmdPath) => {
+            let resolvedPath = path.resolve(cmdPath, "")
             if !PathSecurity.isWithinTree(resolvedPath, cwd) {
-              errors->Array.push("Script path outside project tree: " ++ path)
+              errors->Array.push("Script path outside project tree: " ++ cmdPath)
               Promise.resolve(Ok())
             } else {
-              NodeJs.Fs.fileExists(resolvedPath)->Promise.then(exists => {
+              fs.fileExists(resolvedPath)->Promise.then(exists => {
                 if !exists {
-                  errors->Array.push("Script file not found: " ++ path)
+                  errors->Array.push("Script file not found: " ++ cmdPath)
                   Promise.resolve(Ok())
                 } else {
-                  let execOpts: Bindings.ChildProcess.execOptions = {
+                  let execOpts: Ports.shellOptions = {
                     cwd: cwd,
                     env: safeEnv,
                     shell: true,
                     encoding: "utf8",
                   }
-                  Bindings.ChildProcess.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
+                  shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
                     if result.killed {
-                      errors->Array.push("Script timed out and was killed: " ++ path)
+                      errors->Array.push("Script timed out and was killed: " ++ cmdPath)
                       Promise.resolve(Ok())
                     } else {
                       switch result.status {
@@ -176,7 +186,7 @@ let executeShellCommands: (
                           Promise.resolve(Ok())
                         }
                       | status => {
-                          errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ path)
+                          errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath)
                           Promise.resolve(Ok())
                         }
                       }
@@ -186,7 +196,7 @@ let executeShellCommands: (
                     | Some(m) => m
                     | None => "unknown"
                     }
-                    errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ path ++ ")")
+                    errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")")
                     Promise.resolve(Ok())
                   })
                 }
@@ -210,7 +220,9 @@ let commitFiles: (
   ~stagingDir: string,
   ~outputDir: string,
   ~renderedFiles: array<(string, string)>,
-) => promise<result<int, phase2Error>> = async (~stagingDir, ~outputDir, ~renderedFiles) => {
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<result<int, phase2Error>> = async (~stagingDir, ~outputDir, ~renderedFiles, ~fs, ~path) => {
   let partialCommit: array<string> = []
   let errorRef: ref<option<string>> = ref(None)
 
@@ -218,16 +230,16 @@ let commitFiles: (
     Promise.resolve(),
     async (acc, (_, targetPath)) => {
       let _ = await acc
-      
+
       switch errorRef.contents {
       | Some(_) => ()
       | None =>
-        let stagedPath = Path.join(stagingDir, targetPath)
-        let destPath = Path.join(outputDir, targetPath)
-        let destDir = Path.dirname(destPath)
+        let stagedPath = path.join(stagingDir, targetPath)
+        let destPath = path.join(outputDir, targetPath)
+        let destDir = path.dirname(destPath)
         try {
-          let _ = await Fs.mkdir(destDir, ~options={recursive: true})
-          await Fs.cp(stagedPath, destPath, ~options={recursive: false})
+          let _ = await fs.mkdir(destDir, ~options={recursive: true})
+          await fs.cp(stagedPath, destPath, ~options={recursive: false})
           let _ = partialCommit->Array.push(destPath)
         } catch {
         | JsExn(obj) =>
@@ -258,9 +270,9 @@ let commitFiles: (
 }
 
 // Rollback: remove staging directory
-let rollback: string => promise<unit> = async stagingDir => {
+let rollback: (string, ~fs: Ports.fileSystem) => promise<unit> = async (stagingDir, ~fs) => {
   try {
-    await Fs.rm(stagingDir, ~options={recursive: true})
+    await fs.rm(stagingDir, ~options={recursive: true})
   } catch {
   | _ => ()
   }
@@ -273,24 +285,40 @@ let run: (
   ~renderedFiles: array<(string, string)>,
   ~shellCommands: array<shellCommand>,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
+  ~shell: Ports.shell,
 ) => promise<result<phase2Result, phase2Error>> = async (
   ~stagingDir,
   ~outputDir,
   ~renderedFiles,
   ~shellCommands,
   ~shellConfig,
+  ~fs,
+  ~path,
+  ~process,
+  ~shell,
 ) => {
   // Commit files
-  let commitResult = await commitFiles(~stagingDir, ~outputDir, ~renderedFiles)
+  let commitResult = await commitFiles(~stagingDir, ~outputDir, ~renderedFiles, ~fs, ~path)
 
   switch commitResult {
   | Ok(count) => {
       // Execute shell commands
-      let shellResult = await executeShellCommands(~commands=shellCommands, ~cwd=outputDir, ~shellConfig)
+      let shellResult = await executeShellCommands(
+        ~commands=shellCommands,
+        ~cwd=outputDir,
+        ~shellConfig,
+        ~fs,
+        ~path,
+        ~process,
+        ~shell,
+      )
 
       switch shellResult {
       | Ok((cmdsExec, shellErrors)) => {
-          await rollback(stagingDir)
+          await rollback(stagingDir, ~fs)
 
           let shellErrs: option<array<string>> = shellErrors->Array.length > 0 ? Some(shellErrors) : None
           let result: phase2Result = {
@@ -299,11 +327,11 @@ let run: (
             commandsExecuted: cmdsExec,
             shellErrors: ?shellErrs,
           }
-          await rollback(stagingDir)
+          await rollback(stagingDir, ~fs)
           Ok(result)
         }
       | Error(_e) =>
-        await rollback(stagingDir)
+        await rollback(stagingDir, ~fs)
         Ok({
           filesCreated: count,
           filesInjected: 0,
@@ -313,7 +341,7 @@ let run: (
     }
   | Error(err) => {
       // Commit failed — rollback
-      await rollback(stagingDir)
+      await rollback(stagingDir, ~fs)
       Error(err)
     }
   }

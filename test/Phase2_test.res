@@ -1,6 +1,10 @@
 // Phase2_test — commit and rollback tests
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 
 suite("Phase2", () => {
   test("phase2Result: structure", () => {
@@ -147,7 +151,7 @@ suite("Phase2", () => {
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(exists => {
       assert_true(exists)
-      Phase2.rollback(tmpDir)
+      Phase2.rollback(tmpDir, ~fs=NodeJsFileSystem.make())
     })
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(existsAfter => {
@@ -209,7 +213,15 @@ suite("Phase2", () => {
       },
     ]
 
-    Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig)
+    Phase2.executeShellCommands(
+      ~commands,
+      ~cwd=tmpDir,
+      ~shellConfig,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )
     ->Promise.then(result => {
       switch result {
       | Error(_) => assert_false(true)
@@ -241,7 +253,15 @@ suite("Phase2", () => {
     NodeJs.Fs.fileExists(missingPath)
     ->Promise.then(exists => {
       assert_false(exists)
-      Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None)
+      Phase2.executeShellCommands(
+        ~commands,
+        ~cwd=tmpDir,
+        ~shellConfig=None,
+        ~fs=NodeJsFileSystem.make(),
+        ~path=NodeJsPath.make(),
+        ~process=NodeJsProcess.make(),
+        ~shell=NodeJsShell.make(),
+      )
     })
     ->Promise.then(result => {
       switch result {
@@ -271,7 +291,15 @@ suite("Phase2", () => {
       },
     ]
 
-    Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None)
+    Phase2.executeShellCommands(
+      ~commands,
+      ~cwd=tmpDir,
+      ~shellConfig=None,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )
     ->Promise.then(result => {
       switch result {
       | Error(_) => assert_false(true)

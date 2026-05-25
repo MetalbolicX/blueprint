@@ -2,7 +2,6 @@
 // Follows Hygen's _templates/<generator>/<action>/ convention
 
 open Template
-open Bindings
 
 type generator = {
   name: string, // directory name (e.g. "component")
@@ -20,10 +19,14 @@ let isManifestFile: string => bool = filename => {
 }
 
 // Load and parse a single template file
-let _loadTemplate: string => promise<option<template>> = async sourcePath => {
+let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<option<template>> = async (
+  ~fs,
+  ~path,
+  sourcePath,
+) => {
   try {
-    let content = await Bindings.Fs.readFile(sourcePath, ~options={encoding: "utf8"})
-    let filename = Path.basename(sourcePath)
+    let content = await fs.readFile(sourcePath, ~options={encoding: "utf8"})
+    let filename = path.basename(sourcePath)
 
     if isManifestFile(filename) {
       None
@@ -49,15 +52,19 @@ let _loadTemplate: string => promise<option<template>> = async sourcePath => {
 }
 
 // Load manifest.yaml from a generator directory if present
-let _loadManifest: string => promise<option<Manifest.manifest>> = async generatorPath => {
-  let manifestPath = Path.join(generatorPath, "manifest.yaml")
+let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<option<Manifest.manifest>> = async (
+  ~fs,
+  ~path,
+  generatorPath,
+) => {
+  let manifestPath = path.join(generatorPath, "manifest.yaml")
 
-  let exists = await Bindings.Fs.fileExists(manifestPath)
+  let exists = await fs.fileExists(manifestPath)
   if !exists {
     None
   } else {
     try {
-      let content = await Bindings.Fs.readFile(manifestPath, ~options={encoding: "utf8"})
+      let content = await fs.readFile(manifestPath, ~options={encoding: "utf8"})
       switch Manifest.parse(content) {
       | Ok(m) => Some(m)
       | Error(_) => None
@@ -69,18 +76,22 @@ let _loadManifest: string => promise<option<Manifest.manifest>> = async generato
 }
 
 // Discover all generators under a base directory
-let discoverIn: string => promise<array<generator>> = async baseDir => {
-  let exists = await Bindings.Fs.fileExists(baseDir)
+let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<array<generator>> = async (
+  ~fs,
+  ~path,
+  baseDir,
+) => {
+  let exists = await fs.fileExists(baseDir)
   if !exists {
     []
   } else {
     try {
-      let entries = await Bindings.Fs.readdir(baseDir, ~options={withFileTypes: false})
+      let entries = await fs.readdir(baseDir, ~options={withFileTypes: false})
 
       let genPromises = entries->Array.map(async entry => {
-        let genPath = Bindings.Path.join(baseDir, entry)
+        let genPath = path.join(baseDir, entry)
         let stat = try {
-          Some(await Bindings.Fs.stat(genPath))
+          Some(await fs.stat(genPath))
         } catch {
         | _ => None
         }
@@ -89,15 +100,15 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
         | Some(s) if s.isDirectory() => {
           // Hygen convention: _templates/<generator>/<action>/<template>.ejs.t
           let actionEntries = try {
-            await Bindings.Fs.readdir(genPath, ~options={withFileTypes: false})
+            await fs.readdir(genPath, ~options={withFileTypes: false})
           } catch {
           | JsExn(_) => []
           }
 
           let actionTmplPromises = actionEntries->Array.map(async actionName => {
-            let actionPath = Bindings.Path.join(genPath, actionName)
+            let actionPath = path.join(genPath, actionName)
             let actionStat = try {
-              Some(await Bindings.Fs.stat(actionPath))
+              Some(await fs.stat(actionPath))
             } catch {
             | _ => None
             }
@@ -105,15 +116,15 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
             switch actionStat {
             | Some(dirStat) if dirStat.isDirectory() => {
               let files = try {
-                await Bindings.Fs.readdir(actionPath, ~options={withFileTypes: false})
+                await fs.readdir(actionPath, ~options={withFileTypes: false})
               } catch {
               | JsExn(_) => []
               }
 
               let filePromises = files->Array.map(fname => {
                 if _isTemplateFile(fname) {
-                  let fpath = Bindings.Path.join(actionPath, fname)
-                  _loadTemplate(fpath)
+                  let fpath = path.join(actionPath, fname)
+                  _loadTemplate(~fs, ~path, fpath)
                 } else {
                   Promise.resolve(None)
                 }
@@ -130,7 +141,7 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
           let templates = allActionTemplates->Array.reduce([], (acc, t) =>
             acc->Array.concat(t)
           )
-          let manifest = await _loadManifest(genPath)
+          let manifest = await _loadManifest(~fs, ~path, genPath)
 
           Some({
             name: entry,
@@ -155,17 +166,19 @@ let discoverIn: string => promise<array<generator>> = async baseDir => {
 }
 
 // Discover generators across standard search paths
-let discover: (~searchPaths: array<string>=?, unit) => promise<array<generator>> = async (
-  ~searchPaths=?,
-  (),
-) => {
+let discover: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~searchPaths: array<string>=?,
+  unit,
+) => promise<array<generator>> = async (~fs, ~path, ~searchPaths=?, ()) => {
   let defaultPaths = ["_templates", "templates", "generators"]
   let paths = switch searchPaths {
   | Some(p) => p
   | None => defaultPaths
   }
 
-  let allGenPromises = paths->Array.map(baseDir => discoverIn(baseDir))
+  let allGenPromises = paths->Array.map(baseDir => discoverIn(~fs, ~path, baseDir))
   let allResults = await Promise.all(allGenPromises)
 
   // Flatten all generators from all paths

@@ -13,6 +13,7 @@ let run: (
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
+  ~deps: Ports.deps,
 ) => promise<result<generateResult, string>>
 
 let runWithConfig: (
@@ -20,4 +21,5 @@ let runWithConfig: (
   ~name: string,
   ~cliAttributes: dict<string>,
   ~force: bool,
+  ~deps: Ports.deps,
 ) => promise<result<generateResult, string>>

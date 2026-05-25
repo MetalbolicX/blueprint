@@ -12,6 +12,8 @@ let detectConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
 ) => promise<array<conflictFile>>
 
 let run: (
@@ -20,4 +22,6 @@ let run: (
   ~context: Context.context,
   ~outputDir: string,
   ~force: bool,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
 ) => promise<result<phase0Result, string>>

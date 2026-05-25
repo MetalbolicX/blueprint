@@ -14,12 +14,14 @@ let runPostHook: (
   ~config: option<Config.config>,
   ~projectRoot: string,
   ~result: generateResult,
-) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result) => {
+  ~shell: Ports.shell,
+  ~process: Ports.process,
+) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result, ~shell, ~process) => {
   switch config {
   | None => Ok(result)
   | Some(c) => {
       let shellConfig = c.shell
-      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig)
+      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process)
       switch hookResult {
       | Error(e) => Error(e)
       | Ok() => Ok(result)
@@ -35,6 +37,7 @@ let run: (
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
+  ~deps: Ports.deps,
 ) => promise<result<generateResult, string>> = async (
   ~generator,
   ~name,
@@ -42,14 +45,16 @@ let run: (
   ~outputDir,
   ~force,
   ~config=?,
+  ~deps,
 ) => {
+  let {fs, path, process: proc, shell} = deps
   let rl = Bindings.Readline.createInterface(
     ~input=Bindings.Readline.stdin,
     ~output=Bindings.Readline.stdout,
     (),
   )
 
-  let cwd = switch await Bindings.Fs.fileExists(generator.path) {
+  let cwd = switch await fs.fileExists(generator.path) {
   | true => generator.path
   | false => "."
   }
@@ -62,11 +67,11 @@ let run: (
     (),
   )
 
-let preHookResult: result<unit, string> = switch config {
+  let preHookResult: result<unit, string> = switch config {
           | None => Ok()
           | Some(c) => {
               let shellConfig = c.shell
-              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig)
+              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process=proc)
             }
           }
 
@@ -83,6 +88,8 @@ let preHookResult: result<unit, string> = switch config {
     ~context,
     ~outputDir,
     ~force,
+    ~fs,
+    ~path,
   )
 
       switch phase0Result {
@@ -127,6 +134,9 @@ let preHookResult: result<unit, string> = switch config {
             ~outputDir,
             ~conflictDecisions=Some(decisions),
             ~shellConfig,
+            ~fs,
+            ~path,
+            ~process=proc,
           )
 
           switch phase1Result {
@@ -141,6 +151,10 @@ let preHookResult: result<unit, string> = switch config {
                 ~renderedFiles=p1.renderedFiles,
                 ~shellCommands=p1.shellCommands,
                 ~shellConfig=shellConfig,
+                ~fs,
+                ~path,
+                ~process=proc,
+                ~shell,
               )
 
               switch phase2Result {
@@ -157,7 +171,7 @@ let preHookResult: result<unit, string> = switch config {
                     classification: generator.name,
                     shellErrors: ?shellErrs,
                   }
-                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result)
+                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc)
                   rl.close()
                   finalResult
                 }
@@ -177,11 +191,13 @@ let runWithConfig: (
   ~name: string,
   ~cliAttributes: dict<string>,
   ~force: bool,
+  ~deps: Ports.deps,
 ) => promise<result<generateResult, string>> = async (
   ~generator,
   ~name,
   ~cliAttributes,
   ~force,
+  ~deps,
 ) => {
-  await run(~generator, ~name, ~cliAttributes, ~outputDir=Config.defaultOutputDir, ~force)
+  await run(~generator, ~name, ~cliAttributes, ~outputDir=Config.defaultOutputDir, ~force, ~deps)
 }

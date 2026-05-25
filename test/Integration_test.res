@@ -1,6 +1,10 @@
 // Integration_test — full pipeline integration tests for shell security
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 
 suite("Integration", () => {
   test("shell.enabled: false blocks sh: directive", () => {
@@ -203,9 +207,11 @@ suite("Integration", () => {
     ->Promise.then(_ =>
       NodeJs.Fs.writeFile(NodeJs.Path.join(outDir, "b.txt"), "existing-b")
     )
-    ->Promise.then(_ =>
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
-    )
+    ->Promise.then(_ => {
+      let fsAdapter = NodeJsFileSystem.make()
+      let pathAdapter = NodeJsPath.make()
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false, ~fs=fsAdapter, ~path=pathAdapter)
+    })
     ->Promise.then(conflicts => {
       assert_eq(Array.length(conflicts), 2)
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore

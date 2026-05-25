@@ -19,9 +19,11 @@ let _checkFileConflict: (
   ~sourcePath: string,
   ~targetPath: string,
   ~outputDir: string,
-) => promise<option<conflictFile>> = async (~sourcePath, ~targetPath, ~outputDir) => {
-  let fullTargetPath = Path.join(outputDir, targetPath)
-  let exists = await Fs.fileExists(fullTargetPath)
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<option<conflictFile>> = async (~sourcePath, ~targetPath, ~outputDir, ~fs, ~path) => {
+  let fullTargetPath = path.join(outputDir, targetPath)
+  let exists = await fs.fileExists(fullTargetPath)
 
   if exists {
     Some({sourcePath, targetPath: fullTargetPath})
@@ -35,7 +37,9 @@ let detectConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
-) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force as _force) => {
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force as _force, ~fs, ~path) => {
   // Collect all To directive checks as a flat array.
   // unless_exists templates are intentionally excluded from conflict detection,
   // because existing target files should be silently skipped.
@@ -64,8 +68,8 @@ let detectConflicts: (
   // Build an array of promises for existence checks
   let checkPromises: array<promise<option<conflictFile>>> =
     toChecks->Array.map(((sourcePath, targetPath)) => {
-      let fullTarget = Path.join(outputDir, targetPath)
-      Fs.fileExists(fullTarget)->Promise.then(exists =>
+      let fullTarget = path.join(outputDir, targetPath)
+      fs.fileExists(fullTarget)->Promise.then(exists =>
         if exists {
           Promise.resolve(Some({sourcePath, targetPath: fullTarget}))
         } else {
@@ -93,12 +97,16 @@ let run: (
   ~context: Context.context,
   ~outputDir: string,
   ~force: bool,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
 ) => promise<result<phase0Result, string>> = async (
   ~rl,
   ~generator,
   ~context,
   ~outputDir,
   ~force,
+  ~fs,
+  ~path,
 ) => {
   // Get manifest prompts
   let prompts = switch generator.manifest {
@@ -117,7 +125,7 @@ let run: (
   switch resolvedAttributesResult {
   | Ok(resolvedAttributes) => {
       // Detect file conflicts
-      let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force)
+      let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force, ~fs, ~path)
       Ok({resolvedAttributes, conflicts})
     }
   | Error(PromptResolver.EvaluationError({prompt, field, message})) =>

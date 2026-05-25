@@ -12,6 +12,8 @@ let executeHook: (
   ~timeout: int,
   ~hookType: hookType,
   ~shellEnv: option<Config.shellEnv>,
+  ~shell: Ports.shell,
+  ~process: Ports.process,
 ) => promise<result<hookResult, string>>
 
 let run: (
@@ -19,4 +21,6 @@ let run: (
   ~projectRoot: string,
   ~hookType: hookType,
   ~shellConfig: option<Config.shellConfig>,
+  ~shell: Ports.shell,
+  ~process: Ports.process,
 ) => promise<result<unit, string>>

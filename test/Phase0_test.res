@@ -1,6 +1,10 @@
 // Phase0_test — prompt resolution tests
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 
 suite("Phase0", () => {
   test("phase0Result: structure", () => {
@@ -25,6 +29,8 @@ suite("Phase0", () => {
 
   testAsync("detectConflicts: returns empty when no templates have To directive", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let templates: array<Template.template> = [
       {
         sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
@@ -33,7 +39,7 @@ suite("Phase0", () => {
       },
     ]
 
-    Phase0.detectConflicts(~templates, ~outputDir=tmpDir, ~force=false)
+    Phase0.detectConflicts(~templates, ~outputDir=tmpDir, ~force=false, ~fs, ~path=pathAdapter)
     ->Promise.then(conflicts => {
       assert_eq(Array.length(conflicts), 0)
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -46,6 +52,8 @@ suite("Phase0", () => {
   testAsync("detectConflicts: returns empty when no target file exists", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let outDir = NodeJs.Path.join(tmpDir, "out")
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let templates: array<Template.template> = [
       {
         sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
@@ -56,7 +64,7 @@ suite("Phase0", () => {
 
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ =>
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(conflicts => {
       assert_eq(Array.length(conflicts), 0)
@@ -71,6 +79,8 @@ suite("Phase0", () => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let outDir = NodeJs.Path.join(tmpDir, "out")
     let targetFile = NodeJs.Path.join(outDir, "Hello.tsx")
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let templates: array<Template.template> = [
       {
         sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
@@ -82,7 +92,7 @@ suite("Phase0", () => {
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
     ->Promise.then(_ =>
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(conflicts => {
       assert_eq(Array.length(conflicts), 1)
@@ -104,6 +114,8 @@ suite("Phase0", () => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let outDir = NodeJs.Path.join(tmpDir, "out")
     let targetFile = NodeJs.Path.join(outDir, "Hello.tsx")
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let templates: array<Template.template> = [
       {
         sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
@@ -115,7 +127,7 @@ suite("Phase0", () => {
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
     ->Promise.then(_ =>
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=true)
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=true, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(conflicts => {
       // force=true does NOT suppress conflict detection; it tells the resolver to auto-overwrite
@@ -131,6 +143,8 @@ suite("Phase0", () => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let outDir = NodeJs.Path.join(tmpDir, "out")
     let targetFile = NodeJs.Path.join(outDir, "Hello.tsx")
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let templates: array<Template.template> = [
       {
         sourcePath: NodeJs.Path.join(tmpDir, "tmpl.ejs.t"),
@@ -142,7 +156,7 @@ suite("Phase0", () => {
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
     ->Promise.then(_ =>
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false)
+      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(conflicts => {
       assert_eq(Array.length(conflicts), 0)

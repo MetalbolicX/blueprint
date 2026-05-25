@@ -2,7 +2,6 @@
 // Templates are rendered to a temp staging directory
 // Mirrors Go version's phase1/phase1.go
 
-open Bindings
 open Template
 
 type phase1Result = {
@@ -76,7 +75,11 @@ let _hasUnlessExists: template => bool = template => {
   })
 }
 
-let _loadTemplateBodyFromDirective: template => promise<result<template, string>> = async template => {
+let _loadTemplateBodyFromDirective: (
+  template,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<result<template, string>> = async (template, ~fs, ~path) => {
   switch template.directives->Array.find(d => {
     switch d {
     | From(_) => true
@@ -84,15 +87,15 @@ let _loadTemplateBodyFromDirective: template => promise<result<template, string>
     }
   }) {
   | Some(From(fromPath)) => {
-      let baseDir = Path.dirname(template.sourcePath)
-      let resolvedPath = if Path.isAbsolute(fromPath) {
+      let baseDir = path.dirname(template.sourcePath)
+      let resolvedPath = if path.isAbsolute(fromPath) {
         fromPath
       } else {
-        Path.join(baseDir, fromPath)
+        path.join(baseDir, fromPath)
       }
 
       try {
-        let externalBody = await Fs.readFile(resolvedPath)
+        let externalBody = await fs.readFile(resolvedPath, ~options={encoding: "utf8"})
         Ok({...template, body: externalBody})
       } catch {
       | JsExn(obj) =>
@@ -111,10 +114,14 @@ let _collectShellCommands: (
   template,
   option<Config.shellConfig>,
   ~actionfolder: string,
+  ~path: Ports.path,
+  ~process: Ports.process,
 ) => array<shellCommand> = (
   template,
   shellConfig,
   ~actionfolder,
+  ~path,
+  ~process,
 ) => {
   template.directives->Array.filterMap(d => {
     switch d {
@@ -147,14 +154,14 @@ let _collectShellCommands: (
         }
         switch _findScriptByName(scripts, name) {
         | Some(scriptDef) =>
-          let baseDir = if Path.isAbsolute(actionfolder) {
+          let baseDir = if path.isAbsolute(actionfolder) {
             actionfolder
           } else {
-            Path.resolve(NodeJs.NodeProcess.cwd(), actionfolder)
+            path.resolve(process.cwd(), actionfolder)
           }
-          let resolvedPath = Path.isAbsolute(scriptDef.path)
+          let resolvedPath = path.isAbsolute(scriptDef.path)
             ? scriptDef.path
-            : Path.join(baseDir, scriptDef.path)
+            : path.join(baseDir, scriptDef.path)
           Some({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
         | None =>
           Some({target: InlineCommand("script-not-found: " ++ name), sourcePath: template.sourcePath})
@@ -170,11 +177,17 @@ let _renderTemplate: (
   ~context: Context.context,
   ~outputDir: string,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
 ) => promise<result<option<(string, string, string, array<shellCommand>)>, string>> = async (
   ~template,
   ~context,
   ~outputDir,
   ~shellConfig,
+  ~fs,
+  ~path,
+  ~process,
 ) => {
   // Find "to" directive for target path
   let targetPathOpt =
@@ -191,12 +204,12 @@ let _renderTemplate: (
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
   | Some(targetPath) => {
       if _hasUnlessExists(template) {
-        let finalTargetPath = Path.join(outputDir, targetPath)
-        let exists = await Fs.fileExists(finalTargetPath)
+        let finalTargetPath = path.join(outputDir, targetPath)
+        let exists = await fs.fileExists(finalTargetPath)
         if exists {
           Ok(None)
         } else {
-          switch await _loadTemplateBodyFromDirective(template) {
+          switch await _loadTemplateBodyFromDirective(template, ~fs, ~path) {
           | Error(e) => Error(e)
           | Ok(templateToRender) => {
               let renderCtx = Context.toRenderContext(context)
@@ -206,6 +219,8 @@ let _renderTemplate: (
                     template,
                     shellConfig,
                     ~actionfolder=context.actionfolder,
+                    ~path,
+                    ~process,
                   )
                   Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
                 }
@@ -215,7 +230,7 @@ let _renderTemplate: (
           }
         }
       } else {
-        switch await _loadTemplateBodyFromDirective(template) {
+        switch await _loadTemplateBodyFromDirective(template, ~fs, ~path) {
         | Error(e) => Error(e)
         | Ok(templateToRender) => {
             let renderCtx = Context.toRenderContext(context)
@@ -225,6 +240,8 @@ let _renderTemplate: (
                   template,
                   shellConfig,
                   ~actionfolder=context.actionfolder,
+                  ~path,
+                  ~process,
                 )
                 Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
               }
@@ -244,18 +261,24 @@ let run: (
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>> = async (
   ~templates as _templates,
   ~context as _context,
   ~outputDir as _outputDir,
   ~conflictDecisions as _conflictDecisions,
   ~shellConfig,
+  ~fs,
+  ~path,
+  ~process,
 ) => {
   let effectiveShellConfig = shellConfig
-  let stagingDir = Os.makeStagingDir()
+  let stagingDir = fs.makeStagingDir()
 
   let mkdirResult: result<unit, phase1Error> = try {
-    let _ = await Fs.mkdir(stagingDir, ~options={recursive: true})
+    let _ = await fs.mkdir(stagingDir, ~options={recursive: true})
     Ok()
   } catch {
   | JsExn(obj) =>
@@ -274,16 +297,24 @@ let run: (
     let errorRef: ref<option<phase1Error>> = ref(None)
 
     let renderOps = _templates->Array.map(async tmpl => {
-      switch await _renderTemplate(~template=tmpl, ~context=_context, ~outputDir=_outputDir, ~shellConfig=effectiveShellConfig) {
+      switch await _renderTemplate(
+        ~template=tmpl,
+        ~context=_context,
+        ~outputDir=_outputDir,
+        ~shellConfig=effectiveShellConfig,
+        ~fs,
+        ~path,
+        ~process,
+      ) {
       | Error(e) =>
         errorRef.contents = Some({stagingDir, message: e})
       | Ok(None) => ()
       | Ok(Some((sourcePath, targetPath, renderedBody, shellCmds))) =>
-        let stagedPath = Path.join(stagingDir, targetPath)
-        let stagedDir = Path.dirname(stagedPath)
+        let stagedPath = path.join(stagingDir, targetPath)
+        let stagedDir = path.dirname(stagedPath)
         try {
-          let _ = await Fs.mkdir(stagedDir, ~options={recursive: true})
-          await Fs.writeFile(stagedPath, renderedBody)
+          let _ = await fs.mkdir(stagedDir, ~options={recursive: true})
+          await fs.writeFile(stagedPath, renderedBody)
           let _ = renderedFiles->Array.push((sourcePath, targetPath))
           shellCmds->Array.forEach(cmd => {
             let _ = shellCommands->Array.push(cmd)
@@ -304,7 +335,7 @@ let run: (
     switch errorRef.contents {
     | Some(err) =>
       try {
-        await Fs.rm(stagingDir, ~options={recursive: true})
+        await fs.rm(stagingDir, ~options={recursive: true})
       } catch {
       | _ => ()
       }

@@ -66,12 +66,12 @@ type mergedConfig = {
 
 let parse: string => result<config, string>
 let parseGlobal: string => result<globalConfig, string>
-let loadFrom: string => promise<result<option<config>, string>>
-let loadGlobal: unit => promise<result<option<globalConfig>, string>>
+let loadFrom: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<result<option<config>, string>>
+let loadGlobal: (~fs: Ports.fileSystem, ~path: Ports.path, ~homeDir: string) => promise<result<option<globalConfig>, string>>
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig
 let validateMergedConfig: mergedConfig => result<unit, string>
 let defaultGlobalConfig: globalConfig
-let saveGlobalAtPath: (~configPath: string, globalConfig) => promise<result<unit, string>>
-let saveGlobal: globalConfig => promise<result<unit, string>>
+let saveGlobalAtPath: (~fs: Ports.fileSystem, ~path: Ports.path, ~configPath: string, globalConfig) => promise<result<unit, string>>
+let saveGlobal: (~fs: Ports.fileSystem, ~path: Ports.path, ~homeDir: string, globalConfig) => promise<result<unit, string>>
 let defaultOutputDir: string
 let defaultTimeout: int

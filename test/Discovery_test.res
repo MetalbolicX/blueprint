@@ -1,8 +1,14 @@
 // Discovery_test — discovery and generator lookup tests
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 
 suite("Discovery", () => {
+  let fs = NodeJsFileSystem.make()
+  let pathAdapter = NodeJsPath.make()
   test("findByClassification: returns generator when exists", () => {
     let gens = [
       {
@@ -57,7 +63,7 @@ suite("Discovery", () => {
         "---\nto: src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_true(Array.length(gens) >= 1)
@@ -77,7 +83,7 @@ suite("Discovery", () => {
   })
 
   testAsync("discoverIn: returns empty array for non-existent directory", resolve => {
-    let _ = Discovery.discoverIn("/non/existent/path")
+    let _ = Discovery.discoverIn(~fs, ~path=pathAdapter, "/non/existent/path")
     ->Promise.then(gens => {
       assert_eq(Array.length(gens), 0)
       resolve()
@@ -95,7 +101,7 @@ suite("Discovery", () => {
         "not a generator",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_eq(Array.length(gens), 0)

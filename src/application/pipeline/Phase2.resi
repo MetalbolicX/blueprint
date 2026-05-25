@@ -14,6 +14,10 @@ let executeShellCommands: (
   ~commands: array<Template.shellCommand>,
   ~cwd: string,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
+  ~shell: Ports.shell,
 ) => promise<result<(int, array<string>), string>>
 
 let run: (
@@ -22,6 +26,10 @@ let run: (
   ~renderedFiles: array<(string, string)>,
   ~shellCommands: array<Template.shellCommand>,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
+  ~shell: Ports.shell,
 ) => promise<result<phase2Result, phase2Error>>
 
-let rollback: string => promise<unit>
+let rollback: (string, ~fs: Ports.fileSystem) => promise<unit>

@@ -5,6 +5,8 @@ let buildGenerateSearchPaths: (
 ) => array<string>
 
 let copyTemplateToRegistry: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
   ~name: string,
   ~sourcePath: string,
   ~registryRoot: string,
@@ -15,6 +17,8 @@ let copyTemplateToRegistry: (
 ) => promise<result<Config.globalConfig, string>>
 
 let removeTemplateFromRegistry: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
   ~name: string,
   ~configPath: string,
   ~globalConfig: Config.globalConfig,

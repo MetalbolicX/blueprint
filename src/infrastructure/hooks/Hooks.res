@@ -26,12 +26,16 @@ let executeHook: (
   ~timeout: int,
   ~hookType: hookType,
   ~shellEnv: option<Config.shellEnv>,
+  ~shell: Ports.shell,
+  ~process: Ports.process,
 ) => promise<result<hookResult, string>> = async (
   ~hook,
   ~cwd,
   ~timeout,
   ~hookType,
   ~shellEnv,
+  ~shell,
+  ~process,
 ) => {
   // Build safe env for child process
   let buildEnvEntry: (string, string) => EnvFilter.shellEnvEntry = (k, v) => {
@@ -48,7 +52,7 @@ let executeHook: (
   | Some(s) => Some(buildEnvFilterConfig(s))
   | None => None
   }
-  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, NodeJs.NodeProcess.env->Obj.magic)
+  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
 
   // Check for path restriction on any command that looks like a path
   let isPath = _isPath(hook.command)
@@ -60,16 +64,15 @@ let executeHook: (
     encoding: "utf8",
   }
 
-  // Use ChildProcess.execAsync for proper timeout handling
-  // This uses the callback-based exec API internally with proper signal/killed detection
-  let execWithTimeout: (string, int) => promise<result<ChildProcess.execResult, string>> = async (cmd, timeoutMs) => {
+  // Use shell port for proper timeout handling
+  let execWithTimeout: (string, int) => promise<result<Ports.execResult, string>> = async (cmd, timeoutMs) => {
     try {
-      let options: ChildProcess.execOptions = {timeout: timeoutMs}
-      let result = await Bindings.ChildProcess.execAsync(cmd, ~options)
+      let options: Ports.shellOptions = {timeout: timeoutMs}
+      let result = await shell.execAsync(cmd, ~options)
       Ok(result)
     } catch {
     | JsExn(e) =>
-      let msg = switch JsExn.message(e) {
+      let msg = switch Js.Exn.message(e->Obj.magic) {
       | Some(m) => m
       | None => "unknown error"
       }
@@ -80,7 +83,7 @@ let executeHook: (
   // Check if hook command is empty - skip execution
   let isEmptyCommand = hook.command == ""
 
-  let execResultToHookResult: ChildProcess.execResult => hookResult = execResult => {
+  let execResultToHookResult: Ports.execResult => hookResult = execResult => {
     let exitCode = switch execResult.status {
     | Some(c) => c
     | None => 0
@@ -98,14 +101,11 @@ let executeHook: (
       switch hook.args {
       | Some(args) => {
           let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
-          Ok(execResultToHookResult(r))
+          Ok(execResultToHookResult((r :> Ports.execResult)))
         }
       | None => {
-          let r = await execWithTimeout(hook.command, timeout)
-          switch r {
-          | Ok(r2) => Ok(execResultToHookResult(r2))
-          | Error(e) => Error(e)
-          }
+          let r = await ChildProcess.execFile(hook.command, ~options=execFileOpts)
+          Ok(execResultToHookResult((r :> Ports.execResult)))
         }
       }
     }
@@ -113,7 +113,7 @@ let executeHook: (
     switch hook.args {
     | Some(args) => {
         let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
-        Ok(execResultToHookResult(r))
+        Ok(execResultToHookResult((r :> Ports.execResult)))
       }
     | None => {
         let r = await execWithTimeout(hook.command, timeout)
@@ -146,11 +146,15 @@ let run: (
   ~projectRoot: string,
   ~hookType: hookType,
   ~shellConfig: option<Config.shellConfig>,
+  ~shell: Ports.shell,
+  ~process: Ports.process,
 ) => promise<result<unit, string>> = async (
   ~config,
   ~projectRoot,
   ~hookType,
   ~shellConfig,
+  ~shell,
+  ~process,
 ) => {
   let timeout = switch config.hooks {
   | Some(h) =>
@@ -177,7 +181,7 @@ let run: (
       Ok()
     } else {
       let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv)
+      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process)
       switch result {
       | Ok(_) => Ok()
       | Error(e) =>

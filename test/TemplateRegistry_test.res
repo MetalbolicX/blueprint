@@ -1,4 +1,9 @@
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+
+let fsAdapter = NodeJsFileSystem.make()
+let pathAdapter = NodeJsPath.make()
 
 let writeGeneratorFixture = (~root: string, ~name: string) => {
   let generatorDir = NodeJs.Path.join(root, name)
@@ -59,6 +64,8 @@ suite("TemplateRegistry", () => {
     ->Promise.then(_ => writeGeneratorFixture(~root=sourceRoot, ~name))
     ->Promise.then(_ => {
       Cli.copyTemplateToRegistry(
+        ~fs=fsAdapter,
+        ~path=pathAdapter,
         ~name,
         ~sourcePath=NodeJs.Path.join(sourceRoot, name),
         ~registryRoot,
@@ -138,6 +145,8 @@ suite("TemplateRegistry", () => {
     ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.join(registryRoot, name), ~options={recursive: true}))
     ->Promise.then(_ => {
       Cli.copyTemplateToRegistry(
+        ~fs=fsAdapter,
+        ~path=pathAdapter,
         ~name,
         ~sourcePath=NodeJs.Path.join(sourceRoot, name),
         ~registryRoot,
@@ -175,8 +184,8 @@ suite("TemplateRegistry", () => {
 
     NodeJs.Fs.mkdir(installed, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(installed, "manifest.yaml"), "name: api-route\n"))
-    ->Promise.then(_ => Config.saveGlobalAtPath(~configPath, cfg))
-    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~name="api-route", ~configPath, ~globalConfig=cfg))
+    ->Promise.then(_ => Config.saveGlobalAtPath(~fs=fsAdapter, ~path=pathAdapter, ~configPath, cfg))
+    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~fs=fsAdapter, ~path=pathAdapter, ~name="api-route", ~configPath, ~globalConfig=cfg))
     ->Promise.then(result => {
       switch result {
       | Error(_) => {
@@ -228,7 +237,7 @@ suite("TemplateRegistry", () => {
         ],
         ~globalTemplates=[],
       )
-      Discovery.discover(~searchPaths=paths, ())
+      Discovery.discover(~fs=fsAdapter, ~path=pathAdapter, ~searchPaths=paths, ())
     })
     ->Promise.then(generators => {
       switch Discovery.findByClassification(generators, classification) {

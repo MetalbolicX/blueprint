@@ -1,6 +1,17 @@
 // Engine_test — full pipeline e2e tests
 
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 open TestHelpers
+
+let deps: Ports.deps = {
+  fs: NodeJsFileSystem.make(),
+  path: NodeJsPath.make(),
+  process: NodeJsProcess.make(),
+  shell: NodeJsShell.make(),
+}
 
 suite("Engine", () => {
   test("generateResult: structure", () => {
@@ -42,6 +53,7 @@ suite("Engine", () => {
       ~cliAttributes=Dict.make(),
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -67,6 +79,7 @@ suite("Engine", () => {
       ~cliAttributes=Dict.make(),
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -100,6 +113,7 @@ suite("Engine", () => {
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
       ~config=cfg,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -133,6 +147,7 @@ suite("Engine", () => {
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
       ~config=cfg,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -166,6 +181,7 @@ suite("Engine", () => {
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
       ~config=cfg,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -200,6 +216,7 @@ suite("Engine", () => {
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
       ~config=cfg,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {
@@ -234,6 +251,7 @@ suite("Engine", () => {
       ~outputDir="/tmp/blueprint-test-output",
       ~force=true,
       ~config=cfg,
+      ~deps,
     )
     ->Promise.then(result => {
       switch result {

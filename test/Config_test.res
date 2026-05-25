@@ -1,6 +1,8 @@
 // Config_test — config parsing and loading tests
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
 
 suite("Config", () => {
   test("parse: returns Ok with empty hooks when no hooks key", () => {
@@ -59,8 +61,10 @@ suite("Config", () => {
 
   testAsync("loadFrom: returns None when no .blueprint.yaml exists", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
-    ->Promise.then(_ => Config.loadFrom(tmpDir))
+    ->Promise.then(_ => Config.loadFrom(~fs, ~path=pathAdapter, tmpDir))
     ->Promise.then(result => {
       switch result {
       | Ok(opt) =>
@@ -78,12 +82,14 @@ suite("Config", () => {
 
   testAsync("loadFrom: returns Some config when .blueprint.yaml exists", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let yaml = "hooks:\n  pre_generate:\n    command: echo hello\n"
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
     ->Promise.then(_ =>
       NodeJs.Fs.writeFile(NodeJs.Path.join(tmpDir, ".blueprint.yaml"), yaml)
     )
-    ->Promise.then(_ => Config.loadFrom(tmpDir))
+    ->Promise.then(_ => Config.loadFrom(~fs, ~path=pathAdapter, tmpDir))
     ->Promise.then(result => {
       switch result {
       | Ok(opt) =>
@@ -390,6 +396,8 @@ suite("Config", () => {
 
   testAsync("saveGlobalAtPath: persists registry via yaml stringify", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let configPath = NodeJs.Path.join(tmpDir, "config.yaml")
     let defaults = Dict.make()
     Dict.set(defaults, "author", "blueprint")
@@ -403,7 +411,7 @@ suite("Config", () => {
       registry: [{name: "service", source: "/workspace/_templates/service", path: "/tmp/registry/service"}],
     }
 
-    Config.saveGlobalAtPath(~configPath, cfg)
+    Config.saveGlobalAtPath(~fs, ~path=pathAdapter, ~configPath, cfg)
     ->Promise.then(writeResult => {
       switch writeResult {
       | Ok(()) => NodeJs.Fs.readFile(configPath, ~options={encoding: "utf8"})

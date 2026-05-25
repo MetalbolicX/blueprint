@@ -17,4 +17,7 @@ let run: (
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>>

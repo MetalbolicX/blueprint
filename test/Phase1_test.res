@@ -1,6 +1,10 @@
 // Phase1_test — staging and rendering tests
 
 open TestHelpers
+open NodeJsFileSystem
+open NodeJsPath
+open NodeJsProcess
+open NodeJsShell
 
 suite("Phase1", () => {
   test("phase1Result: structure", () => {
@@ -92,6 +96,10 @@ suite("Phase1", () => {
       body: "export default '<%= Name %>'",
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
@@ -101,6 +109,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -116,7 +127,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -147,6 +158,10 @@ suite("Phase1", () => {
       tools: [{name: "eslint", command: "eslint"}],
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
@@ -156,6 +171,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=Some(shellCfg),
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -171,7 +189,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -197,6 +215,10 @@ suite("Phase1", () => {
       body: "export default '<%= Name %>'",
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
@@ -206,6 +228,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -221,7 +246,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -248,6 +273,10 @@ suite("Phase1", () => {
       body: "export default '<%= Name %>'",
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
@@ -257,6 +286,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -264,7 +296,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.shellCommands), 2)
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -300,6 +332,10 @@ suite("Phase1", () => {
       scripts: [{name: "setup", path: "scripts/setup.sh"}],
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDirAbs, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
@@ -309,6 +345,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=Some(shellCfg),
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -327,7 +366,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -355,6 +394,10 @@ suite("Phase1", () => {
       body: "fallback",
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.writeFile(partialPath, "external <%= Name %>"))
@@ -365,6 +408,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -372,7 +418,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.renderedFiles), 1)
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -400,6 +446,10 @@ suite("Phase1", () => {
       body: "export default '<%= Name %>'",
     }
 
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
     NodeJs.Fs.mkdir(NodeJs.Path.dirname(targetPath), ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.mkdir(templateDir, ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetPath, "existing"))
@@ -410,6 +460,9 @@ suite("Phase1", () => {
         ~outputDir,
         ~conflictDecisions=None,
         ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
       )
     )
     ->Promise.then(result => {
@@ -417,7 +470,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.renderedFiles), 0)
-          Phase2.rollback(phase1.stagingDir)->ignore
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore

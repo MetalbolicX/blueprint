@@ -267,18 +267,25 @@ let _globalConfigPath: string => string = homeDir => {
   Bindings.Path.join(Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint"), "config.yaml")
 }
 
-let saveGlobalAtPath: (~configPath: string, globalConfig) => promise<result<unit, string>> = async (
+let saveGlobalAtPath: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~configPath: string,
+  globalConfig,
+) => promise<result<unit, string>> = async (
+  ~fs,
+  ~path,
   ~configPath,
   cfg,
 ) => {
   try {
-    let configDir = Bindings.Path.dirname(configPath)
-    let dirExists = await Bindings.Fs.fileExists(configDir)
+    let configDir = path.dirname(configPath)
+    let dirExists = await fs.fileExists(configDir)
     if !dirExists {
-      let _ = await Bindings.Fs.mkdir(configDir, ~options={recursive: true})
+      let _ = await fs.mkdir(configDir, ~options={recursive: true})
     }
     let yaml = Bindings.Yaml.stringify(JSON.Object(_globalConfigToYamlObject(cfg)))
-    let _ = await Bindings.Fs.writeFile(configPath, yaml)
+    let _ = await fs.writeFile(configPath, yaml)
     Ok(())
   } catch {
   | JsExn(obj) =>
@@ -290,22 +297,29 @@ let saveGlobalAtPath: (~configPath: string, globalConfig) => promise<result<unit
   }
 }
 
-let saveGlobal: globalConfig => promise<result<unit, string>> = async cfg => {
-  let homeDir = Bindings.Os.homedir()
+let saveGlobal: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~homeDir: string,
+  globalConfig,
+) => promise<result<unit, string>> = async (~fs, ~path, ~homeDir, cfg) => {
   let configPath = _globalConfigPath(homeDir)
-  await saveGlobalAtPath(~configPath, cfg)
+  await saveGlobalAtPath(~fs, ~path, ~configPath, cfg)
 }
 
-let loadGlobal: unit => promise<result<option<globalConfig>, string>> = async () => {
-  let homeDir = Bindings.Os.homedir()
+let loadGlobal: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~homeDir: string,
+) => promise<result<option<globalConfig>, string>> = async (~fs, ~path, ~homeDir) => {
   let configPath = _globalConfigPath(homeDir)
 
-  let exists = await Bindings.Fs.fileExists(configPath)
+  let exists = await fs.fileExists(configPath)
   if !exists {
     Ok(None)
   } else {
     try {
-      let content = await Bindings.Fs.readFile(configPath, ~options={encoding: "utf8"})
+      let content = await fs.readFile(configPath, ~options={encoding: "utf8"})
       let result = parseGlobal(content)
       switch result {
       | Ok(cfg) => Ok(Some(cfg))
@@ -650,15 +664,19 @@ let parse: string => result<config, string> = yamlContent => {
 }
 
 // Load .blueprint.yaml from a given directory
-let loadFrom: string => promise<result<option<config>, string>> = async dir => {
-  let configPath = Bindings.Path.join(dir, ".blueprint.yaml")
+let loadFrom: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  string,
+) => promise<result<option<config>, string>> = async (~fs, ~path, dir) => {
+  let configPath = path.join(dir, ".blueprint.yaml")
 
-  let exists = await Bindings.Fs.fileExists(configPath)
+  let exists = await fs.fileExists(configPath)
   if !exists {
     Ok(None)
   } else {
     try {
-      let content = await Bindings.Fs.readFile(configPath, ~options={encoding: "utf8"})
+      let content = await fs.readFile(configPath, ~options={encoding: "utf8"})
       let result = parse(content)
       switch result {
       | Ok(cfg) => Ok(Some(cfg))
