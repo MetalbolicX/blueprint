@@ -8,6 +8,7 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/../../../etc/passwd",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_false(result)
   })
@@ -17,13 +18,14 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/../../../etc/evil.sh",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_false(result)
   })
 
   test("isWithinTree: blocks absolute path /etc/passwd outside project tree", () => {
     // Absolute path to system file outside project
-    let result = PathSecurity.isWithinTree("/etc/passwd", "/home/user/project")
+    let result = PathSecurity.isWithinTree("/etc/passwd", "/home/user/project", NodeJsPath.make())
     assert_false(result)
   })
 
@@ -32,13 +34,14 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/../../root/.ssh/id_rsa",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_false(result)
   })
 
   test("isWithinTree: blocks absolute path /bin/sh if outside project", () => {
     // Tool trying to execute system binary outside project tree
-    let result = PathSecurity.isWithinTree("/bin/sh", "/home/user/project")
+    let result = PathSecurity.isWithinTree("/bin/sh", "/home/user/project", NodeJsPath.make())
     assert_false(result)
   })
 
@@ -47,6 +50,7 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/scripts/build.sh",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_true(result)
   })
@@ -56,6 +60,7 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/src/main.res",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_true(result)
   })
@@ -65,6 +70,7 @@ suite("PathTraversal", () => {
     let result = PathSecurity.isWithinTree(
       "/home/user/project/src/../../../../etc/passwd",
       "/home/user/project",
+      NodeJsPath.make()
     )
     assert_false(result)
   })

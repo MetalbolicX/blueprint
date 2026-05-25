@@ -18,7 +18,7 @@ type conflictDecision = {
 let parseChoice: string => option<resolution>
 
 let resolveConflicts: (
-  ~rl: Bindings.Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~conflicts: array<fileConflict>,
   ~force: bool,
 ) => promise<result<array<conflictDecision>, string>>

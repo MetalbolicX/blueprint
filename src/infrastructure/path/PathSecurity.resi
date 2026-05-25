@@ -12,4 +12,4 @@
  * @param root - The root directory that path must be within
  * @returns true if path is inside root tree, false otherwise
  */
-let isWithinTree: (string, string) => bool
+let isWithinTree: (string, string, Ports.path) => bool

@@ -14,6 +14,7 @@ let executeHook: (
   ~shellEnv: option<Config.shellEnv>,
   ~shell: Ports.shell,
   ~process: Ports.process,
+  ~path: Ports.path,
 ) => promise<result<hookResult, string>>
 
 let run: (
@@ -23,4 +24,5 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~shell: Ports.shell,
   ~process: Ports.process,
+  ~path: Ports.path,
 ) => promise<result<unit, string>>

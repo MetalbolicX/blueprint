@@ -3,13 +3,25 @@
  * Provides utilities for validating paths are within allowed directory trees
  */
 
-let isWithinTree: (string, string) => bool = (path, root) => {
-  let resolvedPath = Bindings.NodeJs.Path.resolve(path, "")
-  let resolvedRoot = Bindings.NodeJs.Path.resolve(root, "")
-  let separator = Bindings.NodeJs.Path.sep
+let isWithinTree: (string, string, Ports.path) => bool = (path, root, pathAdapter) => {
+  let resolvedPath = pathAdapter.resolve(path, "")
+  let resolvedRoot = pathAdapter.resolve(root, "")
+  
+  // Since we don't have sep in ports yet, we can use string lengths and slash checks.
+  // Wait, or we can use replace regex for backslashes to forward slashes?
+  // Let's just use string startsWith and check boundary.
+  let isBoundary = (pathStr, rootStr) => {
+    let rootLen = String.length(rootStr)
+    if pathStr == rootStr {
+      true
+    } else if String.startsWith(pathStr, rootStr) {
+      // Must be a directory boundary. The next char must be / or \
+      let nextChar = String.charAt(pathStr, rootLen)
+      nextChar == "/" || nextChar == "\\"
+    } else {
+      false
+    }
+  }
 
-  // resolvedPath must start with resolvedRoot + separator
-  // Use string comparison after ensuring proper prefix
-  // Handle exact match case (path equals root)
-  resolvedPath == resolvedRoot || String.startsWith(resolvedPath, resolvedRoot ++ separator)
+  isBoundary(resolvedPath, resolvedRoot)
 }

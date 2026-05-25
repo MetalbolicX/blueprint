@@ -6,13 +6,14 @@ open NodeJsShell
 
 let processAdapter = NodeJsProcess.make()
 let shellAdapter = NodeJsShell.make()
+let pathAdapter = NodeJsPath.make()
 
 suite("Hooks", () => {
   testAsync("executeHook: preserves provided hookType", resolve => {
     let hook: Config.hookCommand = {
       command: "echo hello",
     }
-    Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(hookResult) => assert_eq(hookResult.hookType, Hooks.PostGenerate)
@@ -28,7 +29,7 @@ suite("Hooks", () => {
     let hook: Config.hookCommand = {
       command: "echo hook-no-args",
     }
-    Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(hookResult) => {
@@ -55,7 +56,7 @@ suite("Hooks", () => {
       },
     }
 
-    Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(postResult => {
       switch postResult {
       | Ok() =>
@@ -66,7 +67,7 @@ suite("Hooks", () => {
             timeout: 1,
           },
         }
-        Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter)
+        Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
         ->Promise.then(preResult => {
           switch preResult {
           | Ok() => assert_true(true)
@@ -93,7 +94,7 @@ suite("Hooks", () => {
       },
     }
 
-    Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_true(true)
@@ -111,7 +112,7 @@ suite("Hooks", () => {
     let hook: Config.hookCommand = {
       command: "../evil.sh",
     }
-    Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -127,7 +128,7 @@ suite("Hooks", () => {
     let hook: Config.hookCommand = {
       command: "/etc/passwd",
     }
-    Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -145,7 +146,7 @@ suite("Hooks", () => {
       command: "printf",
       args: ["%s", "HOME-is-set"],
     }
-    Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(hookResult) => {
@@ -166,7 +167,7 @@ suite("Hooks", () => {
       command: "sleep 10",
     }
     // Short timeout should cause error
-    Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter)
+    Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Error(_msg) => assert_true(true) // Timeout error expected

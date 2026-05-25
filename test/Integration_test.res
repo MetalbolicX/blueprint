@@ -124,24 +124,41 @@ suite("Integration", () => {
   test("structured log entry: has required JSON fields", () => {
     // A valid structured log entry should parse as JSON and contain these fields
     let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"test-123\",\"event\":\"phase0/start\",\"message\":\"Starting\",\"meta\":{}}"
-    switch %raw("JSON.parse(_rawEntry)") {
-    | obj =>
-      let hasTimestamp = %raw("obj.timestamp != null")->Obj.magic
-      let hasLevel = %raw("obj.level != null")->Obj.magic
-      let hasRunId = %raw("obj.runId != null")->Obj.magic
-      let hasEvent = %raw("obj.event != null")->Obj.magic
-      assert_true(hasTimestamp && hasLevel && hasRunId && hasEvent)
-    | exception _ => assert_false(true)
+    try {
+      let parsed = JSON.parseOrThrow(_rawEntry)
+      switch parsed {
+      | Object(dict) =>
+        let hasTimestamp = Dict.get(dict, "timestamp")->Option.isSome
+        let hasLevel = Dict.get(dict, "level")->Option.isSome
+        let hasRunId = Dict.get(dict, "runId")->Option.isSome
+        let hasEvent = Dict.get(dict, "event")->Option.isSome
+        assert_true(hasTimestamp && hasLevel && hasRunId && hasEvent)
+      | _ => assert_false(true)
+      }
+    } catch {
+    | _ => assert_false(true)
     }
   })
 
   test("structured log entry: runId is non-empty string", () => {
     let _rawEntry = "{\"timestamp\":\"2026-05-19T10:30:00.000Z\",\"level\":\"INFO\",\"runId\":\"1747655400123-4821\",\"event\":\"test\",\"message\":\"msg\"}"
-    switch %raw("JSON.parse(_rawEntry)") {
-    | obj =>
-      let runId = %raw("String(obj.runId)")
-      assert_true(String.length(runId) > 0 && runId !== "undefined" && runId !== "null")
-    | exception _ => assert_false(true)
+    try {
+      let parsed = JSON.parseOrThrow(_rawEntry)
+      switch parsed {
+      | Object(dict) =>
+        switch Dict.get(dict, "runId") {
+        | Some(val) => 
+          switch val {
+          | String(runId) => 
+            assert_true(String.length(runId) > 0 && runId !== "undefined" && runId !== "null")
+          | _ => assert_false(true)
+          }
+        | None => assert_false(true)
+        }
+      | _ => assert_false(true)
+      }
+    } catch {
+    | _ => assert_false(true)
     }
   })
 

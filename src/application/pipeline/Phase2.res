@@ -138,7 +138,7 @@ let executeShellCommands: (
                 Promise.resolve(Ok())
               } else {
                 let resolvedCmd = path.resolve(cwd, baseCmd)
-                if !PathSecurity.isWithinTree(resolvedCmd, cwd) {
+                if !PathSecurity.isWithinTree(resolvedCmd, cwd, path) {
                   errors->Array.push("Command path outside project tree: " ++ baseCmd)
                   Promise.resolve(Ok())
                 } else {
@@ -160,7 +160,7 @@ let executeShellCommands: (
           }
         | ScriptFile(cmdPath) => {
             let resolvedPath = path.resolve(cmdPath, "")
-            if !PathSecurity.isWithinTree(resolvedPath, cwd) {
+            if !PathSecurity.isWithinTree(resolvedPath, cwd, path) {
               errors->Array.push("Script path outside project tree: " ++ cmdPath)
               Promise.resolve(Ok())
             } else {
@@ -192,7 +192,7 @@ let executeShellCommands: (
                       }
                     }
                   })->Promise.catch(e => {
-                    let msg = switch Js.Exn.message(e->Obj.magic) {
+                    let msg = switch JsExn.message(e->Obj.magic) {
                     | Some(m) => m
                     | None => "unknown"
                     }

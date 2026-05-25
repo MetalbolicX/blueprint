@@ -56,14 +56,20 @@ suite("ConflictResolver", () => {
     assert_true(cd.overwrite)
   })
 
-  testAsync("resolveConflicts: empty conflicts list", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
+testAsync("resolveConflicts: empty conflicts list", resolve => {
+  let _rl = Bindings.Readline.createInterface(
+    ~input=Bindings.Readline.stdin,
+    ~output=Bindings.Readline.stdout,
       (),
     )
 
-    let _ = ConflictResolver.resolveConflicts(~rl, ~conflicts=[], ~force=false)->Promise.then(
+    let mockIo: Ports.interactiveIO = {
+  ask: _ => Promise.resolve(""),
+  askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+  close: () => ()
+}
+
+let _ = ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts=[], ~force=false)->Promise.then(
       result => {
         switch result {
         | Ok(decisions) => assert_eq(Array.length(decisions), 0)

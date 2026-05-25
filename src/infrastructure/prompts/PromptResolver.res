@@ -15,10 +15,10 @@ type resolveError =
 // Rejects control flow (<% ... %>) and unescaped output (<%- ... %>)
 let _hasUnsafeEjsTags: string => bool = template => {
   // Match any <% that is NOT followed by =
-  let controlFlowPattern = Js.Re.fromString("<%(?![-=])")
+  let controlFlowPattern = RegExp.fromString("<%(?![-=])")
   // Match <%- (unescaped output)
-  let unescapedPattern = Js.Re.fromString("<%-")
-  Js.Re.test_(controlFlowPattern, template) || Js.Re.test_(unescapedPattern, template)
+  let unescapedPattern = RegExp.fromString("<%-")
+  RegExp.test(controlFlowPattern, template) || RegExp.test(unescapedPattern, template)
 }
 
 // Evaluate an EJS template string against evaluation context
@@ -144,9 +144,9 @@ let _evaluateOptions: (
 let _compilePattern: (
   ~pattern: string,
   ~promptName: string,
-) => result<Js.Re.t, resolveError> = (~pattern, ~promptName) => {
+) => result<RegExp.t, resolveError> = (~pattern, ~promptName) => {
   try {
-    Ok(Js.Re.fromString(pattern))
+    Ok(RegExp.fromString(pattern))
   } catch {
   | JsExn(obj) =>
     let msg = JsExn.message(obj)->Option.getOr("Invalid regex pattern")
@@ -160,18 +160,18 @@ let _compilePattern: (
 }
 
 // Check if a value matches a compiled regex
-let _matchesPattern: (string, Js.Re.t) => bool = (value, re) => {
-  Js.Re.test_(re, value)
+let _matchesPattern: (string, RegExp.t) => bool = (value, re) => {
+  RegExp.test(re, value)
 }
 
 // --- Ask a single question (interactive) ---
 
 let askPrompt: (
-  ~rl: Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~prompt: Manifest.prompt,
   ~evaluatedDefault: option<string>,
   ~evaluatedOptions: option<array<Manifest.promptOption>>,
-) => promise<string> = (~rl, ~prompt, ~evaluatedDefault, ~evaluatedOptions) => {
+) => promise<string> = (~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions) => {
   let displayDefault = evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
   let questionText =
     prompt.description ++
@@ -181,7 +181,7 @@ let askPrompt: (
     } ++ ": "
 
   switch prompt.promptType {
-  | Manifest.Input => rl.question(questionText)
+  | Manifest.Input => io.ask(questionText)
 
   | Manifest.Select =>
     // Show numbered options using evaluated options if available
@@ -200,7 +200,7 @@ let askPrompt: (
 
         let fullQuestion = optionsText ++ "\n" ++ questionText
 
-        rl.question(fullQuestion)->Promise.then(answer => {
+        io.ask(fullQuestion)->Promise.then(answer => {
           let trimmedAnswer = String.trim(answer)
           let idx = switch Int.fromString(trimmedAnswer) {
           | Some(n) => n - 1
@@ -213,29 +213,22 @@ let askPrompt: (
           Promise.resolve(selected)
         })
       }
-    | _ => rl.question(questionText)
+    | _ => io.ask(questionText)
     }
 
   | Manifest.Confirm =>
-    rl.question(questionText ++ " (y/n) ")->Promise.then(answer => {
-      let trimmed = String.trim(answer)->String.toLowerCase
-      if trimmed == "y" || trimmed == "yes" || trimmed == "" {
-        Promise.resolve("true")
-      } else {
-        Promise.resolve("false")
-      }
-    })
+    io.askConfirm(~question=questionText ++ " (y/n) ")->Promise.then(b => if b { Promise.resolve("true") } else { Promise.resolve("false") })
   }
 }
 
 // --- Main resolve function ---
 
 let resolve: (
-  ~rl: Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
   ~baseContext: dict<string>,
-) => promise<result<dict<string>, resolveError>> = (~rl, ~prompts, ~force, ~baseContext) => {
+) => promise<result<dict<string>, resolveError>> = (~io, ~prompts, ~force, ~baseContext) => {
   let answers = Dict.make()
 
   if force {
@@ -342,7 +335,7 @@ let resolve: (
           | Ok(compiledPattern) =>
             // Ask and validate with retry loop
             promptWithRetry(
-              ~rl,
+              ~io,
               ~prompt,
               ~evaluatedDefault,
               ~evaluatedOptions,
@@ -355,7 +348,7 @@ let resolve: (
       }
     }
     and promptWithRetry = (
-      ~rl,
+      ~io,
       ~prompt,
       ~evaluatedDefault,
       ~evaluatedOptions,
@@ -363,7 +356,7 @@ let resolve: (
       ~prompts,
       ~idx,
     ) => {
-      askPrompt(~rl, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
+      askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
         let finalAnswer = if String.trim(answer) == "" {
           evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
         } else {
@@ -380,7 +373,7 @@ let resolve: (
             // Show error message and retry
             Console.log("Error: " ++ errMsg)
             promptWithRetry(
-              ~rl,
+              ~io,
               ~prompt,
               ~evaluatedDefault,
               ~evaluatedOptions,

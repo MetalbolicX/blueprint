@@ -16,12 +16,13 @@ let runPostHook: (
   ~result: generateResult,
   ~shell: Ports.shell,
   ~process: Ports.process,
-) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result, ~shell, ~process) => {
+  ~path: Ports.path,
+) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result, ~shell, ~process, ~path) => {
   switch config {
   | None => Ok(result)
   | Some(c) => {
       let shellConfig = c.shell
-      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process)
+      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path)
       switch hookResult {
       | Error(e) => Error(e)
       | Ok() => Ok(result)
@@ -47,12 +48,7 @@ let run: (
   ~config=?,
   ~deps,
 ) => {
-  let {fs, path, process: proc, shell} = deps
-  let rl = Bindings.Readline.createInterface(
-    ~input=Bindings.Readline.stdin,
-    ~output=Bindings.Readline.stdout,
-    (),
-  )
+  let {fs, path, process: proc, shell, interactiveIO: io} = deps
 
   let cwd = switch await fs.fileExists(generator.path) {
   | true => generator.path
@@ -71,19 +67,19 @@ let run: (
           | None => Ok()
           | Some(c) => {
               let shellConfig = c.shell
-              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process=proc)
+              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process=proc, ~path)
             }
           }
 
   switch preHookResult {
   | Error(e) => {
-      rl.close()
+      io.close()
       Error(e)
     }
   | Ok() => {
 
       let phase0Result = await Phase0.run(
-    ~rl,
+    ~io,
     ~generator,
     ~context,
     ~outputDir,
@@ -94,12 +90,12 @@ let run: (
 
       switch phase0Result {
       | Error(e) => {
-          rl.close()
+          io.close()
           Error(e)
         }
       | Ok(p0) => {
       let conflictResult = await ConflictResolver.resolveConflicts(
-        ~rl,
+        ~io,
         ~conflicts=p0.conflicts->Array.map(c => {
           {ConflictResolver.sourcePath: c.sourcePath, targetPath: c.targetPath}
         }),
@@ -108,11 +104,11 @@ let run: (
 
       switch conflictResult {
       | Error(e) => {
-          rl.close()
+          io.close()
           Error(e)
         }
       | Ok(decisions) => {
-          rl.close()
+          io.close()
 
           let mergedContext = Context.build(
             ~cwd=context.cwd,
@@ -141,7 +137,7 @@ let run: (
 
           switch phase1Result {
           | Error(e) => {
-              rl.close()
+              io.close()
               Error(e.message)
             }
           | Ok(p1) => {
@@ -159,7 +155,7 @@ let run: (
 
               switch phase2Result {
               | Error(e) => {
-                  rl.close()
+                  io.close()
                   Error(e.message)
                 }
               | Ok(p2) => {
@@ -171,8 +167,8 @@ let run: (
                     classification: generator.name,
                     shellErrors: ?shellErrs,
                   }
-                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc)
-                  rl.close()
+                  let finalResult =   await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc, ~path)
+                  io.close()
                   finalResult
                 }
               }

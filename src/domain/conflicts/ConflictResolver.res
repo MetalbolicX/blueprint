@@ -33,9 +33,9 @@ let parseChoice: string => option<resolution> = input => {
 
 // Show conflict prompt and get bulk resolution
 let promptBulkResolution: (
-  ~rl: Bindings.Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~count: int,
-) => promise<resolution> = (~rl, ~count) => {
+) => promise<resolution> = (~io, ~count) => {
   let promptText =
     "\n" ++
     Int.toString(
@@ -43,7 +43,7 @@ let promptBulkResolution: (
     ) ++ " file(s) already exist. Overwrite all? [y]es / [n]o / [s]elect / [a]bort: "
 
   let rec loop = () => {
-    rl.question(promptText)->Promise.then(answer => {
+    io.ask(promptText)->Promise.then(answer => {
       switch parseChoice(answer) {
       | Some(r) => Promise.resolve(r)
       | None => loop()
@@ -55,10 +55,10 @@ let promptBulkResolution: (
 
 // Resolve conflicts for a list of files
 let resolveConflicts: (
-  ~rl: Bindings.Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~conflicts: array<fileConflict>,
   ~force: bool,
-) => promise<result<array<conflictDecision>, string>> = (~rl, ~conflicts, ~force) => {
+) => promise<result<array<conflictDecision>, string>> = (~io, ~conflicts, ~force) => {
   if force {
     // Force mode: overwrite all
     let decisions = conflicts->Array.map(c => {
@@ -68,7 +68,7 @@ let resolveConflicts: (
   } else if Array.length(conflicts) == 0 {
     Promise.resolve(Ok([]))
   } else {
-    promptBulkResolution(~rl, ~count=Array.length(conflicts))->Promise.then(resolution => {
+    promptBulkResolution(~io, ~count=Array.length(conflicts))->Promise.then(resolution => {
       switch resolution {
       | YesAll =>
         let decisions = conflicts->Array.map(c => {
@@ -93,7 +93,7 @@ let resolveConflicts: (
           } else {
             switch conflicts[idx] {
             | Some(c) =>
-              rl.question(
+              io.ask(
                 "Overwrite " ++ c.targetPath ++ "? [y]es / [n]o: ",
               )->Promise.then(answer => {
                 let overwrite = switch parseChoice(answer) {

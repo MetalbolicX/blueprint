@@ -124,7 +124,7 @@ module ChildProcess: {
 
   let spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess
   let exec: (string, ~options: execOptions=?) => childProcess
-  let execWithCallback: (string, ~options: execOptions=?, ~callback: (Js.Nullable.t<Js.Exn.t>, string, string) => unit) => childProcess
+  let execWithCallback: (string, ~options: execOptions=?, ~callback: (Nullable.t<JsExn.t>, string, string) => unit) => childProcess
   let execAsync: (string, ~options: execOptions=?) => promise<execResult>
   let execSync: (string, ~options: spawnOptions=?) => string
   let execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string

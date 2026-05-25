@@ -37,11 +37,11 @@ suite("PromptResolver", () => {
   // --- Force mode tests ---
 
   testAsync("resolve: force mode assigns evaluated default", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "name",
@@ -52,7 +52,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -61,7 +61,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -69,11 +69,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: force mode skips when=false prompt", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "visible",
@@ -91,7 +91,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -100,7 +100,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -108,11 +108,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: force mode evaluates default with prior answers", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "name",
@@ -129,7 +129,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -138,7 +138,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -146,11 +146,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: force mode evaluates when with prior answers", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "theme",
@@ -168,7 +168,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -177,7 +177,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -185,11 +185,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: force mode skips when condition is false", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "theme",
@@ -207,7 +207,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -216,7 +216,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -226,11 +226,11 @@ suite("PromptResolver", () => {
   // --- Error handling tests ---
 
   testAsync("resolve: invalid EJS expression returns EvaluationError", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "name",
@@ -241,7 +241,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -250,7 +250,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -258,11 +258,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: invalid regex returns ValidationConfigError", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "email",
@@ -277,7 +277,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -286,7 +286,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -296,11 +296,11 @@ suite("PromptResolver", () => {
   // --- Context integration tests ---
 
   testAsync("resolve: force mode uses baseContext in when evaluation", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "color",
@@ -313,7 +313,7 @@ suite("PromptResolver", () => {
     let baseContext: dict<string> = Dict.make()
     Dict.set(baseContext, "theme", "custom")
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -321,7 +321,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })
@@ -329,11 +329,11 @@ suite("PromptResolver", () => {
   })
 
   testAsync("resolve: force mode uses baseContext in default evaluation", resolve => {
-    let rl = Bindings.Readline.createInterface(
-      ~input=Bindings.Readline.stdin,
-      ~output=Bindings.Readline.stdout,
-      (),
-    )
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
     let prompts: array<Manifest.prompt> = [
       {
         name: "greeting",
@@ -345,7 +345,7 @@ suite("PromptResolver", () => {
     let baseContext: dict<string> = Dict.make()
     Dict.set(baseContext, "name", "Blueprint")
 
-    PromptResolver.resolve(~rl, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -353,7 +353,7 @@ suite("PromptResolver", () => {
         }
       | Error(_) => assert_false(true)
       }
-      rl.close()
+      mockIo.close()
       resolve()
       Promise.resolve()
     })

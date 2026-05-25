@@ -92,7 +92,7 @@ let detectConflicts: (
 
 // Run Phase0: resolve prompts and detect conflicts
 let run: (
-  ~rl: Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~generator: generator,
   ~context: Context.context,
   ~outputDir: string,
@@ -100,7 +100,7 @@ let run: (
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
 ) => promise<result<phase0Result, string>> = async (
-  ~rl,
+  ~io,
   ~generator,
   ~context,
   ~outputDir,
@@ -118,7 +118,7 @@ let run: (
 
   let resolvedAttributesResult = switch prompts {
   | Some(ps) if Array.length(ps) > 0 =>
-    await PromptResolver.resolve(~rl, ~prompts=ps, ~force, ~baseContext)
+    await PromptResolver.resolve(~io, ~prompts=ps, ~force, ~baseContext)
   | _ => Ok(Dict.make())
   }
 

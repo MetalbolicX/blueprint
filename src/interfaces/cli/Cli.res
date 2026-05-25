@@ -23,45 +23,46 @@ let printUsage = () => {
   Console.log("  --<key> <value>        Arbitrary attributes passed to templates")
 }
 
-let runInitGlobal: unit => promise<unit> = async () => {
+let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
   let homeDir = Bindings.Os.homedir()
-  let configDir = Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint")
-  let configPath = Bindings.Path.join(configDir, "config.yaml")
+  let configDir = deps.path.join(deps.path.join(homeDir, ".config"), "blueprint")
+  let configPath = deps.path.join(configDir, "config.yaml")
 
   // Check if global config already exists
-  let exists = await Bindings.Fs.fileExists(configPath)
+  let exists = await deps.fs.fileExists(configPath)
   if exists {
     Console.error("Error: Global config already exists at " ++ configPath)
-    NodeJs.NodeProcess.exit(1)
+    deps.process.exit(1)
   } else {
     // Create the directory if it doesn't exist
-    let dirExists = await Bindings.Fs.fileExists(configDir)
+    let dirExists = await deps.fs.fileExists(configDir)
     if !dirExists {
-      let _ = await Bindings.Fs.mkdir(configDir, ~options={recursive: true})
+      let _ = await deps.fs.mkdir(configDir, ~options={recursive: true})
     }
     let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nallow_dangerous_commands: false\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\nregistry: []\n"
-    let _ = await Bindings.Fs.writeFile(configPath, content)
+    let _ = await deps.fs.writeFile(configPath, content)
     Console.log("Scaffolded global config at " ++ configPath)
   }
 }
 
-let globalTemplateRegistryRoot: unit => string = () => {
+let globalTemplateRegistryRoot: (~deps: Ports.deps) => string = (~deps) => {
   let homeDir = Bindings.Os.homedir()
-  Bindings.Path.join(Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint"), "templates")
+  deps.path.join(deps.path.join(deps.path.join(homeDir, ".config"), "blueprint"), "templates")
 }
 
-let globalConfigPath: unit => string = () => {
+let globalConfigPath: (~deps: Ports.deps) => string = (~deps) => {
   let homeDir = Bindings.Os.homedir()
-  Bindings.Path.join(Bindings.Path.join(Bindings.Path.join(homeDir, ".config"), "blueprint"), "config.yaml")
+  deps.path.join(deps.path.join(deps.path.join(homeDir, ".config"), "blueprint"), "config.yaml")
 }
 
 let buildGenerateSearchPaths: (
+  ~deps: Ports.deps,
   ~projectPaths: array<string>,
   ~registry: array<Config.templateSource>,
   ~globalTemplates: array<string>,
-) => array<string> = (~projectPaths, ~registry, ~globalTemplates) => {
+) => array<string> = (~deps: Ports.deps, ~projectPaths, ~registry, ~globalTemplates) => {
   let registryPaths = registry
-  ->Array.map(src => Bindings.Path.dirname(src.path))
+  ->Array.map(src => deps.path.dirname(src.path))
   ->Array.reduce([], (acc, path) =>
     if acc->Array.includes(path) {
       acc
@@ -72,17 +73,7 @@ let buildGenerateSearchPaths: (
   projectPaths->Array.concat(registryPaths)->Array.concat(globalTemplates)
 }
 
-let promptOverwrite: string => promise<bool> = targetPath => {
-  let rl = Bindings.Readline.createInterface(~input=Bindings.Readline.stdin, ~output=Bindings.Readline.stdout, ())
-  rl.question("Template already exists at " ++ targetPath ++ ". Overwrite? (y/n) ")
-  ->Promise.then(answer => {
-    rl.close()
-    let trimmed = String.trim(answer)->String.toLowerCase
-    Promise.resolve(trimmed == "y" || trimmed == "yes")
-  })
-}
-
-let copyTemplateToRegistry: (
+let copyTemplateToRegistry: (~deps: Ports.deps, 
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~name: string,
@@ -92,7 +83,7 @@ let copyTemplateToRegistry: (
   ~globalConfig: Config.globalConfig,
   ~force: bool,
   ~confirmOverwrite: string => promise<bool>,
-) => promise<result<Config.globalConfig, string>> = async (
+) => promise<result<Config.globalConfig, string>> = async (~deps, 
   ~fs,
   ~path,
   ~name,
@@ -104,22 +95,22 @@ let copyTemplateToRegistry: (
   ~confirmOverwrite,
 ) => {
   try {
-    let sourceAbs = if Bindings.Path.isAbsolute(sourcePath) {
+    let sourceAbs = if deps.path.isAbsolute(sourcePath) {
       sourcePath
     } else {
-      Bindings.Path.resolve(NodeJs.NodeProcess.cwd(), sourcePath)
+      deps.path.resolve(deps.process.cwd(), sourcePath)
     }
-    let targetPath = Bindings.Path.join(registryRoot, name)
-    let targetExists = await Bindings.Fs.fileExists(targetPath)
+    let targetPath = deps.path.join(registryRoot, name)
+    let targetExists = await deps.fs.fileExists(targetPath)
 
     if targetExists && !force {
       let shouldOverwrite = await confirmOverwrite(targetPath)
       if !shouldOverwrite {
         Error("Copy cancelled by user")
       } else {
-        let _ = await Bindings.Fs.rm(targetPath, ~options={recursive: true})
-        let _ = await Bindings.Fs.mkdir(registryRoot, ~options={recursive: true})
-        let _ = await Bindings.Fs.cp(sourceAbs, targetPath, ~options={recursive: true})
+        let _ = await deps.fs.rm(targetPath, ~options={recursive: true})
+        let _ = await deps.fs.mkdir(registryRoot, ~options={recursive: true})
+        let _ = await deps.fs.cp(sourceAbs, targetPath, ~options={recursive: true})
 
         let withoutCurrent = globalConfig.registry->Array.filter(entry => entry.name != name)
         let updated: Config.globalConfig = {
@@ -134,10 +125,10 @@ let copyTemplateToRegistry: (
       }
     } else {
       if targetExists {
-        let _ = await Bindings.Fs.rm(targetPath, ~options={recursive: true})
+        let _ = await deps.fs.rm(targetPath, ~options={recursive: true})
       }
-      let _ = await Bindings.Fs.mkdir(registryRoot, ~options={recursive: true})
-      let _ = await Bindings.Fs.cp(sourceAbs, targetPath, ~options={recursive: true})
+      let _ = await deps.fs.mkdir(registryRoot, ~options={recursive: true})
+      let _ = await deps.fs.cp(sourceAbs, targetPath, ~options={recursive: true})
 
       let withoutCurrent = globalConfig.registry->Array.filter(entry => entry.name != name)
       let updated: Config.globalConfig = {
@@ -160,21 +151,21 @@ let copyTemplateToRegistry: (
   }
 }
 
-let removeTemplateFromRegistry: (
+let removeTemplateFromRegistry: (~deps: Ports.deps, 
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~name: string,
   ~configPath: string,
   ~globalConfig: Config.globalConfig,
-) => promise<result<Config.globalConfig, string>> = async (~fs, ~path, ~name, ~configPath, ~globalConfig) => {
+) => promise<result<Config.globalConfig, string>> = async (~deps, ~fs, ~path, ~name, ~configPath, ~globalConfig) => {
   let toRemove = globalConfig.registry->Array.find(entry => entry.name == name)
   switch toRemove {
   | None => Error("Template not found: " ++ name)
   | Some(entry) =>
     try {
-      let exists = await Bindings.Fs.fileExists(entry.path)
+      let exists = await deps.fs.fileExists(entry.path)
       if exists {
-        let _ = await Bindings.Fs.rm(entry.path, ~options={recursive: true})
+        let _ = await deps.fs.rm(entry.path, ~options={recursive: true})
       }
       let updated: Config.globalConfig = {
         ...globalConfig,
@@ -197,11 +188,12 @@ let removeTemplateFromRegistry: (
 }
 
 let runTemplateCopy: (
+  ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~name: string,
   ~force: bool,
-) => promise<unit> = async (~fs, ~path, ~name, ~force) => {
+) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
   let homeDir = Bindings.Os.homedir()
   let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
@@ -210,7 +202,7 @@ let runTemplateCopy: (
   | Error(_) => Config.defaultGlobalConfig
   }
 
-  let cwd = NodeJs.NodeProcess.cwd()
+  let cwd = deps.process.cwd()
   let configResult = await Config.loadFrom(~fs, ~path, cwd)
   let projectConfig = switch configResult {
   | Ok(c) => c
@@ -223,12 +215,12 @@ let runTemplateCopy: (
   switch Discovery.findByClassification(generators, name) {
   | None => {
       Console.error("Error: template not found: " ++ name)
-      NodeJs.NodeProcess.exit(1)
+      deps.process.exit(1)
     }
   | Some(generator) => {
-      let registryRoot = globalTemplateRegistryRoot()
-      let configPath = globalConfigPath()
-      let result = await copyTemplateToRegistry(
+      let registryRoot = globalTemplateRegistryRoot(~deps)
+      let configPath = globalConfigPath(~deps)
+      let result = await copyTemplateToRegistry(~deps, 
         ~fs,
         ~path,
         ~name,
@@ -237,13 +229,13 @@ let runTemplateCopy: (
         ~configPath,
         ~globalConfig,
         ~force,
-        ~confirmOverwrite=promptOverwrite,
+        ~confirmOverwrite=targetPath => deps.interactiveIO.askConfirm(~question="Template already exists at " ++ targetPath ++ ". Overwrite?", ~defaultYes=false),
       )
       switch result {
-      | Ok(_) => Console.log("Installed template: " ++ name ++ " -> " ++ Bindings.Path.join(registryRoot, name))
+      | Ok(_) => Console.log("Installed template: " ++ name ++ " -> " ++ deps.path.join(registryRoot, name))
       | Error(e) => {
           Console.error("Error: " ++ e)
-          NodeJs.NodeProcess.exit(1)
+          deps.process.exit(1)
         }
       }
     }
@@ -251,9 +243,10 @@ let runTemplateCopy: (
 }
 
 let runTemplateList: (
+  ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<unit> = async (~fs, ~path) => {
+) => promise<unit> = async (~deps, ~fs, ~path) => {
   let homeDir = Bindings.Os.homedir()
   let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
@@ -271,10 +264,11 @@ let runTemplateList: (
 }
 
 let runTemplateRemove: (
+  ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~name: string,
-) => promise<unit> = async (~fs, ~path, ~name) => {
+) => promise<unit> = async (~deps, ~fs, ~path, ~name) => {
   let homeDir = Bindings.Os.homedir()
   let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
@@ -282,28 +276,28 @@ let runTemplateRemove: (
   | Ok(None) => Config.defaultGlobalConfig
   | Error(_) => Config.defaultGlobalConfig
   }
-  let configPath = globalConfigPath()
-  let result = await removeTemplateFromRegistry(~fs, ~path, ~name, ~configPath, ~globalConfig)
+  let configPath = globalConfigPath(~deps)
+  let result = await removeTemplateFromRegistry(~deps, ~fs, ~path, ~name, ~configPath, ~globalConfig)
   switch result {
   | Ok(_) => Console.log("Removed template: " ++ name)
   | Error(e) => {
       Console.error("Error: " ++ e)
-      NodeJs.NodeProcess.exit(1)
+      deps.process.exit(1)
     }
   }
 }
 
-let runInit: unit => promise<unit> = async () => {
-  let cwd = NodeJs.NodeProcess.cwd()
-  let configPath = Bindings.Path.join(cwd, ".blueprint.yaml")
+let runInit: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
+  let cwd = deps.process.cwd()
+  let configPath = deps.path.join(cwd, ".blueprint.yaml")
 
-  let exists = await Bindings.Fs.fileExists(configPath)
+  let exists = await deps.fs.fileExists(configPath)
   if exists {
     Console.error("Error: .blueprint.yaml already exists at " ++ configPath)
-    NodeJs.NodeProcess.exit(1)
+    deps.process.exit(1)
   } else {
     let content = "# Blueprint configuration\n# Generated by Blueprint\n\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s"
-    await Bindings.Fs.writeFile(configPath, content)
+    await deps.fs.writeFile(configPath, content)
     Console.log("Scaffolded .blueprint.yaml at " ++ configPath)
   }
 }
@@ -327,13 +321,13 @@ let runGenerate: (
   | Error(_) => Config.defaultGlobalConfig
   }
 
-  let cwd = NodeJs.NodeProcess.cwd()
+  let cwd = deps.process.cwd()
   let configResult = await Config.loadFrom(~fs, ~path, cwd)
   let projectConfig = switch configResult {
   | Ok(c) => c
   | Error(e) => {
       Console.error("Error loading .blueprint.yaml: " ++ e)
-      NodeJs.NodeProcess.exit(1)
+      deps.process.exit(1)
       None
     }
   }
@@ -342,7 +336,7 @@ let runGenerate: (
 
   // Build search paths: project paths first, then registry paths, then raw global paths
   let projectPaths = ["_templates", "templates", "generators"]
-  let allPaths = buildGenerateSearchPaths(
+  let allPaths = buildGenerateSearchPaths(~deps, 
     ~projectPaths,
     ~registry=globalConfig.registry,
     ~globalTemplates=mergedConfig.templates,
@@ -352,7 +346,7 @@ let runGenerate: (
   switch Discovery.findByClassification(generators, classification) {
   | None => {
       Console.error("Error: generator not found for classification \"" ++ classification ++ "\"")
-      NodeJs.NodeProcess.exit(1)
+      deps.process.exit(1)
     }
   | Some(generator) => {
       // Build effective config for Engine (using merged timeout)
@@ -380,7 +374,7 @@ let runGenerate: (
       switch result {
       | Error(e) => {
           Console.error("Error: " ++ e)
-          NodeJs.NodeProcess.exit(1)
+          deps.process.exit(1)
         }
       | Ok(r) => {
           switch r.shellErrors {
@@ -402,28 +396,39 @@ let runGenerate: (
 }
 
 let main: unit => promise<unit> = async () => {
-  let argv = NodeJs.NodeProcess.argv
-
-  // Build port adapters once
-  let fs = NodeJsFileSystem.make()
-  let pathAdapter = NodeJsPath.make()
-  let processAdapter = NodeJsProcess.make()
-  let shellAdapter = NodeJsShell.make()
-  let deps: Ports.deps = {
-    fs: fs,
-    path: pathAdapter,
-    process: processAdapter,
-    shell: shellAdapter,
-    interactiveIO: NodeJsInteractiveIO.make(()),
-    argParser: NodeJsArgParser.make(),
+  // Build port adapters dynamically based on runtime
+  let deps: Ports.deps = if Runtime.isDeno() {
+    {
+      fs: DenoFileSystem.make(),
+      path: DenoPath.make(),
+      process: DenoProcess.make(),
+      shell: DenoShell.make(),
+      interactiveIO: DenoInteractiveIO.make(()),
+      argParser: DenoArgParser.make(),
+    }
+  } else {
+    {
+      fs: NodeJsFileSystem.make(),
+      path: NodeJsPath.make(),
+      process: NodeJsProcess.make(),
+      shell: NodeJsShell.make(),
+      interactiveIO: NodeJsInteractiveIO.make(()),
+      argParser: NodeJsArgParser.make(),
+    }
   }
+
+  let fs = deps.fs
+  let pathAdapter = deps.path
+  let processAdapter = deps.process
+  let shellAdapter = deps.shell
+  let argv = processAdapter.argv()
 
   // argv[0] = node, argv[1] = script path, argv[2+] = actual args
   let args = Array.slice(argv, ~start=2)
 
   if Array.length(args) == 0 {
     printUsage()
-    NodeJs.NodeProcess.exit(0)
+    deps.process.exit(0)
   } else {
     let command = switch args[0] {
     | Some(c) => c
@@ -434,12 +439,12 @@ let main: unit => promise<unit> = async () => {
     | "init" => {
         // Check for --global flag or --help/-h
         if args->Array.includes("--global") {
-          await runInitGlobal()
+          await runInitGlobal(~deps)
         } else if args->Array.includes("--help") || args->Array.includes("-h") {
           printUsage()
-          NodeJs.NodeProcess.exit(0)
+          deps.process.exit(0)
         } else {
-          await runInit()
+          await runInit(~deps)
         }
       }
 
@@ -449,33 +454,41 @@ let main: unit => promise<unit> = async () => {
         | _ => {
             Console.error("Error: 'generate' requires a classification argument")
             printUsage()
-            NodeJs.NodeProcess.exit(1)
+            deps.process.exit(1)
             ""
           }
         }
 
-        let options: dict<Bindings.Util.flagConfig> = Dict.make()
-        Dict.set(options, "name", {Bindings.Util.type_: "string"})
-        Dict.set(options, "force", {Bindings.Util.type_: "boolean"})
-        Dict.set(options, "output", {Bindings.Util.type_: "string"})
+        let parsedResult = deps.argParser.parse(
+          ~args=Array.slice(args, ~start=2),
+          ~strict=false,
+          ~allowPositionals=true,
+        )
 
-        let parsed = Bindings.ParseArgs.parseArgs({
-          args: Array.slice(args, ~start=2),
-          options,
-          strict: false,
-          allowPositionals: true,
-        })
+        let parsed = switch parsedResult {
+        | Ok(p) => p
+        | Error(e) => {
+            Console.error("CLI argument parse error: " ++ e)
+            deps.process.exit(1)
+            {Ports.values: Dict.make(), positionals: []} // Unreachable
+          }
+        }
 
-        let name = switch parsed.values.name {
+        let name = switch Dict.get(parsed.values, "name") {
         | Some(n) => n
         | None => classification
         }
 
         // NOTE: parseArgs binding doesn't support custom boolean flags in values.
         // Force is checked from positionals as a workaround.
-        let force = args->Array.includes("--force") || args->Array.includes("-f")
+        let force = args->Array.includes("--force") || args->Array.includes("-f") || (
+          switch Dict.get(parsed.values, "force") {
+          | Some("true") => true
+          | _ => false
+          }
+        )
 
-        let outputDir = switch parsed.values.output {
+        let outputDir = switch Dict.get(parsed.values, "output") {
         | Some(d) => d
         | None => Config.defaultOutputDir
         }
@@ -529,7 +542,7 @@ let main: unit => promise<unit> = async () => {
         | None => {
             Console.error("Error: 'template' requires an action: copy | list | remove")
             printUsage()
-            NodeJs.NodeProcess.exit(1)
+            deps.process.exit(1)
             ""
           }
         }
@@ -541,41 +554,41 @@ let main: unit => promise<unit> = async () => {
           | _ => {
               Console.error("Error: 'template copy' requires a name")
               printUsage()
-              NodeJs.NodeProcess.exit(1)
+              deps.process.exit(1)
               ""
             }
           }
           let force = args->Array.includes("--force") || args->Array.includes("-f")
-          await runTemplateCopy(~fs, ~path=pathAdapter, ~name, ~force)
-        | "list" => await runTemplateList(~fs, ~path=pathAdapter)
+          await runTemplateCopy(~deps, ~fs, ~path=pathAdapter, ~name, ~force)
+        | "list" => await runTemplateList(~deps, ~fs, ~path=pathAdapter)
         | "remove" =>
           let name = switch args[2] {
           | Some(n) if !String.startsWith(n, "-") => n
           | _ => {
               Console.error("Error: 'template remove' requires a name")
               printUsage()
-              NodeJs.NodeProcess.exit(1)
+              deps.process.exit(1)
               ""
             }
           }
-          await runTemplateRemove(~fs, ~path=pathAdapter, ~name)
+          await runTemplateRemove(~deps, ~fs, ~path=pathAdapter, ~name)
         | _ => {
             Console.error("Error: unknown template action \"" ++ action ++ "\"")
             printUsage()
-            NodeJs.NodeProcess.exit(1)
+            deps.process.exit(1)
           }
         }
       }
 
     | "--help" | "-h" => {
         printUsage()
-        NodeJs.NodeProcess.exit(0)
+        deps.process.exit(0)
       }
 
     | other => {
         Console.error("Error: unknown command \"" ++ other ++ "\"")
         printUsage()
-        NodeJs.NodeProcess.exit(1)
+        deps.process.exit(1)
       }
     }
   }

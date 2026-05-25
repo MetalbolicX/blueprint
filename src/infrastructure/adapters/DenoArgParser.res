@@ -1,3 +1,8 @@
+/**
+ * Deno argument parser adapter implementing Ports.argParser.
+ * Utilizing Deno's Node.js compatibility layer for util.parseArgs.
+ */
+
 type parseArgsOptions = {
   args: array<string>,
   strict: bool,
@@ -24,17 +29,16 @@ let make: unit => Ports.argParser = () => {
         
         let stringValues = Dict.make()
         
-        // Convert JS values to string
         let keys = Dict.keysToArray(result.values)
         keys->Array.forEach(k => {
           let v = Dict.get(result.values, k)
           switch v {
           | Some(val) => {
-              switch val {
-              | String(s) => Dict.set(stringValues, k, s)
-              | Boolean(true) => Dict.set(stringValues, k, "true")
-              | Boolean(false) => Dict.set(stringValues, k, "false")
-              | _ => ()
+              let t = Type.typeof(val)
+              if t == #string {
+                Dict.set(stringValues, k, Obj.magic(val))
+              } else if t == #boolean {
+                Dict.set(stringValues, k, Obj.magic(val) ? "true" : "false")
               }
             }
           | None => ()

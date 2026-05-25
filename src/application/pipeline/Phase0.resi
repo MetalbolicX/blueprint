@@ -17,7 +17,7 @@ let detectConflicts: (
 ) => promise<array<conflictFile>>
 
 let run: (
-  ~rl: Bindings.Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~generator: Discovery.generator,
   ~context: Context.context,
   ~outputDir: string,

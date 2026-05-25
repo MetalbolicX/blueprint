@@ -202,7 +202,7 @@ module ChildProcess = {
 
   // Callback-based exec for proper async handling
   // The callback receives (error, stdout, stderr)
-  type execCallback = (Js.Nullable.t<Js.Exn.t>, string, string) => unit
+  type execCallback = (Nullable.t<JsExn.t>, string, string) => unit
 
   @module("node:child_process")
   external execWithCallback: (
@@ -214,7 +214,7 @@ module ChildProcess = {
   // Extract Node.js error properties (signal, killed) from Js.Exn.t
   // This is the ONLY %raw needed - for error property access ReScript can't express
   // Returns tuple: (signalCode, killed)
-  let extractExecError: Js.Exn.t => (option<string>, bool) =
+  let extractExecError: JsExn.t => (option<string>, bool) =
     %raw("(e) => [e.signal || null, e.killed || false]")
 
   // Properly typed async exec using callback API internally
@@ -228,7 +228,7 @@ module ChildProcess = {
       | None => {}
       }
       let _ = execWithCallback(cmd, ~options=opts, ~callback=(err, stdout, stderr) => {
-        if Js.Nullable.isNullable(err) {
+        if Nullable.isNullable(err) {
           resolve({
             stdout,
             stderr,
@@ -237,7 +237,7 @@ module ChildProcess = {
             killed: false,
           })
         } else {
-          let errObj = Js.Nullable.toOption(err)->Option.getExn
+          let errObj = Nullable.toOption(err)->Option.getOrThrow
           let (signal, killed) = extractExecError(errObj)
           // Extract exit code from error - defaults to 1 if not present
           let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
@@ -293,7 +293,7 @@ module ChildProcess = {
       | None => []
       }
       let _ = execFileWithCallback(cmd, argsArr, ~options=opts, ~callback=(err, stdout, stderr) => {
-        if Js.Nullable.isNullable(err) {
+        if Nullable.isNullable(err) {
           resolve({
             stdout,
             stderr,
@@ -302,7 +302,7 @@ module ChildProcess = {
             killed: false,
           })
         } else {
-          let errObj = Js.Nullable.toOption(err)->Option.getExn
+          let errObj = Nullable.toOption(err)->Option.getOrThrow
           let (signal, killed) = extractExecError(errObj)
           let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
           resolve({

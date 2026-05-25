@@ -5,7 +5,7 @@ type resolveError =
 let evalTemplate: (string, ~ctx: {..}) => result<string, resolveError>
 
 let resolve: (
-  ~rl: Bindings.Readline.readlineInterface,
+  ~io: Ports.interactiveIO,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
   ~baseContext: dict<string>,

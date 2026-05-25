@@ -28,6 +28,7 @@ let executeHook: (
   ~shellEnv: option<Config.shellEnv>,
   ~shell: Ports.shell,
   ~process: Ports.process,
+  ~path: Ports.path,
 ) => promise<result<hookResult, string>> = async (
   ~hook,
   ~cwd,
@@ -36,6 +37,7 @@ let executeHook: (
   ~shellEnv,
   ~shell,
   ~process,
+  ~path,
 ) => {
   // Build safe env for child process
   let buildEnvEntry: (string, string) => EnvFilter.shellEnvEntry = (k, v) => {
@@ -58,7 +60,7 @@ let executeHook: (
   let isPath = _isPath(hook.command)
 
   // Helper to build execFile options
-  let execFileOpts: ChildProcess.execOptions = {
+  let execFileOpts: Ports.shellOptions = {
     cwd: cwd,
     env: safeEnv,
     encoding: "utf8",
@@ -72,7 +74,7 @@ let executeHook: (
       Ok(result)
     } catch {
     | JsExn(e) =>
-      let msg = switch Js.Exn.message(e->Obj.magic) {
+      let msg = switch JsExn.message(e->Obj.magic) {
       | Some(m) => m
       | None => "unknown error"
       }
@@ -94,26 +96,38 @@ let executeHook: (
   let result = if isEmptyCommand {
     Ok({hookType, output: "", exitCode: 0})
   } else if isPath {
-    let resolvedPath = Path.resolve(cwd, hook.command)
-    if !PathSecurity.isWithinTree(resolvedPath, cwd) {
+    let resolvedPath = path.resolve(cwd, hook.command)
+    if !PathSecurity.isWithinTree(resolvedPath, cwd, path) {
       Error("Hook script outside project tree: " ++ hook.command)
     } else {
       switch hook.args {
       | Some(args) => {
-    let r = await ChildProcess.execFileAsync(hook.command, ~args, ~options=execFileOpts)
-          Ok(execResultToHookResult((r :> Ports.execResult)))
+          try {
+            let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
+            Ok(execResultToHookResult(r))
+          } catch {
+          | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+          }
         }
       | None => {
-          let r = await ChildProcess.execFileAsync(hook.command, ~options=execFileOpts)
-          Ok(execResultToHookResult((r :> Ports.execResult)))
+          try {
+            let r = await shell.execFileAsync(hook.command, ~options=execFileOpts)
+            Ok(execResultToHookResult(r))
+          } catch {
+          | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+          }
         }
       }
     }
   } else {
     switch hook.args {
     | Some(args) => {
-        let r = await ChildProcess.execFileAsync(hook.command, ~args, ~options=execFileOpts)
-        Ok(execResultToHookResult((r :> Ports.execResult)))
+        try {
+          let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
+          Ok(execResultToHookResult(r))
+        } catch {
+        | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+        }
       }
     | None => {
         let r = await execWithTimeout(hook.command, timeout)
@@ -148,6 +162,7 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~shell: Ports.shell,
   ~process: Ports.process,
+  ~path: Ports.path,
 ) => promise<result<unit, string>> = async (
   ~config,
   ~projectRoot,
@@ -155,6 +170,7 @@ let run: (
   ~shellConfig,
   ~shell,
   ~process,
+  ~path,
 ) => {
   let timeout = switch config.hooks {
   | Some(h) =>
@@ -181,7 +197,7 @@ let run: (
       Ok()
     } else {
       let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process)
+      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path)
       switch result {
       | Ok(_) => Ok()
       | Error(e) =>
