@@ -7,6 +7,7 @@ let setupDenoMock = %raw(`
     if (typeof globalThis.Deno === 'undefined') {
       const cp = await import('node:child_process');
       globalThis.Deno = {
+        env: { toObject: () => process.env },
         Command: class {
           constructor(exe, opts) {
             this.exe = exe;
