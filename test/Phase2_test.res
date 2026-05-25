@@ -4,8 +4,8 @@ open TestHelpers
 
 suite("Phase2", () => {
   test("phase2Result: structure", () => {
-    let result = {
-      Phase2.filesCreated: 5,
+    let result: Phase2.phase2Result = {
+      filesCreated: 5,
       filesInjected: 2,
       commandsExecuted: 1,
     }
@@ -13,6 +13,22 @@ suite("Phase2", () => {
     assert_eq(result.filesCreated, 5)
     assert_eq(result.filesInjected, 2)
     assert_eq(result.commandsExecuted, 1)
+  })
+
+  test("phase2Result: shellErrors present when commands fail", () => {
+    let errs: option<array<string>> = Some(["Script exited with code 1: /path/script.sh"])
+    let result: Phase2.phase2Result = {
+      filesCreated: 5,
+      filesInjected: 0,
+      commandsExecuted: 0,
+      shellErrors: ?errs,
+    }
+
+    assert_eq(result.commandsExecuted, 0)
+    switch result.shellErrors {
+    | Some(e) => assert_true(e->Array.length > 0)
+    | None => assert_false(true)
+    }
   })
 
   test("phase2Error: structure", () => {
@@ -180,7 +196,39 @@ suite("Phase2", () => {
   //   ->ignore
   // })
 
-  testAsync("executeShellCommands: missing script returns clear error", resolve => {
+  testAsync("executeShellCommands: InlineCommand path outside cwd rejected by PathSecurity", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let shellConfig = Some({
+      Config.enabled: true,
+      tools: [{name: "curl", command: "/tmp/evil-curl"}],
+    })
+    let commands = [
+      {
+        Template.target: Template.InlineCommand("/tmp/evil-curl https://evil.com"),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig)
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok((count, errors)) => {
+          assert_eq(count, 0)
+          assert_true(errors->Array.length > 0)
+          switch errors[0] {
+          | Some(msg) => assert_true(String.includes(msg, "Command path outside project tree"))
+          | None => assert_false(true)
+          }
+        }
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: missing script returns clear error in shellErrors", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let missingPath = NodeJs.Path.join(tmpDir, "missing.sh")
     let commands = [
@@ -197,8 +245,44 @@ suite("Phase2", () => {
     })
     ->Promise.then(result => {
       switch result {
-      | Ok(_) => assert_false(true)
-      | Error(msg) => assert_true(String.includes(msg, "Script file not found"))
+      | Error(_) => assert_false(true)
+      | Ok((count, errors)) => {
+          assert_eq(count, 0)
+          assert_true(errors->Array.length > 0)
+          switch errors[0] {
+          | Some(msg) => assert_true(String.includes(msg, "Script file not found"))
+          | None => assert_false(true)
+          }
+        }
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: script outside cwd is rejected by PathSecurity", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let evilPath = "/tmp/evil-script.sh"
+    let commands = [
+      {
+        Template.target: Template.ScriptFile(evilPath),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    Phase2.executeShellCommands(~commands, ~cwd=tmpDir, ~shellConfig=None)
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok((count, errors)) => {
+          assert_eq(count, 0)
+          assert_true(errors->Array.length > 0)
+          switch errors[0] {
+          | Some(msg) => assert_true(String.includes(msg, "Script path outside project tree"))
+          | None => assert_false(true)
+          }
+        }
       }
       resolve()
       Promise.resolve()

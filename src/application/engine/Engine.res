@@ -7,6 +7,7 @@ type generateResult = {
   filesInjected: int,
   commandsExecuted: int,
   classification: string,
+  shellErrors?: array<string>,
 }
 
 let runPostHook: (
@@ -148,11 +149,13 @@ let preHookResult: result<unit, string> = switch config {
                   Error(e.message)
                 }
               | Ok(p2) => {
-                  let result = {
+                  let shellErrs: option<array<string>> = p2.shellErrors
+                  let result: generateResult = {
                     filesCreated: p2.filesCreated,
                     filesInjected: p2.filesInjected,
                     commandsExecuted: p2.commandsExecuted,
                     classification: generator.name,
+                    shellErrors: ?shellErrs,
                   }
                   let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result)
                   rl.close()

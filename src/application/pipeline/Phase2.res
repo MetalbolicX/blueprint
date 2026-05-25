@@ -3,11 +3,13 @@
 
 open Bindings
 open Template
+open PathSecurity
 
 type phase2Result = {
   filesCreated: int,
   filesInjected: int,
   commandsExecuted: int,
+  shellErrors?: array<string>,
 }
 
 type phase2Error = {
@@ -20,8 +22,9 @@ let executeShellCommands: (
   ~commands: array<shellCommand>,
   ~cwd: string,
   ~shellConfig: option<Config.shellConfig>,
-) => promise<result<int, string>> = (~commands, ~cwd, ~shellConfig) => {
+) => promise<result<(int, array<string>), string>> = (~commands, ~cwd, ~shellConfig) => {
   let count = ref(0)
+  let errors: array<string> = []
 
   // Build safe env for child process execution
   let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = e => {
@@ -42,17 +45,14 @@ let executeShellCommands: (
   let promise = commands->Array.reduce(Promise.resolve(Ok()), (acc, cmd) => {
     acc->Promise.then(r => {
       switch r {
-      | Error(e) => Promise.resolve(Error(e))
+      | Error(_) => Promise.resolve(r)
       | Ok(_) =>
         switch cmd.target {
         | Fetch(url) => {
-            // Fetch URL content and write to staging file
             Fetcher.fetch(url)->Promise.then(result => {
               switch result {
               | Ok(content) => {
-                  // Write fetched content to a file in cwd
                   let fetchFileName = {
-                    // Generate a unique filename based on URL
                     let hash = url->String.split("")->Array.reduce(0, (acc, c) => {
                       let code = switch String.charCodeAt(c, 0) {
                       | Some(n) => n
@@ -67,22 +67,24 @@ let executeShellCommands: (
                     count.contents = count.contents + 1
                     Promise.resolve(Ok())
                   })->Promise.catch(_ => {
-                    Promise.resolve(Error("Failed to write fetched content: " ++ url))
+                    errors->Array.push("Failed to write fetched content: " ++ url)
+                    Promise.resolve(Ok())
                   })
                 }
-              | Error(msg) => Promise.resolve(Error("Fetch failed: " ++ msg))
+              | Error(msg) => {
+                  errors->Array.push("Fetch failed: " ++ msg)
+                  Promise.resolve(Ok())
+                }
               }
             })
           }
-        | ToolCall({toolDef}) => {
-            // Execute tool via exec with shell:true (safer than raw execFile for tools)
+        | ToolCall({name, toolDef}) => {
             let execOpts: Bindings.ChildProcess.execOptions = {
               cwd: cwd,
               env: safeEnv,
               shell: true,
               encoding: "utf8",
             }
-            // Build the full command from toolDef
             let fullCommand = switch toolDef.args {
             | Some(args) => toolDef.command ++ " " ++ args->Array.join(" ")
             | None => toolDef.command
@@ -93,11 +95,14 @@ let executeShellCommands: (
                   count.contents = count.contents + 1
                   Promise.resolve(Ok())
                 }
-              | status =>
-                Promise.resolve(Error("Tool exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+              | status => {
+                  errors->Array.push("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1)))
+                  Promise.resolve(Ok())
+                }
               }
             })->Promise.catch(_ => {
-              Promise.resolve(Error("Tool execution failed"))
+              errors->Array.push("Tool '" ++ name ++ "' execution failed")
+              Promise.resolve(Ok())
             })
           }
         | InlineCommand(command) => {
@@ -106,9 +111,9 @@ let executeShellCommands: (
             | None => false
             }
             if !shellEnabled {
-              Promise.resolve(Error("Shell execution disabled"))
+              errors->Array.push("Shell execution disabled")
+              Promise.resolve(Ok())
             } else {
-              // Allowlist validation: command's first token must match a tool.command
               let baseCmd = command->String.split(" ")->Array.get(0)->Option.getOr(command)
               let isAllowed = switch shellConfig {
               | Some(cfg) =>
@@ -119,64 +124,82 @@ let executeShellCommands: (
               | None => false
               }
               if !isAllowed {
-                Promise.resolve(Error("Command not in tools allowlist: " ++ command))
+                errors->Array.push("Command not in tools allowlist: " ++ command)
+                Promise.resolve(Ok())
               } else {
-                ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
-                  switch result {
-                  | Ok(_) => {
-                      count.contents = count.contents + 1
-                      Promise.resolve(Ok())
+                let resolvedCmd = Path.resolve(cwd, baseCmd)
+                if !PathSecurity.isWithinTree(resolvedCmd, cwd) {
+                  errors->Array.push("Command path outside project tree: " ++ baseCmd)
+                  Promise.resolve(Ok())
+                } else {
+                  ChildProcess.execShellCommand(~command, ~cwd)->Promise.then(result => {
+                    switch result {
+                    | Ok(_) => {
+                        count.contents = count.contents + 1
+                        Promise.resolve(Ok())
+                      }
+                    | Error(e) => {
+                        errors->Array.push("Shell command failed: " ++ e)
+                        Promise.resolve(Ok())
+                      }
                     }
-                  | Error(e) => Promise.resolve(Error("Shell command failed: " ++ e))
-                  }
-                })
+                  })
+                }
               }
             }
           }
-        | ScriptFile(path) =>
-          // ScriptFile handling: check existence and run directly
-          // Shell with shell:true will handle the execution
-          NodeJs.Fs.fileExists(path)->Promise.then(exists => {
-            if !exists {
-              Promise.resolve(Error("Script file not found: " ++ path))
+        | ScriptFile(path) => {
+            let resolvedPath = Path.resolve(path, "")
+            if !PathSecurity.isWithinTree(resolvedPath, cwd) {
+              errors->Array.push("Script path outside project tree: " ++ path)
+              Promise.resolve(Ok())
             } else {
-              // Execute script with shell - let the shell handle executable check
-              let execOpts: Bindings.ChildProcess.execOptions = {
-                cwd: cwd,
-                env: safeEnv,
-                shell: true,
-                encoding: "utf8",
-              }
-              // Run script directly - shell will find and execute it
-              Bindings.ChildProcess.execAsync(path, ~options=execOpts)->Promise.then(result => {
-                if result.killed {
-                  Promise.resolve(Error("Script timed out and was killed"))
+              NodeJs.Fs.fileExists(resolvedPath)->Promise.then(exists => {
+                if !exists {
+                  errors->Array.push("Script file not found: " ++ path)
+                  Promise.resolve(Ok())
                 } else {
-                  switch result.status {
-                  | Some(0) => {
-                      count.contents = count.contents + 1
-                      Promise.resolve(Ok())
-                    }
-                  | status =>
-                    Promise.resolve(Error("Script exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+                  let execOpts: Bindings.ChildProcess.execOptions = {
+                    cwd: cwd,
+                    env: safeEnv,
+                    shell: true,
+                    encoding: "utf8",
                   }
+                  Bindings.ChildProcess.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
+                    if result.killed {
+                      errors->Array.push("Script timed out and was killed: " ++ path)
+                      Promise.resolve(Ok())
+                    } else {
+                      switch result.status {
+                      | Some(0) => {
+                          count.contents = count.contents + 1
+                          Promise.resolve(Ok())
+                        }
+                      | status => {
+                          errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ path)
+                          Promise.resolve(Ok())
+                        }
+                      }
+                    }
+                  })->Promise.catch(e => {
+                    let msg = switch Js.Exn.message(e->Obj.magic) {
+                    | Some(m) => m
+                    | None => "unknown"
+                    }
+                    errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ path ++ ")")
+                    Promise.resolve(Ok())
+                  })
                 }
-              })->Promise.catch(e => {
-                let msg = switch Js.Exn.message(e->Obj.magic) {
-                | Some(m) => m
-                | None => "unknown"
-                }
-                Promise.resolve(Error("Script execution failed: " ++ msg))
               })
             }
-          })
+          }
         }
       }
     })
   })
   promise->Promise.then(r => {
     switch r {
-    | Ok(_) => Promise.resolve(Ok(count.contents))
+    | Ok(_) => Promise.resolve(Ok((count.contents, errors)))
     | Error(e) => Promise.resolve(Error(e))
     }
   })
@@ -266,18 +289,21 @@ let run: (
       let shellResult = await executeShellCommands(~commands=shellCommands, ~cwd=outputDir, ~shellConfig)
 
       switch shellResult {
-      | Ok(cmdsExec) => {
-          // Cleanup staging dir
+      | Ok((cmdsExec, shellErrors)) => {
           await rollback(stagingDir)
 
-          Ok({
+          let shellErrs: option<array<string>> = shellErrors->Array.length > 0 ? Some(shellErrors) : None
+          let result: phase2Result = {
             filesCreated: count,
             filesInjected: 0,
             commandsExecuted: cmdsExec,
-          })
+            shellErrors: ?shellErrs,
+          }
+          await rollback(stagingDir)
+          Ok(result)
         }
       | Error(_e) =>
-        // Shell failed but files committed — return partial success
+        await rollback(stagingDir)
         Ok({
           filesCreated: count,
           filesInjected: 0,

@@ -3,6 +3,7 @@ type generateResult = {
   filesInjected: int,
   commandsExecuted: int,
   classification: string,
+  shellErrors?: array<string>,
 }
 
 let run: (

@@ -81,6 +81,11 @@ blueprint generate <classification> [options]
 #   --output <dir>    Output directory
 #   -o, --output <dir> Short form
 #   --<key> <value>   Arbitrary attributes passed to templates
+ 
+# Template registry management
+# blueprint template copy <classification>      Copy a project generator into global registry
+# blueprint template list                      List registry entries (name + source path)
+# blueprint template remove <classification>   Remove a global template and its registry entry
 ```
 
 ### Examples
@@ -279,6 +284,14 @@ Supported interpreters: `bash`, `sh`, `node`, `python3`, `pwsh`.
 - **Transactional**: renders to temp staging dir, commits atomically — no partial writes
 - **Rollback**: on any failure (render error, shell error), staged files are cleaned up
 - **Conflict resolution**: bulk prompt — `[y]es to all, [n]o to all, [s]elect individually, [a]bort`
+
+## Global template registry
+
+- Template registry entries are stored in `~/.config/blueprint/config.yaml` under the `registry` array. Each entry records `name`, `source` (absolute path to the original project generator), and `path` (the installed `~/.config/blueprint/templates/<name>/` location).
+- `blueprint template copy <classification>` copies the entire source generator directory (manifest + actions) into the registry folder and persists the entry.
+- `blueprint template list` shows installed templates and their originating paths.
+- `blueprint template remove <classification>` deletes the registry directory and removes the associated config entry.
+- Discovery automatically appends registry paths after the project’s `_templates/templates/generators` stack, so local generators still win when a name conflicts.
 
 ## Docs
 

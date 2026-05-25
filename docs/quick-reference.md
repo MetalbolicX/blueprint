@@ -9,6 +9,9 @@ LLM-optimized reference. No prose. Public symbols and usage only.
 ```
 blueprint init                                         → scaffold .blueprint.yaml
 blueprint generate <classification> [--name X] [--force] [--output DIR]
+blueprint template copy <classification>              → copy a project generator into ~/.config/blueprint/templates/<name>/
+blueprint template list                                → list global templates + source paths
+blueprint template remove <classification>            → remove a global template and registry entry
 ```
 
 ## manifest.yaml
@@ -132,6 +135,10 @@ force_overwrite: true|false            # default false
 dry_run: true|false                    # default false
 timeout: <int>                         # default 5
 default_attributes: {k: v}
+registry:
+  - name: <string>
+    source: <absolute path to the original generator directory>
+    path: ~/.config/blueprint/templates/<name>/
 \`\`\`
 
 ## Phase flow

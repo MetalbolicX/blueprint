@@ -77,42 +77,60 @@ let executeHook: (
     }
   }
 
-  let result = if isPath {
+  // Check if hook command is empty - skip execution
+  let isEmptyCommand = hook.command == ""
+
+  let execResultToHookResult: ChildProcess.execResult => hookResult = execResult => {
+    let exitCode = switch execResult.status {
+    | Some(c) => c
+    | None => 0
+    }
+    {hookType, output: execResult.stdout, exitCode}
+  }
+
+  let result = if isEmptyCommand {
+    Ok({hookType, output: "", exitCode: 0})
+  } else if isPath {
     let resolvedPath = Path.resolve(cwd, hook.command)
     if !PathSecurity.isWithinTree(resolvedPath, cwd) {
       Error("Hook script outside project tree: " ++ hook.command)
     } else {
       switch hook.args {
-      | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
-      | None => await execWithTimeout(hook.command, timeout)
+      | Some(args) => {
+          let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
+          Ok(execResultToHookResult(r))
+        }
+      | None => {
+          let r = await execWithTimeout(hook.command, timeout)
+          switch r {
+          | Ok(r2) => Ok(execResultToHookResult(r2))
+          | Error(e) => Error(e)
+          }
+        }
       }
     }
   } else {
     switch hook.args {
-    | Some(args) => Ok(await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts))
-    | None => await execWithTimeout(hook.command, timeout)
+    | Some(args) => {
+        let r = await ChildProcess.execFile(hook.command, ~args, ~options=execFileOpts)
+        Ok(execResultToHookResult(r))
+      }
+    | None => {
+        let r = await execWithTimeout(hook.command, timeout)
+        switch r {
+        | Ok(r2) => Ok(execResultToHookResult(r2))
+        | Error(e) => Error(e)
+        }
+      }
     }
   }
   switch result {
   | Error(e) => Error(e)
   | Ok(r) =>
-    // If process was killed (timeout), treat as error
-    if r.killed {
-      let signal = switch r.signalCode {
-      | Some(s) => " (signal: " ++ s ++ ")"
-      | None => ""
-      }
-      Error("Hook timed out and was killed" ++ signal)
+    if r.exitCode != 0 {
+      Error("Hook exited with code " ++ Int.toString(r.exitCode))
     } else {
-      let code = switch r.status {
-      | Some(c) => c
-      | None => 0
-      }
-      if code != 0 {
-        Error("Hook exited with code " ++ Int.toString(code))
-      } else {
-        Ok({hookType, output: r.stdout, exitCode: code})
-      }
+      Ok(r)
     }
   }
 }
@@ -154,7 +172,10 @@ let run: (
 
   switch hookCmd {
   | None => Ok()
-  | Some(hook) => {
+  | Some(hook) =>
+    if hook.command == "" {
+      Ok()
+    } else {
       let shellEnv = _buildShellEnv(shellConfig)
       let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv)
       switch result {

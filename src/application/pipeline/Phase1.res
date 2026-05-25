@@ -107,9 +107,14 @@ let _loadTemplateBodyFromDirective: template => promise<result<template, string>
   }
 }
 
-let _collectShellCommands: (template, option<Config.shellConfig>) => array<shellCommand> = (
+let _collectShellCommands: (
+  template,
+  option<Config.shellConfig>,
+  ~actionfolder: string,
+) => array<shellCommand> = (
   template,
   shellConfig,
+  ~actionfolder,
 ) => {
   template.directives->Array.filterMap(d => {
     switch d {
@@ -142,7 +147,11 @@ let _collectShellCommands: (template, option<Config.shellConfig>) => array<shell
         }
         switch _findScriptByName(scripts, name) {
         | Some(scriptDef) =>
-          let baseDir = Path.dirname(template.sourcePath)
+          let baseDir = if Path.isAbsolute(actionfolder) {
+            actionfolder
+          } else {
+            Path.resolve(NodeJs.NodeProcess.cwd(), actionfolder)
+          }
           let resolvedPath = Path.isAbsolute(scriptDef.path)
             ? scriptDef.path
             : Path.join(baseDir, scriptDef.path)
@@ -193,7 +202,11 @@ let _renderTemplate: (
               let renderCtx = Context.toRenderContext(context)
               switch Renderer.render(templateToRender, renderCtx) {
               | Ok(renderedBody) => {
-                  let shellCmds = _collectShellCommands(template, shellConfig)
+                  let shellCmds = _collectShellCommands(
+                    template,
+                    shellConfig,
+                    ~actionfolder=context.actionfolder,
+                  )
                   Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
                 }
               | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
@@ -208,7 +221,11 @@ let _renderTemplate: (
             let renderCtx = Context.toRenderContext(context)
             switch Renderer.render(templateToRender, renderCtx) {
             | Ok(renderedBody) => {
-                let shellCmds = _collectShellCommands(template, shellConfig)
+                let shellCmds = _collectShellCommands(
+                  template,
+                  shellConfig,
+                  ~actionfolder=context.actionfolder,
+                )
                 Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
               }
             | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)

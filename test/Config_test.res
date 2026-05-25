@@ -172,6 +172,7 @@ suite("Config", () => {
       dryRun: false,
       timeout: 30,
       defaultAttributes: Dict.make(),
+      registry: [],
     }
     let project: Config.config = {
       output: "dist",
@@ -197,6 +198,7 @@ suite("Config", () => {
       dryRun: true,
       timeout: 30,
       defaultAttributes: Dict.make(),
+      registry: [],
     }
     let project: Config.config = {
       output: "dist",
@@ -220,6 +222,7 @@ suite("Config", () => {
       dryRun: false,
       timeout: 60,
       defaultAttributes: Dict.make(),
+      registry: [],
     }
 
     let merged = Config.mergeConfig(~global, ~project=None)
@@ -356,6 +359,69 @@ suite("Config", () => {
       assert_eq(cfg.allowDangerousCommands, true)
     | Error(_) => assert_false(true)
     }
+  })
+
+  test("parseGlobal: parses registry entries", () => {
+    let yaml = "registry:\n  - name: model\n    source: /workspace/_templates/model\n    path: /home/user/.config/blueprint/templates/model\n"
+    let result = Config.parseGlobal(yaml)
+    switch result {
+    | Ok(cfg) =>
+      assert_eq(Array.length(cfg.registry), 1)
+      switch cfg.registry[0] {
+      | Some(entry) => {
+          assert_eq(entry.name, "model")
+          assert_eq(entry.source, "/workspace/_templates/model")
+          assert_eq(entry.path, "/home/user/.config/blueprint/templates/model")
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parseGlobal: defaults registry to empty", () => {
+    let yaml = "templates: []\n"
+    let result = Config.parseGlobal(yaml)
+    switch result {
+    | Ok(cfg) => assert_eq(Array.length(cfg.registry), 0)
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  testAsync("saveGlobalAtPath: persists registry via yaml stringify", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let configPath = NodeJs.Path.join(tmpDir, "config.yaml")
+    let defaults = Dict.make()
+    Dict.set(defaults, "author", "blueprint")
+    let cfg: Config.globalConfig = {
+      templates: ["/opt/templates"],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: defaults,
+      registry: [{name: "service", source: "/workspace/_templates/service", path: "/tmp/registry/service"}],
+    }
+
+    Config.saveGlobalAtPath(~configPath, cfg)
+    ->Promise.then(writeResult => {
+      switch writeResult {
+      | Ok(()) => NodeJs.Fs.readFile(configPath, ~options={encoding: "utf8"})
+      | Error(_) => {
+          assert_false(true)
+          Promise.resolve("")
+        }
+      }
+    })
+    ->Promise.then(savedYaml => {
+      assert_true(String.includes(savedYaml, "registry:"))
+      assert_true(String.includes(savedYaml, "name: service"))
+      assert_true(String.includes(savedYaml, "source: /workspace/_templates/service"))
+      assert_true(String.includes(savedYaml, "path: /tmp/registry/service"))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   test("parse: shell section absent returns None", () => {
