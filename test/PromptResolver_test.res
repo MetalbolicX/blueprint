@@ -360,6 +360,80 @@ suite("PromptResolver", () => {
     ->ignore
   })
 
+  // --- MultiSelect tests ---
+
+  testAsync("resolve: multi-select interactive returns comma-separated values", resolve => {
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve("1,3"),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "colors",
+        promptType: Manifest.MultiSelect,
+        description: "Select colors",
+        options: [
+          {label: "Red", value: "red"},
+          {label: "Green", value: "green"},
+          {label: "Blue", value: "blue"},
+          {label: "Yellow", value: "yellow"},
+        ],
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(answers) => {
+          assert_eq(Dict.get(answers, "colors"), Some("red,blue"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("resolve: multi-select force mode evaluates default", resolve => {
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "colors",
+        promptType: Manifest.MultiSelect,
+        description: "Select colors",
+        default: "red,blue",
+        options: [
+          {label: "Red", value: "red"},
+          {label: "Green", value: "green"},
+          {label: "Blue", value: "blue"},
+        ],
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(answers) => {
+          assert_eq(Dict.get(answers, "colors"), Some("red,blue"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("resolve: invalid input retries until valid", resolve => {
     let callCount = ref(0)
     let mockIo: Ports.interactiveIO = {

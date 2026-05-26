@@ -216,6 +216,56 @@ let askPrompt: (
 
   | Manifest.Confirm =>
     io.askConfirm(~question=questionText ++ " (y/n) ")->Promise.then(b => if b { Promise.resolve("true") } else { Promise.resolve("false") })
+
+  | Manifest.MultiSelect =>
+    let opts = switch evaluatedOptions {
+    | Some(eo) if Array.length(eo) > 0 => Some(eo)
+    | _ => prompt.options
+    }
+    switch opts {
+    | Some(opts) if Array.length(opts) > 0 => {
+        let optionsText =
+          opts
+          ->Array.mapWithIndex((opt, i) => {
+            "  " ++ Int.toString(i + 1) ++ ". " ++ opt.label
+          })
+          ->Array.join("\n")
+
+        let fullQuestion = optionsText ++ "\nEnter numbers separated by commas (e.g. 1,3,5): "
+
+        io.ask(fullQuestion)->Promise.then(answer => {
+          let trimmed = String.trim(answer)
+          if trimmed == "" {
+            Promise.resolve("")
+          } else {
+            let parts = String.split(trimmed, ",")
+            let selected =
+              parts
+              ->Array.map(s => String.trim(s))
+              ->Array.map(s =>
+                switch Int.fromString(s) {
+                | Some(n) => {
+                    let idx = n - 1
+                    if idx >= 0 && idx < Array.length(opts) {
+                      switch opts[idx] {
+                      | Some(opt) => opt.value
+                      | None => ""
+                      }
+                    } else {
+                      ""
+                    }
+                  }
+                | None => ""
+                }
+              )
+              ->Array.filter(v => v != "")
+              ->Array.join(",")
+            Promise.resolve(selected)
+          }
+        })
+      }
+    | _ => io.ask(questionText)
+    }
   }
 }
 

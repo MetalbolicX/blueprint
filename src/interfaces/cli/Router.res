@@ -88,7 +88,10 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
               } else {
                 "true"
               }
-              Dict.set(cliAttributes, key, value)
+              switch Dict.get(cliAttributes, key) {
+              | Some(existing) => Dict.set(cliAttributes, key, existing ++ "," ++ value)
+              | None => Dict.set(cliAttributes, key, value)
+              }
             }
           }
           i := i.contents + 1

@@ -1,7 +1,7 @@
 // Manifest parsing and validation
 // Declarative YAML manifest per generator, mirrors Go version's manifest.go
 
-type promptType = Input | Select | Confirm
+type promptType = Input | Select | Confirm | MultiSelect
 
 type promptValidation = {pattern: string, message: string}
 
@@ -41,6 +41,7 @@ let parsePromptType: string => option<promptType> = s => {
   | "input" => Some(Input)
   | "select" => Some(Select)
   | "confirm" => Some(Confirm)
+  | "multi-select" => Some(MultiSelect)
   | _ => None
   }
 }
@@ -50,6 +51,7 @@ let promptTypeToString: promptType => string = pt => {
   | Input => "input"
   | Select => "select"
   | Confirm => "confirm"
+  | MultiSelect => "multi-select"
   }
 }
 
@@ -252,7 +254,7 @@ let validate: manifest => result<unit, array<validationError>> = manifest => {
           errors,
         )->ignore
       }
-      if p.promptType == Select && p.options == None {
+      if (p.promptType == Select || p.promptType == MultiSelect) && p.options == None {
         Js.Array.push(
           {field: "prompts.options", message: "select prompt requires options"},
           errors,

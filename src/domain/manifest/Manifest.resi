@@ -1,4 +1,4 @@
-type promptType = Input | Select | Confirm
+type promptType = Input | Select | Confirm | MultiSelect
 
 type promptValidation = {pattern: string, message: string}
 

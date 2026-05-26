@@ -121,6 +121,46 @@ suite("Manifest", () => {
     }
   })
 
+  test("parse: multi-select prompt with options", () => {
+    let yaml = "name: test\nclassification: test\nprompts:\n  - name: colors\n    type: multi-select\n    options:\n      - red\n      - green\n      - blue\n"
+    let result = Manifest.parse(yaml)
+    switch result {
+    | Ok(m) => switch m.prompts {
+      | Some(prompts) => switch prompts[0] {
+        | Some(p) => {
+            assert_eq(p.promptType, Manifest.MultiSelect)
+            switch p.options {
+            | Some(opts) => assert_eq(Array.length(opts), 3)
+            | None => assert_false(true)
+            }
+          }
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("validate: multi-select without options", () => {
+    let manifest: Manifest.manifest = {
+      name: "test",
+      classification: "test",
+      prompts: [
+        {
+          name: "colors",
+          promptType: Manifest.MultiSelect,
+          description: "test",
+        },
+      ],
+    }
+    let result = Manifest.validate(manifest)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
   test("validate: select without options", () => {
     let manifest: Manifest.manifest = {
       name: "test",

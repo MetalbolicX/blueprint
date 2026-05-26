@@ -430,6 +430,19 @@ suite("Config", () => {
     ->ignore
   })
 
+  test("parse: config with generators key still parses successfully", () => {
+    let yaml = "generators:\n  - name: test\n    classification: test\nhooks:\n  pre_generate: \"echo start\"\n"
+    let result = Config.parse(yaml)
+    switch result {
+    | Ok(cfg) =>
+      switch cfg.hooks {
+      | Some(h) => assert_eq(h.preGenerate, Some({command: "echo start"}))
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
   test("parse: shell section absent returns None", () => {
     let yaml = "output: dist\n"
     let result = Config.parse(yaml)
