@@ -7,9 +7,7 @@
 @val @scope("Deno") external args: array<string> = "args"
 @val @scope("Deno") external exit: int => unit = "exit"
 
-let env: unit => dict<string> = %raw(`
-  () => Deno.env.toObject()
-`)
+let env: unit => dict<string> = () => Deno.Fs.envToObject()
 
 let make: unit => Ports.process = () => {
   cwd: cwd,

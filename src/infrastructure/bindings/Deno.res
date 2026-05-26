@@ -4,6 +4,8 @@ module Fs = {
   type mkdirOptions = {recursive: bool}
   type rmOptions = {recursive: bool}
   
+  @val @scope("Deno.env") external envToObject: unit => dict<string> = "toObject"
+  
   @val @scope("Deno") external readTextFile: string => promise<string> = "readTextFile"
   @val @scope("Deno") external writeTextFile: (string, string) => promise<unit> = "writeTextFile"
   @val @scope("Deno") external mkdir: (string, mkdirOptions) => promise<unit> = "mkdir"
