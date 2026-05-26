@@ -1,106 +1,87 @@
 open Ports
+open Deno
 
-let execShellCommandRaw: (string, option<string>) => promise<result<string, string>> = %raw(`
-  async (command, cwdOpt) => {
-    try {
-      let cwd = cwdOpt !== undefined && cwdOpt !== null ? cwdOpt : undefined;
-      const cmd = new Deno.Command("sh", {
-        args: ["-c", command],
-        cwd: cwd,
-        stdout: "piped",
-        stderr: "piped"
-      });
-      const output = await cmd.output();
-      const decoder = new TextDecoder();
-      const stdout = decoder.decode(output.stdout);
-      const stderr = decoder.decode(output.stderr);
-      
-      if (output.code === 0) {
-        return { TAG: "Ok", _0: stdout };
-      } else {
-        return { TAG: "Error", _0: stderr || stdout || ("Command failed with code " + output.code) };
-      }
-    } catch (e) {
-      return { TAG: "Error", _0: e.message || String(e) };
-    }
+let decodeBytes: (array<int>) => string = %raw(`
+  function(bytes) {
+    return new TextDecoder().decode(new Uint8Array(bytes));
   }
 `)
 
-let execAsyncRaw: (string, option<shellOptions>) => promise<execResult> = %raw(`
-  async (cmdString, optionsOpt) => {
-    try {
-      const options = optionsOpt !== undefined && optionsOpt !== null ? optionsOpt : {};
-      const cwd = options.cwd !== undefined ? options.cwd : undefined;
-      const env = options.env !== undefined ? options.env : undefined;
-      
-      let executable = "sh";
-      let args = ["-c", cmdString];
-      
-      const cmd = new Deno.Command(executable, {
-        args: args,
-        cwd: cwd,
-        env: env,
-        stdout: "piped",
-        stderr: "piped"
-      });
-      const output = await cmd.output();
-      const decoder = new TextDecoder();
-      
-      return {
-        stdout: decoder.decode(output.stdout),
-        stderr: decoder.decode(output.stderr),
-        status: output.code,
-        signalCode: output.signal,
-        killed: false
-      };
-    } catch (e) {
-      return {
-        stdout: "",
-        stderr: e.message || String(e),
-        status: 1,
-        signalCode: undefined,
-        killed: false
-      };
-    }
-  }
-`)
+let execShellCommandRaw: (string, option<string>) => promise<result<string, string>> = async (
+  command,
+  cwdOpt,
+) => {
+  let cmd = Deno.Command.make(
+    "sh",
+    {
+      args: ["-c", command],
+      cwd: ?cwdOpt,
+      stdout: "piped",
+      stderr: "piped",
+    },
+  )
+  let output = await Deno.Command.output(cmd)
+  let stdout = decodeBytes(output.stdout)
+  let stderr = decodeBytes(output.stderr)
 
-let execFileAsyncRaw: (string, option<array<string>>, option<shellOptions>) => promise<execResult> = %raw(`
-  async (executable, argsOpt, optionsOpt) => {
-    try {
-      const args = argsOpt !== undefined && argsOpt !== null ? argsOpt : [];
-      const options = optionsOpt !== undefined && optionsOpt !== null ? optionsOpt : {};
-      const cwd = options.cwd !== undefined ? options.cwd : undefined;
-      const env = options.env !== undefined ? options.env : undefined;
-      
-      const cmd = new Deno.Command(executable, {
-        args: args,
-        cwd: cwd,
-        env: env,
-        stdout: "piped",
-        stderr: "piped"
-      });
-      const output = await cmd.output();
-      const decoder = new TextDecoder();
-      
-      return {
-        stdout: decoder.decode(output.stdout),
-        stderr: decoder.decode(output.stderr),
-        status: output.code,
-        signalCode: output.signal,
-        killed: false
-      };
-    } catch (e) {
-      return {
-        stdout: "",
-        stderr: e.message || String(e),
-        status: 1,
-        signalCode: undefined,
-        killed: false
-      };
-    }
+  if output.code == 0 {
+    Ok(stdout)
+  } else {
+    Error(stderr !== "" ? stderr : stdout !== "" ? stdout : "Command failed with code " ++ Belt.Int.toString(output.code))
   }
-`)
+}
+
+let execAsyncRaw: (string, option<shellOptions>) => promise<execResult> = async (
+  cmdString,
+  optionsOpt,
+) => {
+  let options = optionsOpt->Belt.Option.getWithDefault({})
+  let cmd = Deno.Command.make(
+    "sh",
+    {
+      args: ["-c", cmdString],
+      cwd: ?options.cwd,
+      env: ?options.env,
+      stdout: "piped",
+      stderr: "piped",
+    },
+  )
+  let output = await Deno.Command.output(cmd)
+  {
+    stdout: decodeBytes(output.stdout),
+    stderr: decodeBytes(output.stderr),
+    status: Some(output.code),
+    signalCode: Nullable.toOption(output.signal),
+    killed: false,
+  }
+}
+
+let execFileAsyncRaw: (
+  string,
+  option<array<string>>,
+  option<shellOptions>,
+) => promise<execResult> = async (executable, argsOpt, optionsOpt) => {
+  let args = argsOpt->Belt.Option.getWithDefault([])
+  let options = optionsOpt->Belt.Option.getWithDefault({})
+  let cmd = Deno.Command.make(
+    executable,
+    {
+      args: args,
+      cwd: ?options.cwd,
+      env: ?options.env,
+      stdout: "piped",
+      stderr: "piped",
+    },
+  )
+  let output = await Deno.Command.output(cmd)
+  {
+    stdout: decodeBytes(output.stdout),
+    stderr: decodeBytes(output.stderr),
+    status: Some(output.code),
+    signalCode: Nullable.toOption(output.signal),
+    killed: false,
+  }
+}
 
 let make: unit => shell = () => {
   {

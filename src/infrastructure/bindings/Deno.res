@@ -1,5 +1,30 @@
 // Deno global API bindings
 
+module Command = {
+  type options = {
+    args?: array<string>,
+    cwd?: string,
+    env?: dict<string>,
+    stdout?: string,
+    stderr?: string,
+  }
+
+  type output = {
+    code: int,
+    stdout: array<int>,
+    stderr: array<int>,
+    signal: Nullable.t<string>,
+  }
+
+  type t
+
+  @new
+  external make: (string, options) => t = "Deno.Command"
+
+  @send
+  external output: t => promise<output> = "output"
+}
+
 module Fs = {
   type mkdirOptions = {recursive: bool}
   type rmOptions = {recursive: bool}
@@ -19,17 +44,12 @@ module Fs = {
     isSymlink: bool,
   }
   
-  // Deno.readDir returns an async iterable, we'll need a helper to collect it
-  // For now, let's use a raw helper for readDir to return array<string>
-  let readDirAsync: string => promise<array<string>> = %raw(`
-    async (path) => {
-      const entries = [];
-      for await (const entry of Deno.readDir(path)) {
-        entries.push(entry.name);
-      }
-      return entries;
-    }
-  `)
+  @val @scope("Deno") external readDir: string => promise<array<dirEntry>> = "readDir"
+
+  let readDirAsync: string => promise<array<string>> = async path => {
+    let entries = await readDir(path)
+    entries->Array.map(entry => entry.name)
+  }
   
   type fileInfo = {
     isFile: bool,
@@ -41,20 +61,14 @@ module Fs = {
   
   @val @scope("Deno") external stat: string => promise<fileInfo> = "stat"
   
-  // helper to check if file exists (Deno usually uses try/catch on stat)
-  let fileExists: string => promise<bool> = %raw(`
-    async (path) => {
-      try {
-        await Deno.stat(path);
-        return true;
-      } catch (e) {
-        if (e instanceof Deno.errors.NotFound) {
-          return false;
-        }
-        throw e;
-      }
+  let fileExists: string => promise<bool> = async path => {
+    try {
+      let _ = await stat(path)
+      true
+    } catch {
+    | _ => false
     }
-  `)
+  }
   
   @val @scope("Deno") external makeTempDirSync: unit => string = "makeTempDirSync"
 }
