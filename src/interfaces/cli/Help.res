@@ -1,3 +1,16 @@
+let printGenerateOptions = (~includeDefaults: bool) => {
+  if includeDefaults {
+    Console.log("  --name <name>          Component/resource name (default: same as <class>)")
+  } else {
+    Console.log("  --name <name>          Component/resource name")
+  }
+  Console.log("  --force                Skip prompts and overwrite existing files")
+  Console.log("  --output <dir>         Output directory (default: generated/)")
+  Console.log("  --<key> <value>        Pass attributes to templates.")
+  Console.log("                         Repeat the flag for multi-select prompts")
+  Console.log("                         (e.g., --methods GET --methods POST).")
+}
+
 let printUsage = () => {
   Console.log("")
   Console.log("Usage: blueprint <command> [options]")
@@ -12,12 +25,7 @@ let printUsage = () => {
   Console.log("  help <command>         Show detailed help for a specific command")
   Console.log("")
   Console.log("Generate options:")
-  Console.log("  --name <name>          Component/resource name (default: same as <class>)")
-  Console.log("  --force                Skip prompts and overwrite existing files")
-  Console.log("  --output <dir>         Output directory (default: generated/)")
-  Console.log("  --<key> <value>        Pass attributes to templates.")
-  Console.log("                         Repeat the flag for multi-select prompts")
-  Console.log("                         (e.g., --methods GET --methods POST).")
+  printGenerateOptions(~includeDefaults=true)
   Console.log("")
   Console.log("Examples:")
   Console.log("  blueprint init")
@@ -43,11 +51,7 @@ let printHelpFor = (command: string) => {
     Console.log("  <class>               Template classification name")
     Console.log("")
     Console.log("Options:")
-    Console.log("  --name <name>         Component/resource name")
-    Console.log("  --force               Skip prompts, overwrite existing files")
-    Console.log("  --output <dir>        Output directory (default: generated/)")
-    Console.log("  --<key> <value>       Template attributes. Repeat for multi-select:")
-    Console.log("                        --methods GET --methods POST --methods PUT")
+    printGenerateOptions(~includeDefaults=false)
     Console.log("")
     Console.log("Examples:")
     Console.log("  blueprint generate express-endpoint --name Product --routePath /products")
@@ -85,8 +89,11 @@ let printHelpFor = (command: string) => {
     Console.log("  blueprint template list")
     Console.log("  blueprint template remove express-endpoint")
 
+  | "help" =>
+    printUsage()
+
   | _ =>
     Console.log("Unknown command: " ++ command)
-    Console.log("Available commands: init, generate, template")
+    Console.log("Available commands: init, generate, template, help")
   }
 }

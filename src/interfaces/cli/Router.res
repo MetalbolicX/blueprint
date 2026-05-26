@@ -24,6 +24,11 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         }
       }
     | "generate" => {
+        if args->Array.includes("--help") || args->Array.includes("-h") {
+          Help.printHelpFor("generate")
+          deps.process.exit(0)
+        }
+
         let classification = switch args[1] {
         | Some(c) if !String.startsWith(c, "-") => c
         | _ => {
@@ -112,6 +117,11 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         )
       }
     | "template" => {
+        if args->Array.includes("--help") || args->Array.includes("-h") {
+          Help.printHelpFor("template")
+          deps.process.exit(0)
+        }
+
         let action = switch args[1] {
         | Some(a) => a
         | None => {
