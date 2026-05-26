@@ -36,7 +36,7 @@ module Fs = {
   type mkdirOptions = {recursive: bool}
   type rmOptions = {recursive: bool}
   
-  @val @scope("Deno.env") external envToObject: unit => dict<string> = "toObject"
+  @val @scope(("Deno", "env")) external envToObject: unit => dict<string> = "toObject"
   
   @val @scope("Deno") external readTextFile: string => promise<string> = "readTextFile"
   @val @scope("Deno") external writeTextFile: (string, string) => promise<unit> = "writeTextFile"
@@ -50,12 +50,15 @@ module Fs = {
     isDirectory: bool,
     isSymlink: bool,
   }
-  
+
+  type asyncIterable<'a>
+
+  @val @scope("Deno") external readDir: string => asyncIterable<dirEntry> = "readDir"
+  @val @scope("Array") external fromAsync: asyncIterable<'a> => promise<array<'a>> = "fromAsync"
+
   @warning("-27")
   let readDirAsync: string => promise<array<string>> = async path => {
-    let entries: array<dirEntry> = await %raw(`
-      Array.fromAsync(Deno.readDir(path))
-    `)
+    let entries = await fromAsync(path->readDir)
     entries->Array.map(entry => entry.name)
   }
   
