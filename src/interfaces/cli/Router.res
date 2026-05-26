@@ -154,6 +154,17 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
           }
         }
       }
+    | "help" =>
+        let cmd = switch args[1] {
+        | Some(c) if !String.startsWith(c, "-") => c
+        | _ => ""
+        }
+        if cmd == "" {
+          Help.printUsage()
+        } else {
+          Help.printHelpFor(cmd)
+        }
+        deps.process.exit(0)
     | "--help" | "-h" => {
         Help.printUsage()
         deps.process.exit(0)

@@ -97,6 +97,34 @@ suite("CLI Integration Parity", () => {
     })->ignore
   })
 
+  testAsync("help generate prints detailed subcommand help", resolve => {
+    runCliNodeTyped(["help", "generate"])->Promise.then(nodeRes => {
+      runCliDenoTyped(["help", "generate"])->Promise.then(denoRes => {
+        let nStdout = nodeRes.stdout
+        let nCode = nodeRes.code
+
+        let dSkipped = denoRes.skipped
+        if dSkipped {
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "Usage: blueprint generate <class>"))
+          assert_true(String.includes(nStdout, "Template classification name"))
+        } else {
+          let dStdout = denoRes.stdout
+          let dCode = denoRes.code
+
+          assert_eq(nCode, dCode)
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "Usage: blueprint generate <class>"))
+          assert_true(String.includes(nStdout, "Template classification name"))
+          assert_true(String.includes(dStdout, "Usage: blueprint generate <class>"))
+          assert_true(String.includes(dStdout, "Template classification name"))
+        }
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
   testAsync("generate unknown classification prints error", resolve => {
     runCliNodeTyped(["generate", "unknown_test_class"])->Promise.then(nodeRes => {
       runCliDenoTyped(["generate", "unknown_test_class"])->Promise.then(denoRes => {
