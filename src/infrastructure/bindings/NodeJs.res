@@ -212,10 +212,19 @@ module ChildProcess = {
   ) => childProcess = "exec"
 
   // Extract Node.js error properties (signal, killed) from Js.Exn.t
-  // This is the ONLY %raw needed - for error property access ReScript can't express
+  // This is the ONLY %raw needed - for error property access ReScript can't express.
+  // Node.js child_process errors carry fields ReScript's Js.Exn.t doesn't expose:
+  //   - signal: string | null (SIGTERM, SIGKILL, etc.)
+  //   - killed: boolean (process was killed by timeout)
+  //   - code: number (exit code, defaults to 1)
+  // Keeping as %raw avoids a dedicated error type for this internal-only utility.
   // Returns tuple: (signalCode, killed)
   let extractExecError: JsExn.t => (option<string>, bool) =
     %raw("(e) => [e.signal || null, e.killed || false]")
+
+  // Extract exit code from Node.js error, defaulting to 1
+  // Node.js error.code is the exit code; if missing/undefined, assume 1
+  let extractExitCode: JsExn.t => int = %raw("(e) => e && e.code != null ? e.code : 1")
 
   // Properly typed async exec using callback API internally
   let execAsync: (
@@ -239,8 +248,7 @@ module ChildProcess = {
         } else {
           let errObj = Nullable.toOption(err)->Option.getOrThrow
           let (signal, killed) = extractExecError(errObj)
-          // Extract exit code from error - defaults to 1 if not present
-          let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
+          let code = extractExitCode(errObj)
           resolve({
             stdout,
             stderr,
@@ -304,7 +312,7 @@ module ChildProcess = {
         } else {
           let errObj = Nullable.toOption(err)->Option.getOrThrow
           let (signal, killed) = extractExecError(errObj)
-          let code = %raw("(e) => e && e.code != null ? e.code : 1")(errObj)
+          let code = extractExitCode(errObj)
           resolve({
             stdout,
             stderr,

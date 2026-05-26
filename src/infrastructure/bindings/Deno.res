@@ -66,7 +66,9 @@ module Fs = {
       let _ = await stat(path)
       true
     } catch {
-    | _ => false
+    | JsExn(obj) =>
+      let isNotFound: bool = %raw("(e) => e instanceof Deno.errors.NotFound")(obj)
+      if isNotFound { false } else { raise(Not_found) }
     }
   }
   
