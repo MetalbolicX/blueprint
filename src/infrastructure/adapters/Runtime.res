@@ -1,5 +1,1 @@
-let isDeno: unit => bool = %raw(`
-  function() {
-    return typeof Deno !== "undefined";
-  }
-`)
+let isDeno: unit => bool = %raw("() => typeof Deno !== 'undefined'")
