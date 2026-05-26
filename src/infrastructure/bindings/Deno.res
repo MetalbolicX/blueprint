@@ -56,6 +56,14 @@ module Fs = {
   @val @scope("Deno") external readDir: string => asyncIterable<dirEntry> = "readDir"
   @val @scope("Array") external fromAsync: asyncIterable<'a> => promise<array<'a>> = "fromAsync"
 
+  type notFoundProto
+
+  @val @scope(("Deno", "errors", "NotFound")) external notFoundProto: notFoundProto = "prototype"
+
+  @send external isPrototypeOf: (notFoundProto, 'a) => bool = "isPrototypeOf"
+
+  let isNotFound: 'a => bool = obj => isPrototypeOf(notFoundProto, obj)
+
   @warning("-27")
   let readDirAsync: string => promise<array<string>> = async path => {
     let entries = await fromAsync(path->readDir)
@@ -83,8 +91,7 @@ module Fs = {
       true
     } catch {
     | JsExn(obj) =>
-      let isNotFound: bool = %raw("(e) => e instanceof Deno.errors.NotFound")(obj)
-      if isNotFound { false } else { throw(Not_found) }
+      if isNotFound(obj) { false } else { throw(Not_found) }
     }
   }
   
