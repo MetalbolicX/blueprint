@@ -149,7 +149,7 @@ let runGenerate: (
   ~name: string,
   ~force: bool,
   ~outputDir: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
 ) => promise<unit> = async (~fs, ~path, ~deps, ~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
   // Load global config (from ~/.config/blueprint/config.yaml)
   let homeDir = Bindings.NodeJs.Os.homedir()

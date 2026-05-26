@@ -1,3 +1,5 @@
+open Context
+
 let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~deps, ~args) => {
   if Array.length(args) == 0 {
     Help.printUsage()
@@ -64,8 +66,8 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         | None => Config.defaultOutputDir
         }
 
-        let cliAttributes = Dict.make()
-        Dict.set(cliAttributes, "name", name)
+        let cliAttributes: dict<Context.attrValue> = Dict.make()
+        Dict.set(cliAttributes, "name", Context.Scalar(name))
 
         let flagArgs = Array.slice(args, ~start=2)
         let len = Array.length(flagArgs)
@@ -89,8 +91,9 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
                 "true"
               }
               switch Dict.get(cliAttributes, key) {
-              | Some(existing) => Dict.set(cliAttributes, key, existing ++ "," ++ value)
-              | None => Dict.set(cliAttributes, key, value)
+              | Some(Values(existing)) => Dict.set(cliAttributes, key, Values(existing->Array.concat([value])))
+              | Some(Scalar(existing)) => Dict.set(cliAttributes, key, Values([existing, value]))
+              | None => Dict.set(cliAttributes, key, Scalar(value))
               }
             }
           }

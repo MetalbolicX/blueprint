@@ -4,6 +4,10 @@
 
 open FuncMap
 
+type attrValue =
+  | Scalar(string)
+  | Values(array<string>)
+
 type nameVariants = {
   name: string, // lowercase
   pascalName: string, // PascalCase
@@ -15,7 +19,7 @@ type context = {
   cwd: string,
   actionfolder: string, // absolute path to manifest directory
   nameVariants: nameVariants,
-  attributes: dict<string>, // CLI --key value + prompt answers
+  attributes: dict<attrValue>, // CLI --key value + prompt answers
 }
 
 // Generate name variants from base name
@@ -31,11 +35,11 @@ let makeNameVariants: string => nameVariants = baseName => {
 // Merge CLI attributes with prompt answers and defaults
 // Priority: CLI > prompt answers > manifest defaults > name variants
 let mergeAttributes: (
-  ~cliAttributes: dict<string>,
-  ~promptAnswers: dict<string>,
-  ~manifestDefaults: dict<string>,
+  ~cliAttributes: dict<attrValue>,
+  ~promptAnswers: dict<attrValue>,
+  ~manifestDefaults: dict<attrValue>,
   ~nameVariants: nameVariants,
-) => dict<string> = (~cliAttributes, ~promptAnswers, ~manifestDefaults, ~nameVariants) => {
+) => dict<attrValue> = (~cliAttributes, ~promptAnswers, ~manifestDefaults, ~nameVariants) => {
   let merged = Dict.make()
 
   // Seed with manifest defaults
@@ -46,10 +50,10 @@ let mergeAttributes: (
   })
 
   // Override with name variants (pre-seeded)
-  Dict.set(merged, "name", nameVariants.name)
-  Dict.set(merged, "Name", nameVariants.pascalName)
-  Dict.set(merged, "names", nameVariants.names)
-  Dict.set(merged, "Names", nameVariants.pluralPascalName)
+  Dict.set(merged, "name", Scalar(nameVariants.name))
+  Dict.set(merged, "Name", Scalar(nameVariants.pascalName))
+  Dict.set(merged, "names", Scalar(nameVariants.names))
+  Dict.set(merged, "Names", Scalar(nameVariants.pluralPascalName))
 
   // Override with prompt answers
   promptAnswers
@@ -73,9 +77,9 @@ let build: (
   ~cwd: string,
   ~actionfolder: string,
   ~name: string,
-  ~cliAttributes: dict<string>=?,
-  ~promptAnswers: dict<string>=?,
-  ~manifestDefaults: dict<string>=?,
+  ~cliAttributes: dict<attrValue>=?,
+  ~promptAnswers: dict<attrValue>=?,
+  ~manifestDefaults: dict<attrValue>=?,
   unit,
 ) => context = (
   ~cwd,
@@ -118,6 +122,13 @@ let build: (
 
 // Convert context to Renderer.renderContext for EJS rendering
 let toRenderContext: context => Renderer.renderContext = ctx => {
+  let plainAttrs = Dict.make()
+  ctx.attributes->Dict.toArray->Array.forEach(((k, v)) => {
+    switch v {
+    | Scalar(s) => Dict.set(plainAttrs, k, s)
+    | Values(arr) => Dict.set(plainAttrs, k, arr->Array.join(","))
+    }
+  })
   {
     name: ctx.nameVariants.name,
     pascalName: ctx.nameVariants.pascalName,
@@ -125,6 +136,6 @@ let toRenderContext: context => Renderer.renderContext = ctx => {
     pluralPascalName: ctx.nameVariants.pluralPascalName,
     cwd: ctx.cwd,
     actionfolder: ctx.actionfolder,
-    attributes: ctx.attributes,
+    attributes: plainAttrs,
   }
 }

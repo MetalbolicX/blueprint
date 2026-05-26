@@ -48,11 +48,15 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
       Dict.set(data, "cwd", ctx.cwd)
       Dict.set(data, "actionfolder", ctx.actionfolder)
 
-      // Add attributes
+      // Add attributes (convert attrValue to string)
       ctx.attributes
       ->Dict.toArray
       ->Array.forEach(((k, v)) => {
-        Dict.set(data, k, v)
+        let strValue = switch v {
+        | Context.Scalar(s) => s
+        | Context.Values(arr) => arr->Array.join(",")
+        }
+        Dict.set(data, k, strValue)
       })
 
       // Add h helper functions (pascalCase, kebabCase, etc.)

@@ -113,7 +113,14 @@ let run: (
   | None => None
   }
 
-  let baseContext = context.attributes
+  // Convert attributes to plain strings for PromptResolver
+  let baseContext = Dict.make()
+  context.attributes->Dict.toArray->Array.forEach(((k, v)) => {
+    switch v {
+    | Scalar(s) => Dict.set(baseContext, k, s)
+    | Values(arr) => Dict.set(baseContext, k, arr->Array.join(","))
+    }
+  })
 
   let resolvedAttributesResult = switch prompts {
   | Some(ps) if Array.length(ps) > 0 =>

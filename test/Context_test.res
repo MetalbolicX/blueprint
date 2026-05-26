@@ -23,8 +23,8 @@ suite("Context", () => {
   })
 
   test("mergeAttributes: CLI overrides prompts", () => {
-    let cli = Dict.fromArray([("name", "cliName")])
-    let prompts = Dict.fromArray([("name", "promptName")])
+    let cli = Dict.fromArray([("name", Context.Scalar("cliName"))])
+    let prompts = Dict.fromArray([("name", Context.Scalar("promptName"))])
     let defaults = Dict.make()
     let nv = Context.makeNameVariants("BaseName")
 
@@ -35,13 +35,13 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Dict.get(merged, "name"), Some("cliName"))
+    assert_eq(Dict.get(merged, "name"), Some(Context.Scalar("cliName")))
   })
 
   test("mergeAttributes: prompts override defaults", () => {
     let cli = Dict.make()
-    let prompts = Dict.fromArray([("name", "promptName")])
-    let defaults = Dict.fromArray([("name", "defaultName")])
+    let prompts = Dict.fromArray([("name", Context.Scalar("promptName"))])
+    let defaults = Dict.fromArray([("name", Context.Scalar("defaultName"))])
     let nv = Context.makeNameVariants("BaseName")
 
     let merged = Context.mergeAttributes(
@@ -51,7 +51,7 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Dict.get(merged, "name"), Some("promptName"))
+    assert_eq(Dict.get(merged, "name"), Some(Context.Scalar("promptName")))
   })
 
   test("mergeAttributes: name variants seeded", () => {
@@ -67,8 +67,8 @@ suite("Context", () => {
       ~nameVariants=nv,
     )
 
-    assert_eq(Dict.get(merged, "Name"), Some("MyComponent"))
-    assert_eq(Dict.get(merged, "name"), Some("my_component"))
+    assert_eq(Dict.get(merged, "Name"), Some(Context.Scalar("MyComponent")))
+    assert_eq(Dict.get(merged, "name"), Some(Context.Scalar("my_component")))
   })
 
   test("build: creates complete context", () => {

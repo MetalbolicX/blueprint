@@ -9,7 +9,7 @@ type generateResult = {
 let run: (
   ~generator: Discovery.generator,
   ~name: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
@@ -19,7 +19,7 @@ let run: (
 let runWithConfig: (
   ~generator: Discovery.generator,
   ~name: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
   ~force: bool,
   ~deps: Ports.deps,
 ) => promise<result<generateResult, string>>

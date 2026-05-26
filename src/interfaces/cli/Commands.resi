@@ -10,7 +10,7 @@ let runGenerate: (
   ~name: string,
   ~force: bool,
   ~outputDir: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
 ) => promise<unit>
 
 let runTemplateCopy: (

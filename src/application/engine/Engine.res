@@ -100,7 +100,7 @@ let runPhase1: (
 let run: (
   ~generator: generator,
   ~name: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
@@ -158,12 +158,18 @@ let run: (
       | Ok((p0, _decisions)) => {
           io.close()
 
+          // Wrap prompt answers into attrValue (PromptResolver returns dict<string>)
+          let wrappedAnswers = Dict.make()
+          p0.resolvedAttributes->Dict.toArray->Array.forEach(((k, v)) => {
+            Dict.set(wrappedAnswers, k, Context.Scalar(v))
+          })
+
           let mergedContext = Context.build(
             ~cwd=context.cwd,
             ~actionfolder=context.actionfolder,
             ~name,
             ~cliAttributes,
-            ~promptAnswers=p0.resolvedAttributes,
+            ~promptAnswers=wrappedAnswers,
             (),
           )
 
@@ -228,7 +234,7 @@ let run: (
 let runWithConfig: (
   ~generator: generator,
   ~name: string,
-  ~cliAttributes: dict<string>,
+  ~cliAttributes: dict<Context.attrValue>,
   ~force: bool,
   ~deps: Ports.deps,
 ) => promise<result<generateResult, string>> = async (

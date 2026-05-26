@@ -1,3 +1,5 @@
+type attrValue = Scalar(string) | Values(array<string>)
+
 type nameVariants = {
   name: string,
   pascalName: string,
@@ -9,25 +11,25 @@ type context = {
   cwd: string,
   actionfolder: string,
   nameVariants: nameVariants,
-  attributes: dict<string>,
+  attributes: dict<attrValue>,
 }
 
 let makeNameVariants: string => nameVariants
 
 let mergeAttributes: (
-  ~cliAttributes: dict<string>,
-  ~promptAnswers: dict<string>,
-  ~manifestDefaults: dict<string>,
+  ~cliAttributes: dict<attrValue>,
+  ~promptAnswers: dict<attrValue>,
+  ~manifestDefaults: dict<attrValue>,
   ~nameVariants: nameVariants,
-) => dict<string>
+) => dict<attrValue>
 
 let build: (
   ~cwd: string,
   ~actionfolder: string,
   ~name: string,
-  ~cliAttributes: dict<string>=?,
-  ~promptAnswers: dict<string>=?,
-  ~manifestDefaults: dict<string>=?,
+  ~cliAttributes: dict<attrValue>=?,
+  ~promptAnswers: dict<attrValue>=?,
+  ~manifestDefaults: dict<attrValue>=?,
   unit,
 ) => context
 
