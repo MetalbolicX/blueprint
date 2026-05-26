@@ -9,7 +9,7 @@ module Impl = {
 
   let httpGet: (string, int) => promise<result<string, string>> = async (url, timeout) => {
     try {
-      let signal = %raw("AbortSignal.timeout")(timeout * 1000)
+      let signal = WebApis.AbortSignal.timeout(timeout * 1000)
       let response = await _nativeFetch(url, {"method": "GET", "signal": signal})
       if (response["ok"]) {
         let content = await response["text"]()
