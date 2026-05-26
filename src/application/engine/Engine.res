@@ -31,6 +31,72 @@ let runPostHook: (
   }
 }
 
+let runPhase0: (
+  ~io: Ports.interactiveIO,
+  ~generator: generator,
+  ~context: 'context,
+  ~outputDir: string,
+  ~force: bool,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>> = async (~io, ~generator, ~context, ~outputDir, ~force, ~fs, ~path) => {
+  let phase0Result = await Phase0.run(~io, ~generator, ~context, ~outputDir, ~force, ~fs, ~path)
+
+  switch phase0Result {
+  | Error(e) => {
+      io.close()
+      Error(e)
+    }
+  | Ok(p0) => {
+      let conflictResult = await ConflictResolver.resolveConflicts(
+        ~io,
+        ~conflicts=p0.conflicts->Array.map(c => {
+          {ConflictResolver.sourcePath: c.sourcePath, targetPath: c.targetPath}
+        }),
+        ~force,
+      )
+
+      switch conflictResult {
+      | Error(e) => {
+          io.close()
+          Error(e)
+        }
+      | Ok(decisions) => Ok((p0, decisions))
+      }
+    }
+  }
+}
+
+let runPhase1: (
+  ~io: Ports.interactiveIO,
+  ~templates: array<Template.template>,
+  ~mergedContext: Context.context,
+  ~outputDir: string,
+  ~shellConfig: option<Config.shellConfig>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~process: Ports.process,
+) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~shellConfig, ~fs, ~path, ~process) => {
+  let phase1Result = await Phase1.run(
+    ~templates,
+    ~context=mergedContext,
+    ~outputDir,
+    ~conflictDecisions=None,
+    ~shellConfig,
+    ~fs,
+    ~path,
+    ~process,
+  )
+
+  switch phase1Result {
+  | Error(e) => {
+      io.close()
+      Error(e.message)
+    }
+  | Ok(p1) => Ok(p1)
+  }
+}
+
 let run: (
   ~generator: generator,
   ~name: string,
@@ -77,37 +143,19 @@ let run: (
       Error(e)
     }
   | Ok() => {
-
-      let phase0Result = await Phase0.run(
-    ~io,
-    ~generator,
-    ~context,
-    ~outputDir,
-    ~force,
-    ~fs,
-    ~path,
-  )
-
-      switch phase0Result {
-      | Error(e) => {
-          io.close()
-          Error(e)
-        }
-      | Ok(p0) => {
-      let conflictResult = await ConflictResolver.resolveConflicts(
+      let phase0Outcome = await runPhase0(
         ~io,
-        ~conflicts=p0.conflicts->Array.map(c => {
-          {ConflictResolver.sourcePath: c.sourcePath, targetPath: c.targetPath}
-        }),
+        ~generator,
+        ~context,
+        ~outputDir,
         ~force,
+        ~fs,
+        ~path,
       )
 
-      switch conflictResult {
-      | Error(e) => {
-          io.close()
-          Error(e)
-        }
-      | Ok(decisions) => {
+      switch phase0Outcome {
+      | Error(e) => Error(e)
+      | Ok((p0, _decisions)) => {
           io.close()
 
           let mergedContext = Context.build(
@@ -124,22 +172,19 @@ let run: (
           | None => None
           }
 
-          let phase1Result = await Phase1.run(
+          let phase1Outcome = await runPhase1(
+            ~io,
             ~templates=generator.templates,
-            ~context=mergedContext,
+            ~mergedContext,
             ~outputDir,
-            ~conflictDecisions=Some(decisions),
             ~shellConfig,
             ~fs,
             ~path,
             ~process=proc,
           )
 
-          switch phase1Result {
-          | Error(e) => {
-              io.close()
-              Error(e.message)
-            }
+          switch phase1Outcome {
+          | Error(e) => Error(e)
           | Ok(p1) => {
               let phase2Result = await Phase2.run(
                 ~stagingDir=p1.stagingDir,
@@ -167,7 +212,7 @@ let run: (
                     classification: generator.name,
                     shellErrors: ?shellErrs,
                   }
-                  let finalResult =   await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc, ~path)
+                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc, ~path)
                   io.close()
                   finalResult
                 }
@@ -175,8 +220,6 @@ let run: (
             }
           }
         }
-      }
-    }
       }
     }
   }

@@ -26,6 +26,12 @@ module Command = {
   external output: t => promise<output> = "output"
 }
 
+module TextDecoder = {
+  type t
+  @new external make: unit => t = "TextDecoder"
+  @send external decode: (t, array<int>) => string = "decode"
+}
+
 module Fs = {
   type mkdirOptions = {recursive: bool}
   type rmOptions = {recursive: bool}

@@ -1,0 +1,17 @@
+let printUsage = () => {
+  Console.log("Usage: blueprint <command> [options]")
+  Console.log("")
+  Console.log("Commands:")
+  Console.log("  init                   Scaffold a .blueprint.yaml config file")
+  Console.log("  init --global          Scaffold a global ~/.config/blueprint/config.yaml")
+  Console.log("  generate <class>       Run template generation")
+  Console.log("  template copy <name>   Copy a generator into global template registry")
+  Console.log("  template list          List globally installed templates")
+  Console.log("  template remove <name> Remove a globally installed template")
+  Console.log("")
+  Console.log("Options (generate):")
+  Console.log("  --name <name>          Component name")
+  Console.log("  --force                Skip prompts, overwrite files")
+  Console.log("  --output <dir>         Output directory (default: generated)")
+  Console.log("  --<key> <value>        Arbitrary attributes passed to templates")
+}

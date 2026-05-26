@@ -1,10 +1,10 @@
 open Ports
+open Deno
 
-let decodeBytes: (array<int>) => string = %raw(`
-  function(bytes) {
-    return new TextDecoder().decode(new Uint8Array(bytes));
-  }
-`)
+let decodeBytes: (array<int>) => string = bytes => {
+  let decoder = TextDecoder.make()
+  TextDecoder.decode(decoder, bytes)
+}
 
 let execShellCommandRaw: (string, option<string>) => promise<result<string, string>> = async (
   command,

@@ -1,0 +1,236 @@
+let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
+  let homeDir = Bindings.NodeJs.Os.homedir()
+  let configDir = deps.path.join(deps.path.join(homeDir, ".config"), "blueprint")
+  let configPath = deps.path.join(configDir, "config.yaml")
+
+  // Check if global config already exists
+  let exists = await deps.fs.fileExists(configPath)
+  if exists {
+    Console.error("Error: Global config already exists at " ++ configPath)
+    deps.process.exit(1)
+  } else {
+    // Create the directory if it doesn't exist
+    let dirExists = await deps.fs.fileExists(configDir)
+    if !dirExists {
+      let _ = await deps.fs.mkdir(configDir, ~options={recursive: true})
+    }
+    let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nallow_dangerous_commands: false\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\nregistry: []\n"
+    let _ = await deps.fs.writeFile(configPath, content)
+    Console.log("Scaffolded global config at " ++ configPath)
+  }
+}
+
+let runTemplateCopy: (
+  ~deps: Ports.deps,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~name: string,
+  ~force: bool,
+) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
+  let homeDir = Bindings.NodeJs.Os.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let globalConfig = switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => Config.defaultGlobalConfig
+  | Error(_) => Config.defaultGlobalConfig
+  }
+
+  let cwd = deps.process.cwd()
+  let configResult = await Config.loadFrom(~fs, ~path, cwd)
+  let projectConfig = switch configResult {
+  | Ok(c) => c
+  | Error(_) => None
+  }
+  let merged = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
+  let sourceSearchPaths = ["_templates", "templates", "generators"]->Array.concat(merged.templates)
+  let generators = await Discovery.discover(~fs, ~path, ~searchPaths=sourceSearchPaths, ())
+
+  switch Discovery.findByClassification(generators, name) {
+  | None => {
+      Console.error("Error: template not found: " ++ name)
+      deps.process.exit(1)
+    }
+  | Some(generator) => {
+      let registryRoot = Utils.globalTemplateRegistryRoot(~deps)
+      let configPath = Utils.globalConfigPath(~deps)
+      let result = await TemplateRegistry.copyTemplateToRegistry(
+        ~deps,
+        ~fs,
+        ~path,
+        ~name,
+        ~sourcePath=generator.path,
+        ~registryRoot,
+        ~configPath,
+        ~globalConfig,
+        ~force,
+        ~confirmOverwrite=targetPath =>
+          deps.interactiveIO.askConfirm(
+            ~question="Template already exists at " ++ targetPath ++ ". Overwrite?",
+            ~defaultYes=false,
+          ),
+      )
+      switch result {
+      | Ok(_) => Console.log("Installed template: " ++ name ++ " -> " ++ deps.path.join(registryRoot, name))
+      | Error(e) => {
+          Console.error("Error: " ++ e)
+          deps.process.exit(1)
+        }
+      }
+    }
+  }
+}
+
+let runTemplateList: (
+  ~deps: Ports.deps,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+) => promise<unit> = async (~deps, ~fs, ~path as _) => {
+  let _ = deps
+  let homeDir = Bindings.NodeJs.Os.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let globalConfig = switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => Config.defaultGlobalConfig
+  | Error(_) => Config.defaultGlobalConfig
+  }
+
+  if Array.length(globalConfig.registry) == 0 {
+    Console.log("No templates installed in registry.")
+  } else {
+    globalConfig.registry
+    ->Array.forEach(entry => Console.log(entry.name ++ "\t" ++ entry.source ++ "\t" ++ entry.path))
+  }
+}
+
+let runTemplateRemove: (
+  ~deps: Ports.deps,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~name: string,
+) => promise<unit> = async (~deps, ~fs, ~path, ~name) => {
+  let homeDir = Bindings.NodeJs.Os.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let globalConfig = switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => Config.defaultGlobalConfig
+  | Error(_) => Config.defaultGlobalConfig
+  }
+  let configPath = Utils.globalConfigPath(~deps)
+  let result = await TemplateRegistry.removeTemplateFromRegistry(~deps, ~fs, ~path, ~name, ~configPath, ~globalConfig)
+  switch result {
+  | Ok(_) => Console.log("Removed template: " ++ name)
+  | Error(e) => {
+      Console.error("Error: " ++ e)
+      deps.process.exit(1)
+    }
+  }
+}
+
+let runInit: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
+  let cwd = deps.process.cwd()
+  let configPath = deps.path.join(cwd, ".blueprint.yaml")
+
+  let exists = await deps.fs.fileExists(configPath)
+  if exists {
+    Console.error("Error: .blueprint.yaml already exists at " ++ configPath)
+    deps.process.exit(1)
+  } else {
+    let content = "# Blueprint configuration\n# Generated by Blueprint\n\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s"
+    await deps.fs.writeFile(configPath, content)
+    Console.log("Scaffolded .blueprint.yaml at " ++ configPath)
+  }
+}
+
+let runGenerate: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~deps: Ports.deps,
+  ~classification: string,
+  ~name: string,
+  ~force: bool,
+  ~outputDir: string,
+  ~cliAttributes: dict<string>,
+) => promise<unit> = async (~fs, ~path, ~deps, ~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
+  // Load global config (from ~/.config/blueprint/config.yaml)
+  let homeDir = Bindings.NodeJs.Os.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let globalConfig = switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => Config.defaultGlobalConfig
+  | Error(_) => Config.defaultGlobalConfig
+  }
+
+  let cwd = deps.process.cwd()
+  let configResult = await Config.loadFrom(~fs, ~path, cwd)
+  let projectConfig = switch configResult {
+  | Ok(c) => c
+  | Error(e) => {
+      Console.error("Error loading .blueprint.yaml: " ++ e)
+      deps.process.exit(1)
+      None
+    }
+  }
+
+  let mergedConfig = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
+
+  // Build search paths: project paths first, then registry paths, then raw global paths
+  let projectPaths = ["_templates", "templates", "generators"]
+  let allPaths = Utils.buildGenerateSearchPaths(
+    ~deps,
+    ~projectPaths,
+    ~registry=globalConfig.registry,
+    ~globalTemplates=mergedConfig.templates,
+  )
+  let generators = await Discovery.discover(~fs, ~path, ~searchPaths=allPaths, ())
+
+  switch Discovery.findByClassification(generators, classification) {
+  | None => {
+      Console.error("Error: generator not found for classification \"" ++ classification ++ "\"")
+      deps.process.exit(1)
+    }
+  | Some(generator) => {
+      // Build effective config for Engine (using merged timeout)
+      // Keep project hooks as-is but use merged timeout
+      let effectiveConfig: Config.config = {
+        output: ?projectConfig->Option.flatMap(c => c.output),
+        hooks: ?Some({
+          preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
+          postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),
+          timeout: mergedConfig.timeout,
+        }),
+        shell: ?mergedConfig.shell,
+      }
+
+      let result = await Engine.run(
+        ~generator,
+        ~name,
+        ~cliAttributes,
+        ~outputDir,
+        ~force,
+        ~config=effectiveConfig,
+        ~deps,
+      )
+
+      switch result {
+      | Error(e) => {
+          Console.error("Error: " ++ e)
+          deps.process.exit(1)
+        }
+      | Ok(r) => {
+          switch r.shellErrors {
+          | Some(errs) if errs->Array.length > 0 =>
+            errs->Array.forEach(err => Console.warn("Shell warning: " ++ err))
+          | _ => ()
+          }
+          Console.log(
+            "Blueprint: generated " ++
+            Int.toString(r.filesCreated) ++
+            " file(s), " ++
+            Int.toString(r.commandsExecuted) ++
+            " command(s)",
+          )
+        }
+      }
+    }
+  }
+}

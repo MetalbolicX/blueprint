@@ -57,11 +57,11 @@ suite("ConflictResolver", () => {
   })
 
 testAsync("resolveConflicts: empty conflicts list", resolve => {
-  let _rl = Bindings.Readline.createInterface(
-    ~input=Bindings.Readline.stdin,
-    ~output=Bindings.Readline.stdout,
-      (),
-    )
+  let _rl = Bindings.NodeJs.Readline.createInterface(
+    ~input=Bindings.NodeJs.Readline.stdin,
+    ~output=Bindings.NodeJs.Readline.stdout,
+    (),
+  )
 
     let mockIo: Ports.interactiveIO = {
   ask: _ => Promise.resolve(""),

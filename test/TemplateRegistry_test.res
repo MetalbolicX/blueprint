@@ -35,10 +35,10 @@ suite("TemplateRegistry", () => {
       ~projectPaths=["_templates", "templates"],
       ~registry=[
         {
-          Config.name: "service",
+          name: "service",
           source: "/workspace/_templates/service",
           path: "/home/user/.config/blueprint/templates/service",
-        },
+        }: Config.templateSource,
       ],
       ~globalTemplates=["/opt/company/templates"],
     )
@@ -110,7 +110,7 @@ suite("TemplateRegistry", () => {
             switch updated.registry[0] {
             | Some(entry) => {
                 assert_eq(entry.path, installedGeneratorDir)
-                assert_true(Bindings.Path.isAbsolute(entry.source))
+                assert_true(Bindings.NodeJs.Path.isAbsolute(entry.source))
               }
             | None => assert_false(true)
             }
@@ -260,10 +260,10 @@ suite("TemplateRegistry", () => {
         ~projectPaths=[localRoot],
         ~registry=[
           {
-            Config.name: classification,
+            name: classification,
             source: "/workspace/_templates/api-route",
             path: NodeJs.Path.join(registryRoot, classification),
-          },
+          }: Config.templateSource,
         ],
         ~globalTemplates=[],
       )

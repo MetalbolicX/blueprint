@@ -198,8 +198,8 @@ suite("Phase2", () => {
 
   testAsync("executeShellCommands: InlineCommand path outside cwd rejected by PathSecurity", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
-    let shellConfig = Some({
-      Config.enabled: true,
+    let shellConfig: option<Config.shellConfig> = Some({
+      enabled: true,
       tools: [{name: "curl", command: "/tmp/evil-curl"}],
     })
     let commands = [

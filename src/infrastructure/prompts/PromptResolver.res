@@ -2,8 +2,6 @@
 // Supports input, select, and confirm prompt types with declarative evaluation
 // Mirrors Go version's phase0/prompt_resolver.go
 
-open Bindings
-
 // Error types for resolver failures
 type resolveError =
   | EvaluationError({prompt: string, field: string, message: string})
@@ -394,10 +392,10 @@ let resolve: (
 }
 
 // Readline interface lifecycle
-let _createReadline: unit => Readline.readlineInterface = () => {
-  Readline.createInterface(~input=Readline.stdin, ~output=Readline.stdout, ())
+let _createReadline: unit => NodeJs.Readline.readlineInterface = () => {
+  NodeJs.Readline.createInterface(~input=NodeJs.Readline.stdin, ~output=NodeJs.Readline.stdout, ())
 }
 
-let _closeReadline: Readline.readlineInterface => unit = rl => {
+let _closeReadline: NodeJs.Readline.readlineInterface => unit = rl => {
   rl.close()
 }
