@@ -30,4 +30,19 @@ suite("NodeJsArgParser adapter", () => {
     | Error(_) => assert_true(false)
     }
   })
+
+  test("parse handles known string options with space-separated values", () => {
+    let args = ["--name", "Item", "--output", "src", "--force"]
+    let result = parser.parse(~args, ~strict=false, ~allowPositionals=true)
+
+    switch result {
+    | Ok(parsed) => {
+        assert_eq(Dict.get(parsed.values, "name"), Some("Item"))
+        assert_eq(Dict.get(parsed.values, "output"), Some("src"))
+        assert_eq(Dict.get(parsed.values, "force"), Some("true"))
+        assert_eq(parsed.positionals, [])
+      }
+    | Error(_) => assert_true(false)
+    }
+  })
 })

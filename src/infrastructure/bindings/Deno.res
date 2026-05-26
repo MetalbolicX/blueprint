@@ -51,10 +51,11 @@ module Fs = {
     isSymlink: bool,
   }
   
-  @val @scope("Deno") external readDir: string => promise<array<dirEntry>> = "readDir"
-
+  @warning("-27")
   let readDirAsync: string => promise<array<string>> = async path => {
-    let entries = await readDir(path)
+    let entries: array<dirEntry> = await %raw(`
+      Array.fromAsync(Deno.readDir(path))
+    `)
     entries->Array.map(entry => entry.name)
   }
   

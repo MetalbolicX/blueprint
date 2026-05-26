@@ -1,7 +1,12 @@
+type parseArgOption = {
+  @as("type") kind: string,
+}
+
 type parseArgsOptions = {
   args: array<string>,
   strict: bool,
   allowPositionals: bool,
+  options?: dict<parseArgOption>,
 }
 
 type parseArgsResult = {
@@ -17,6 +22,13 @@ let make: unit => Ports.argParser = () => {
     parse: (~args, ~strict: bool, ~allowPositionals: bool) => {
       try {
         let result = parseArgsRaw({
+          options: {
+            let opts = Dict.make()
+            Dict.set(opts, "name", {kind: "string"})
+            Dict.set(opts, "output", {kind: "string"})
+            Dict.set(opts, "force", {kind: "boolean"})
+            opts
+          },
           args,
           strict,
           allowPositionals,
