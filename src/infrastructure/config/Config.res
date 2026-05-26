@@ -312,6 +312,7 @@ let loadGlobal: (
   ~path: Ports.path,
   ~homeDir: string,
 ) => promise<result<option<globalConfig>, string>> = async (~fs, ~path, ~homeDir) => {
+  let _ = path
   let configPath = _globalConfigPath(homeDir)
 
   let exists = await fs.fileExists(configPath)

@@ -471,9 +471,4 @@ module NodeProcess = {
   @module("node:process") external cwd: unit => string = "cwd"
 }
 
-module NodeTimers = {
-  @module("node:timers") external setTimeout: (unit => unit, int) => int = "setTimeout"
-  @module("node:timers") external clearTimeout: int => unit = "clearTimeout"
-}
-
 module ParseArgs = Util

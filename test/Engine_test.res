@@ -1,9 +1,5 @@
 // Engine_test — full pipeline e2e tests
 
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 open TestHelpers
 
 let deps: Ports.deps = {

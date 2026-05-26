@@ -1,6 +1,4 @@
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
 
 let fsAdapter = NodeJsFileSystem.make()
 let pathAdapter = NodeJsPath.make()

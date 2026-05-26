@@ -1,10 +1,6 @@
 // Discovery_test — discovery and generator lookup tests
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 
 suite("Discovery", () => {
   let fs = NodeJsFileSystem.make()

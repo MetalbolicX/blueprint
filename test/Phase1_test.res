@@ -1,10 +1,6 @@
 // Phase1_test — staging and rendering tests
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 
 suite("Phase1", () => {
   test("phase1Result: structure", () => {

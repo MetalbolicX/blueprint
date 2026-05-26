@@ -7,6 +7,7 @@ module Command = {
     env?: dict<string>,
     stdout?: string,
     stderr?: string,
+    timeout?: int,
   }
 
   type output = {
@@ -59,8 +60,13 @@ module Fs = {
     mtime: Nullable.t<Date.t>,
   }
   
-  @val @scope("Deno") external stat: string => promise<fileInfo> = "stat"
-  
+@val @scope("Deno") external stat: string => promise<fileInfo> = "stat"
+
+  /**
+   * Checks if a file exists at the given path.
+   * Returns false for Deno.errors.NotFound, re-raises all other exceptions
+   * as ReScript Not_found so callers must handle unexpected errors.
+   */
   let fileExists: string => promise<bool> = async path => {
     try {
       let _ = await stat(path)
@@ -68,7 +74,7 @@ module Fs = {
     } catch {
     | JsExn(obj) =>
       let isNotFound: bool = %raw("(e) => e instanceof Deno.errors.NotFound")(obj)
-      if isNotFound { false } else { raise(Not_found) }
+      if isNotFound { false } else { throw(Not_found) }
     }
   }
   

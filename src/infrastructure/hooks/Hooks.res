@@ -1,7 +1,6 @@
 // Hooks — pre/post generate lifecycle hook execution
 // Mirrors Go version's hooks/hooks.go
 
-open Bindings
 open EnvFilter
 
 type hookType = PreGenerate | PostGenerate

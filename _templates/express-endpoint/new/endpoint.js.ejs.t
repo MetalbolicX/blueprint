@@ -24,9 +24,10 @@ router.get('/:id', (req, res) => {
 // POST /<%= h.kebabCase(name) %>
 router.post('/', (req, res) => {
   const { body } = req
+  const data = body || {}
   res.status(201).json({
     message: '<%= name %> created',
-    data: body,
+    data,
   })
 })
 
@@ -34,10 +35,11 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const { id } = req.params
   const { body } = req
+  const data = body || {}
   res.status(200).json({
     message: '<%= name %> updated',
     id,
-    data: body,
+    data,
   })
 })
 

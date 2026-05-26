@@ -1,8 +1,12 @@
 // Blueprint CLI — init + generate commands
 
+@warning("-33")
 open NodeJsFileSystem
+@warning("-33")
 open NodeJsPath
+@warning("-33")
 open NodeJsProcess
+@warning("-33")
 open NodeJsShell
 
 let printUsage = () => {
@@ -247,6 +251,7 @@ let runTemplateList: (
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
 ) => promise<unit> = async (~deps, ~fs, ~path) => {
+  let _ = deps
   let homeDir = Bindings.Os.homedir()
   let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
@@ -420,7 +425,6 @@ let main: unit => promise<unit> = async () => {
   let fs = deps.fs
   let pathAdapter = deps.path
   let processAdapter = deps.process
-  let shellAdapter = deps.shell
   let argv = processAdapter.argv()
 
   // argv[0] = node, argv[1] = script path, argv[2+] = actual args

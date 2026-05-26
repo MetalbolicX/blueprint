@@ -1,10 +1,6 @@
 // Integration_test — full pipeline integration tests for shell security
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 
 suite("Integration", () => {
   test("shell.enabled: false blocks sh: directive", () => {

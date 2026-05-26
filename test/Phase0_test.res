@@ -1,10 +1,6 @@
 // Phase0_test — prompt resolution tests
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 
 suite("Phase0", () => {
   test("phase0Result: structure", () => {

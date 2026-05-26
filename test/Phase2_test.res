@@ -1,10 +1,6 @@
 // Phase2_test — commit and rollback tests
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
-open NodeJsProcess
-open NodeJsShell
 
 suite("Phase2", () => {
   test("phase2Result: structure", () => {

@@ -1,8 +1,6 @@
 // Config_test — config parsing and loading tests
 
 open TestHelpers
-open NodeJsFileSystem
-open NodeJsPath
 
 suite("Config", () => {
   test("parse: returns Ok with empty hooks when no hooks key", () => {

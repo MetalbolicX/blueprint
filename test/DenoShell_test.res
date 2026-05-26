@@ -44,7 +44,7 @@ suite("DenoShell adapter", () => {
     shell.execShellCommand(~command="echo 'deno-test'")->Promise.then(res => {
       switch res {
       | Ok(out) => assert_true(String.includes(out, "deno-test"))
-      | Error(e) => assert_true(false) // Should not error with mock
+      | Error(_e) => assert_true(false) // Should not error with mock
       }
       teardownMock()
       resolve()

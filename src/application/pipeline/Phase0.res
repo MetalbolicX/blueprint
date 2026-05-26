@@ -1,7 +1,6 @@
 // Phase0: Prompt collection + conflict detection
 // Mirrors Go version's phase0/phase0.go
 
-open Bindings
 open Discovery
 
 type conflictFile = {

@@ -1,5 +1,4 @@
 open Ports
-open Deno
 
 let decodeBytes: (array<int>) => string = %raw(`
   function(bytes) {
@@ -44,6 +43,7 @@ let execAsyncRaw: (string, option<shellOptions>) => promise<execResult> = async 
       env: ?options.env,
       stdout: "piped",
       stderr: "piped",
+      timeout: ?options.timeout,
     },
   )
   let output = await Deno.Command.output(cmd)
@@ -52,7 +52,7 @@ let execAsyncRaw: (string, option<shellOptions>) => promise<execResult> = async 
     stderr: decodeBytes(output.stderr),
     status: Some(output.code),
     signalCode: Nullable.toOption(output.signal),
-    killed: false,
+    killed: output.signal !== null,
   }
 }
 
@@ -71,6 +71,7 @@ let execFileAsyncRaw: (
       env: ?options.env,
       stdout: "piped",
       stderr: "piped",
+      timeout: ?options.timeout,
     },
   )
   let output = await Deno.Command.output(cmd)
@@ -79,7 +80,7 @@ let execFileAsyncRaw: (
     stderr: decodeBytes(output.stderr),
     status: Some(output.code),
     signalCode: Nullable.toOption(output.signal),
-    killed: false,
+    killed: output.signal !== null,
   }
 }
 
