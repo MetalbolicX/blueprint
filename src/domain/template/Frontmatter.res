@@ -101,18 +101,16 @@ let parse: string => result<parsedFrontmatter, string> = content => {
       | Some(fs) => {
           let body = Js.String.replaceByRe(frontmatterRegex, "", content)
           let lines = Js.String.split("\n", fs)->Array.filter(l => l !== "")
-          let rec collect = (items, index, acc) => {
-            if index >= Array.length(items) {
-              Ok(acc)
-            } else {
-              switch parseDirective(items[index]) {
-              | Ok(directive) => collect(items, index + 1, acc->Array.concat([directive]))
+          switch lines->Array.reduce(Ok([]), (acc, line) => {
+            switch acc {
+            | Error(e) => Error(e)
+            | Ok(directives) =>
+              switch parseDirective(line) {
+              | Ok(directive) => Ok(directives->Array.concat([directive]))
               | Error(e) => Error(e)
               }
             }
-          }
-
-          switch collect(lines, 0, []) {
+          }) {
           | Ok(directives) => Ok({directives, body})
           | Error(e) => Error(e)
           }
