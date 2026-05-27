@@ -1,7 +1,12 @@
 /**
- * Fetcher — HTTP fetch wrapper with timeout support
- * Provides simple GET requests with error handling
+ * Fetcher — HTTP fetch wrapper with timeout and in-memory caching
+ * Provides simple GET requests with error handling.
+ * Caches results by URL to avoid duplicate fetches within a single session.
  */
+
+// In-memory cache: keyed by URL, stores the pending promise so duplicate
+// fetches (within the same Phase2.run invocation) share a single request.
+let cache: Dict.t<promise<result<string, string>>> = Dict.make()
 
 module Impl = {
   @val
@@ -33,12 +38,33 @@ module Impl = {
 }
 
 /**
- * Fetches content from a URL via GET request.
+ * Clears the in-memory fetch cache. Useful between independent runs
+ * to prevent stale URLs from being served across different templates.
+ */
+let clearCache: unit => unit = () => {
+  let keys: array<string> = []
+  cache->Dict.forEachWithKey((_v, k) => keys->Array.push(k))
+  keys->Array.forEach(key => cache->Dict.delete(key))
+}
+
+/**
+ * Fetches content from a URL via GET request, with caching.
+ *
+ * If the same URL was already fetched in this session, returns the cached result.
+ * This prevents duplicate network requests when multiple templates reference
+ * the same URL in a single generate run.
  *
  * @param url - The URL to fetch from
  * @param timeout - Optional timeout in seconds (default: 10)
  * @returns Ok(content) on success, Error(message) on failure
  */
 let fetch: (string, ~timeout: int=?) => promise<result<string, string>> = (url, ~timeout=10) => {
-  Impl.httpGet(url, timeout)
+  switch Dict.get(cache, url) {
+  | Some(cachedPromise) => cachedPromise
+  | None => {
+      let promise = Impl.httpGet(url, timeout)
+      Dict.set(cache, url, promise)
+      promise
+    }
+  }
 }
