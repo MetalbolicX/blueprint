@@ -194,6 +194,7 @@ let _renderTemplate: (
   ~template: template,
   ~context: Context.context,
   ~outputDir: string,
+  ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
@@ -202,6 +203,7 @@ let _renderTemplate: (
   ~template,
   ~context,
   ~outputDir,
+  ~conflictDecisions,
   ~shellConfig,
   ~fs,
   ~path,
@@ -220,8 +222,19 @@ let _renderTemplate: (
 
   switch targetPathOpt {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
-  | Some(targetPath) => {
-      if _hasUnlessExists(template) {
+  | Some(targetPath) =>
+    let finalTargetPath = path.join(outputDir, targetPath)
+
+    // Check conflict decisions: skip files the user chose not to overwrite
+    let skipFromDecision = switch conflictDecisions {
+    | Some(decisions) =>
+      decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
+    | None => false
+    }
+
+    if skipFromDecision {
+      Ok(None)
+    } else if _hasUnlessExists(template) {
         let finalTargetPath = path.join(outputDir, targetPath)
         let exists = await fs.fileExists(finalTargetPath)
         if exists {
@@ -267,7 +280,6 @@ let _renderTemplate: (
             }
           }
         }
-      }
     }
   }
 }
@@ -319,6 +331,7 @@ let run: (
         ~template=tmpl,
         ~context=_context,
         ~outputDir=_outputDir,
+        ~conflictDecisions=_conflictDecisions,
         ~shellConfig=effectiveShellConfig,
         ~fs,
         ~path,

@@ -15,6 +15,7 @@ let executeHook: (
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
+  ~fs: Ports.fileSystem,
 ) => promise<result<hookResult, string>>
 
 let run: (
@@ -25,4 +26,5 @@ let run: (
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
+  ~fs: Ports.fileSystem,
 ) => promise<result<unit, string>>

@@ -4,6 +4,9 @@
 
 open NodeJs.Fs
 
+@module("node:fs") @scope("promises")
+external realpath: string => promise<string> = "realpath"
+
 let make: unit => Ports.fileSystem = () => {
   readFile: (path, ~options=?) => {
     let opts = switch options {
@@ -53,4 +56,5 @@ let make: unit => Ports.fileSystem = () => {
   },
   fileExists: NodeJs.Fs.fileExists,
   makeStagingDir: NodeJs.Os.makeStagingDir,
+  realpath: realpath,
 }

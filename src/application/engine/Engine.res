@@ -17,12 +17,13 @@ let runPostHook: (
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
-) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result, ~shell, ~process, ~path) => {
+  ~fs: Ports.fileSystem,
+) => promise<result<generateResult, string>> = async (~config, ~projectRoot, ~result, ~shell, ~process, ~path, ~fs) => {
   switch config {
   | None => Ok(result)
   | Some(c) => {
       let shellConfig = c.shell
-      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path)
+      let hookResult = await Hooks.run(~config=c, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs)
       switch hookResult {
       | Error(e) => Error(e)
       | Ok() => Ok(result)
@@ -72,16 +73,17 @@ let runPhase1: (
   ~templates: array<Template.template>,
   ~mergedContext: Context.context,
   ~outputDir: string,
+  ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~process: Ports.process,
-) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~shellConfig, ~fs, ~path, ~process) => {
+) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~conflictDecisions, ~shellConfig, ~fs, ~path, ~process) => {
   let phase1Result = await Phase1.run(
     ~templates,
     ~context=mergedContext,
     ~outputDir,
-    ~conflictDecisions=None,
+    ~conflictDecisions,
     ~shellConfig,
     ~fs,
     ~path,
@@ -133,7 +135,7 @@ let run: (
           | None => Ok()
           | Some(c) => {
               let shellConfig = c.shell
-              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process=proc, ~path)
+              await Hooks.run(~config=c, ~projectRoot=cwd, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process=proc, ~path, ~fs)
             }
           }
 
@@ -155,7 +157,7 @@ let run: (
 
       switch phase0Outcome {
       | Error(e) => Error(e)
-      | Ok((p0, _decisions)) => {
+      | Ok((p0, decisions)) => {
           io.close()
 
           // Wrap prompt answers into attrValue (PromptResolver returns dict<string>)
@@ -183,6 +185,7 @@ let run: (
             ~templates=generator.templates,
             ~mergedContext,
             ~outputDir,
+            ~conflictDecisions=Some(decisions),
             ~shellConfig,
             ~fs,
             ~path,
@@ -218,7 +221,7 @@ let run: (
                     classification: generator.name,
                     shellErrors: ?shellErrs,
                   }
-                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc, ~path)
+                  let finalResult = await runPostHook(~config, ~projectRoot=cwd, ~result, ~shell, ~process=proc, ~path, ~fs)
                   io.close()
                   finalResult
                 }

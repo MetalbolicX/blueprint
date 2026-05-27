@@ -14,6 +14,7 @@ suite("Ports", () => {
       fileExists: _ => Promise.resolve(false),
       stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}),
       makeStagingDir: () => "/tmp/test",
+      realpath: path => Promise.resolve(path),
     }
     assert_true(true)
   })
@@ -95,6 +96,7 @@ suite("Ports", () => {
         fileExists: _ => Promise.resolve(false),
 stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : statResult),
         makeStagingDir: () => "/tmp/test",
+        realpath: path => Promise.resolve(path),
       },
       path: {
         join: (a, b) => a ++ "/" ++ b,

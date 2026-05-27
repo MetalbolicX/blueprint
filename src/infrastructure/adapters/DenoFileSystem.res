@@ -44,4 +44,5 @@ let make: unit => Ports.fileSystem = () => {
   },
   fileExists: fileExists,
   makeStagingDir: makeTempDirSync,
+  realpath: Deno.Fs.realPath,
 }

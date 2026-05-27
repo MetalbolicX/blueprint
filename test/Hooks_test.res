@@ -67,7 +67,7 @@ let teardownDenoMock = %raw(`
   }
 `)
 
-let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
+let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => {
   suite(`Hooks [${label}]`, () => {
     let wasMocked = ref(false)
 
@@ -91,7 +91,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
       let hook: Config.hookCommand = {
         command: "echo hello",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(hookResult) => assert_eq(hookResult.hookType, Hooks.PostGenerate)
@@ -107,7 +107,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
       let hook: Config.hookCommand = {
         command: "echo hook-no-args",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(hookResult) => {
@@ -133,7 +133,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
         },
       }
 
-      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(postResult => {
         switch postResult {
         | Ok() =>
@@ -143,7 +143,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
               timeout: 1,
             },
           }
-          Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+          Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
           ->Promise.then(preResult => {
             switch preResult {
             | Ok() => assert_true(true)
@@ -170,7 +170,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
         },
       }
 
-      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok() => assert_true(true)
@@ -188,7 +188,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
       let hook: Config.hookCommand = {
         command: "../evil.sh",
       }
-      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -204,7 +204,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
       let hook: Config.hookCommand = {
         command: "/etc/passwd",
       }
-      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -221,7 +221,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
         command: "printf",
         args: ["%s", "HOME-is-set"],
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(hookResult) => {
@@ -240,7 +240,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
       let hook: Config.hookCommand = {
         command: "sleep 10",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(_msg) => assert_true(true) 
@@ -262,5 +262,5 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter) => {
   })
 }
 
-runTests("Node.js", NodeJsProcess.make(), NodeJsShell.make(), NodeJsPath.make())
-runTests("Deno", DenoProcess.make(), DenoShell.make(), DenoPath.make())
+runTests("Node.js", NodeJsProcess.make(), NodeJsShell.make(), NodeJsPath.make(), NodeJsFileSystem.make())
+runTests("Deno", DenoProcess.make(), DenoShell.make(), DenoPath.make(), DenoFileSystem.make())

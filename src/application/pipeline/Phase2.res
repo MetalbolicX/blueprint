@@ -138,70 +138,74 @@ let executeShellCommands: (
                 Promise.resolve(Ok())
               } else {
                 let resolvedCmd = path.resolve(cwd, baseCmd)
-                if !PathSecurity.isWithinTree(resolvedCmd, cwd, path) {
-                  errors->Array.push("Command path outside project tree: " ++ baseCmd)
-                  Promise.resolve(Ok())
-                } else {
-                  shell.execShellCommand(~command, ~cwd)->Promise.then(result => {
-                    switch result {
-                    | Ok(_) => {
-                        count.contents = count.contents + 1
-                        Promise.resolve(Ok())
+                PathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
+                  if !isWithin {
+                    errors->Array.push("Command path outside project tree: " ++ baseCmd)
+                    Promise.resolve(Ok())
+                  } else {
+                    shell.execShellCommand(~command, ~cwd)->Promise.then(result => {
+                      switch result {
+                      | Ok(_) => {
+                          count.contents = count.contents + 1
+                          Promise.resolve(Ok())
+                        }
+                      | Error(e) => {
+                          errors->Array.push("Shell command failed: " ++ e)
+                          Promise.resolve(Ok())
+                        }
                       }
-                    | Error(e) => {
-                        errors->Array.push("Shell command failed: " ++ e)
-                        Promise.resolve(Ok())
-                      }
-                    }
-                  })
-                }
+                    })
+                  }
+                })
               }
             }
           }
         | ScriptFile(cmdPath) => {
             let resolvedPath = path.resolve(cmdPath, "")
-            if !PathSecurity.isWithinTree(resolvedPath, cwd, path) {
-              errors->Array.push("Script path outside project tree: " ++ cmdPath)
-              Promise.resolve(Ok())
-            } else {
-              fs.fileExists(resolvedPath)->Promise.then(exists => {
-                if !exists {
-                  errors->Array.push("Script file not found: " ++ cmdPath)
-                  Promise.resolve(Ok())
-                } else {
-                  let execOpts: Ports.shellOptions = {
-                    cwd: cwd,
-                    env: safeEnv,
-                    shell: true,
-                    encoding: "utf8",
-                  }
-                  shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
-                    if result.killed {
-                      errors->Array.push("Script timed out and was killed: " ++ cmdPath)
-                      Promise.resolve(Ok())
-                    } else {
-                      switch result.status {
-                      | Some(0) => {
-                          count.contents = count.contents + 1
-                          Promise.resolve(Ok())
-                        }
-                      | status => {
-                          errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath)
-                          Promise.resolve(Ok())
+            PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
+              if !isWithin {
+                errors->Array.push("Script path outside project tree: " ++ cmdPath)
+                Promise.resolve(Ok())
+              } else {
+                fs.fileExists(resolvedPath)->Promise.then(exists => {
+                  if !exists {
+                    errors->Array.push("Script file not found: " ++ cmdPath)
+                    Promise.resolve(Ok())
+                  } else {
+                    let execOpts: Ports.shellOptions = {
+                      cwd: cwd,
+                      env: safeEnv,
+                      shell: true,
+                      encoding: "utf8",
+                    }
+                    shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
+                      if result.killed {
+                        errors->Array.push("Script timed out and was killed: " ++ cmdPath)
+                        Promise.resolve(Ok())
+                      } else {
+                        switch result.status {
+                        | Some(0) => {
+                            count.contents = count.contents + 1
+                            Promise.resolve(Ok())
+                          }
+                        | status => {
+                            errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath)
+                            Promise.resolve(Ok())
+                          }
                         }
                       }
-                    }
-                  })->Promise.catch(e => {
-                    let msg = switch JsExn.message(e->Obj.magic) {
-                    | Some(m) => m
-                    | None => "unknown"
-                    }
-                    errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")")
-                    Promise.resolve(Ok())
-                  })
-                }
-              })
-            }
+                    })->Promise.catch(e => {
+                      let msg = switch JsExn.message(e->Obj.magic) {
+                      | Some(m) => m
+                      | None => "unknown"
+                      }
+                      errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")")
+                      Promise.resolve(Ok())
+                    })
+                  }
+                })
+              }
+            })
           }
         }
       }

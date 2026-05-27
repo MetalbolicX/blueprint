@@ -28,6 +28,7 @@ let executeHook: (
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
+  ~fs: Ports.fileSystem,
 ) => promise<result<hookResult, string>> = async (
   ~hook,
   ~cwd,
@@ -37,6 +38,7 @@ let executeHook: (
   ~shell,
   ~process,
   ~path,
+  ~fs,
 ) => {
   // Build safe env for child process
   let buildEnvEntry: (string, string) => EnvFilter.shellEnvEntry = (k, v) => {
@@ -96,7 +98,8 @@ let executeHook: (
     Ok({hookType, output: "", exitCode: 0})
   } else if isPath {
     let resolvedPath = path.resolve(cwd, hook.command)
-    if !PathSecurity.isWithinTree(resolvedPath, cwd, path) {
+    let isWithin = await PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)
+    if !isWithin {
       Error("Hook script outside project tree: " ++ hook.command)
     } else {
       switch hook.args {
@@ -162,6 +165,7 @@ let run: (
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
+  ~fs: Ports.fileSystem,
 ) => promise<result<unit, string>> = async (
   ~config,
   ~projectRoot,
@@ -170,6 +174,7 @@ let run: (
   ~shell,
   ~process,
   ~path,
+  ~fs,
 ) => {
   let timeout = switch config.hooks {
   | Some(h) =>
@@ -196,7 +201,7 @@ let run: (
       Ok()
     } else {
       let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path)
+      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs)
       switch result {
       | Ok(_) => Ok()
       | Error(e) =>

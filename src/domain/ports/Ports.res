@@ -27,6 +27,7 @@ type fileSystem = {
   fileExists: string => promise<bool>,
   stat: string => promise<statResult>,
   makeStagingDir: unit => string,
+  realpath: string => promise<string>,
 }
 
 type process = {
