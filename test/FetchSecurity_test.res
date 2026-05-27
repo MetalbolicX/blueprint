@@ -2,46 +2,100 @@
 
 open TestHelpers
 
+let installRejectingFetch: string => unit = %raw(`
+  function(message) {
+    globalThis.__BLUEPRINT_ORIGINAL_FETCH__ = globalThis.fetch;
+    globalThis.fetch = async function() {
+      throw new Error(message);
+    };
+  }
+`)
+
+let restoreFetch: unit => unit = %raw(`
+  function() {
+    if (globalThis.__BLUEPRINT_ORIGINAL_FETCH__) {
+      globalThis.fetch = globalThis.__BLUEPRINT_ORIGINAL_FETCH__;
+      delete globalThis.__BLUEPRINT_ORIGINAL_FETCH__;
+    }
+  }
+`)
+
 suite("FetchSecurity", () => {
+  @skip("network-dependent: requires live HTTP server")
   test("Fetcher.fetch: valid URL returns content", () => {
-    // Test that Fetcher.fetch exists and accepts URL
-    // Note: actual HTTP call would require network, so we test the type exists
-    assert_true(true) // Fetcher module exists
+    // Skipped: requires live HTTP server
   })
 
+  @skip("network-dependent: requires live HTTP server that returns 404")
   test("Fetcher.fetch: 404 returns error with Not found", () => {
-    // Fetcher.fetch on non-existent URL returns Error("Not found")
-    // The implementation should check status code and return appropriate error
-    assert_true(true) // Placeholder - actual test requires network or mock
+    // Skipped: requires live HTTP server
   })
 
+  @skip("network-dependent: requires live HTTP server that returns 500")
   test("Fetcher.fetch: 500 returns error with status", () => {
-    // Fetcher.fetch on server error returns Error with status code
-    assert_true(true) // Placeholder - actual test requires network or mock
+    // Skipped: requires live HTTP server
   })
 
-  test("Fetcher.fetch: timeout returns error", () => {
-    // Fetcher.fetch with timeout should return Error("Request timed out")
-    assert_true(true) // Placeholder - actual test requires network or mock
+  testAsync("Fetcher.fetch: timeout returns error", resolve => {
+    Fetcher.clearCache()
+    installRejectingFetch("timed out while fetching")
+
+    Fetcher.fetch("https://example.com/slow", ~timeout=1)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_eq(msg, "Request timed out")
+      }
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreFetch()
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
-  test("Fetcher.fetch: invalid URL returns Error", () => {
-    // Fetcher.fetch with malformed URL returns Error
-    assert_true(true) // Placeholder
+  testAsync("Fetcher.fetch: invalid URL returns Error", resolve => {
+    Fetcher.clearCache()
+
+    Fetcher.fetch("not-a-valid-url", ~timeout=5)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Invalid URL"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
-  test("Fetcher.fetch: non-http URL returns Error", () => {
-    // Fetcher.fetch should only support http/https
-    assert_true(true) // Placeholder
+  testAsync("Fetcher.fetch: non-http URL returns Error", resolve => {
+    Fetcher.clearCache()
+
+    Fetcher.fetch("ftp://example.com/archive.tar.gz", ~timeout=5)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Only http/https URLs are supported"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
+  @skip("network-dependent: requires live HTTP server with redirect")
   test("Fetcher.fetch: follows redirects and returns final content", () => {
-    // Fetcher.fetch should follow redirects (up to a limit)
-    assert_true(true) // Placeholder
+    // Skipped: requires live HTTP server
   })
 
+  @skip("network-dependent: requires live HTTP server with large response")
   test("Fetcher.fetch: huge response is truncated", () => {
-    // Fetcher.fetch should have max buffer size
-    assert_true(true) // Placeholder
+    // Skipped: requires live HTTP server
   })
 })

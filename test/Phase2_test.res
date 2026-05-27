@@ -2,6 +2,15 @@
 
 open TestHelpers
 
+let makeDeps = () => {
+  (
+    NodeJsFileSystem.make(),
+    NodeJsPath.make(),
+    NodeJsProcess.make(),
+    NodeJsShell.make(),
+  )
+}
+
 suite("Phase2", () => {
   test("phase2Result: structure", () => {
     let result: Phase2.phase2Result = {
@@ -220,15 +229,8 @@ suite("Phase2", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(true)
-      | Ok((count, errors)) => {
-          assert_eq(count, 0)
-          assert_true(errors->Array.length > 0)
-          switch errors[0] {
-          | Some(msg) => assert_true(String.includes(msg, "Command path outside project tree"))
-          | None => assert_false(true)
-          }
-        }
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Command path outside project tree"))
       }
       resolve()
       Promise.resolve()
@@ -236,7 +238,7 @@ suite("Phase2", () => {
     ->ignore
   })
 
-  testAsync("executeShellCommands: missing script returns clear error in shellErrors", resolve => {
+  testAsync("executeShellCommands: missing script returns Error", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let missingPath = NodeJs.Path.join(tmpDir, "missing.sh")
     let commands = [
@@ -261,15 +263,37 @@ suite("Phase2", () => {
     })
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(true)
-      | Ok((count, errors)) => {
-          assert_eq(count, 0)
-          assert_true(errors->Array.length > 0)
-          switch errors[0] {
-          | Some(msg) => assert_true(String.includes(msg, "Script file not found"))
-          | None => assert_false(true)
-          }
-        }
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Script file not found"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: invalid fetch returns Error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let commands = [
+      {
+        Template.target: Template.Fetch("not-a-valid-url"),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    Phase2.executeShellCommands(
+      ~commands,
+      ~cwd=tmpDir,
+      ~shellConfig=None,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Fetch failed"))
       }
       resolve()
       Promise.resolve()
@@ -298,16 +322,185 @@ suite("Phase2", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(true)
-      | Ok((count, errors)) => {
-          assert_eq(count, 0)
-          assert_true(errors->Array.length > 0)
-          switch errors[0] {
-          | Some(msg) => assert_true(String.includes(msg, "Script path outside project tree"))
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "Script path outside project tree"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: fetch failure after commit returns Error with partial commit", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let (fs, path, processAdapter, shell) = makeDeps()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedFile = NodeJs.Path.join(stagingDir, "out.txt")
+    let renderedFiles = [("t.ejs.t", "out.txt")]
+    let shellCommands: array<Template.shellCommand> = [
+      {target: Template.Fetch("ftp://example.com/archive.tar.gz"), sourcePath: "t.ejs.t"},
+    ]
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedFile), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=None,
+        ~fs,
+        ~path,
+        ~process=processAdapter,
+        ~shell,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          assert_true(String.includes(err.message, "Fetch failed"))
+          switch err.partialCommit {
+          | Some(files) => assert_eq(Array.length(files), 1)
           | None => assert_false(true)
           }
         }
       }
+      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
+      ->Promise.then(content => {
+        assert_true(String.includes(content, "content"))
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: tool failure after commit returns Error with partial commit", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let (fs, path, processAdapter, shell) = makeDeps()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedFile = NodeJs.Path.join(stagingDir, "out.txt")
+    let renderedFiles = [("t.ejs.t", "out.txt")]
+    let shellConfig: Config.shellConfig = {
+      enabled: true,
+      tools: [{name: "failing-tool", command: "node", args: ["-e", "process.exit(7)"]}],
+    }
+    let toolDef: Config.shellTool = {
+      name: "failing-tool",
+      command: "node",
+      args: ["-e", "process.exit(7)"],
+    }
+    let shellCommands: array<Template.shellCommand> = [
+      {target: Template.ToolCall({name: "failing-tool", toolDef, sourcePath: "t.ejs.t"}), sourcePath: "t.ejs.t"},
+    ]
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedFile), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=Some(shellConfig),
+        ~fs,
+        ~path,
+        ~process=processAdapter,
+        ~shell,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          assert_true(String.includes(err.message, "Tool 'failing-tool' exited with code"))
+          switch err.partialCommit {
+          | Some(files) => assert_eq(Array.length(files), 1)
+          | None => assert_false(true)
+          }
+        }
+      }
+      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
+      ->Promise.then(content => {
+        assert_true(String.includes(content, "content"))
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: script failure after commit returns Error with partial commit", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let (fs, path, processAdapter, shell) = makeDeps()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedFile = NodeJs.Path.join(stagingDir, "out.txt")
+    let stagedScript = NodeJs.Path.join(stagingDir, "scripts/post.sh")
+    let outputScript = NodeJs.Path.join(outputDir, "scripts/post.sh")
+    let renderedFiles = [("t.ejs.t", "out.txt"), ("scripts/post.sh.ejs.t", "scripts/post.sh")]
+    let shellCommands: array<Template.shellCommand> = [
+      {target: Template.ScriptFile(outputScript), sourcePath: "scripts/post.sh.ejs.t"},
+    ]
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedFile), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedScript), ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedScript, "#!/bin/sh\nexit 9\n"))
+    ->Promise.then(_ => NodeJs.ChildProcess.execShellCommand(~command="chmod +x \"" ++ stagedScript ++ "\""))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=None,
+        ~fs,
+        ~path,
+        ~process=processAdapter,
+        ~shell,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          assert_true(String.includes(err.message, "Script exited with code 9"))
+          switch err.partialCommit {
+          | Some(files) => assert_eq(Array.length(files), 2)
+          | None => assert_false(true)
+          }
+        }
+      }
+      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
+      ->Promise.then(content => {
+        assert_true(String.includes(content, "content"))
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
       resolve()
       Promise.resolve()
     })

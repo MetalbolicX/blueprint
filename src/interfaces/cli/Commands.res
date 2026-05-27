@@ -173,62 +173,70 @@ let runGenerate: (
 
   let mergedConfig = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
 
-  // Build search paths: project paths first, then registry paths, then raw global paths
-  let projectPaths = ["_templates", "templates", "generators"]
-  let allPaths = Utils.buildGenerateSearchPaths(
-    ~deps,
-    ~projectPaths,
-    ~registry=globalConfig.registry,
-    ~globalTemplates=mergedConfig.templates,
-  )
-  let generators = await Discovery.discover(~fs, ~path, ~searchPaths=allPaths, ())
-
-  switch Discovery.findByClassification(generators, classification) {
-  | None => {
-      Console.error("Error: generator not found for classification \"" ++ classification ++ "\"")
+  switch Config.validateMergedConfig(mergedConfig) {
+  | Error(e) => {
+      Console.error("Error: " ++ e)
       deps.process.exit(1)
     }
-  | Some(generator) => {
-      // Build effective config for Engine (using merged timeout)
-      // Keep project hooks as-is but use merged timeout
-      let effectiveConfig: Config.config = {
-        output: ?projectConfig->Option.flatMap(c => c.output),
-        hooks: ?Some({
-          preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
-          postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),
-          timeout: mergedConfig.timeout,
-        }),
-        shell: ?mergedConfig.shell,
-      }
-
-      let result = await Engine.run(
-        ~generator,
-        ~name,
-        ~cliAttributes,
-        ~outputDir,
-        ~force,
-        ~config=effectiveConfig,
+  | Ok() => {
+      // Build search paths: project paths first, then registry paths, then raw global paths
+      let projectPaths = ["_templates", "templates", "generators"]
+      let allPaths = Utils.buildGenerateSearchPaths(
         ~deps,
+        ~projectPaths,
+        ~registry=globalConfig.registry,
+        ~globalTemplates=mergedConfig.templates,
       )
+      let generators = await Discovery.discover(~fs, ~path, ~searchPaths=allPaths, ())
 
-      switch result {
-      | Error(e) => {
-          Console.error("Error: " ++ e)
+      switch Discovery.findByClassification(generators, classification) {
+      | None => {
+          Console.error("Error: generator not found for classification \"" ++ classification ++ "\"")
           deps.process.exit(1)
         }
-      | Ok(r) => {
-          switch r.shellErrors {
-          | Some(errs) if errs->Array.length > 0 =>
-            errs->Array.forEach(err => Console.warn("Shell warning: " ++ err))
-          | _ => ()
+      | Some(generator) => {
+          // Build effective config for Engine (using merged timeout)
+          // Keep project hooks as-is but use merged timeout
+          let effectiveConfig: Config.config = {
+            output: ?projectConfig->Option.flatMap(c => c.output),
+            hooks: ?Some({
+              preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
+              postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),
+              timeout: mergedConfig.timeout,
+            }),
+            shell: ?mergedConfig.shell,
           }
-          Console.log(
-            "Blueprint: generated " ++
-            Int.toString(r.filesCreated) ++
-            " file(s), " ++
-            Int.toString(r.commandsExecuted) ++
-            " command(s)",
+
+          let result = await Engine.run(
+            ~generator,
+            ~name,
+            ~cliAttributes,
+            ~outputDir,
+            ~force,
+            ~config=effectiveConfig,
+            ~deps,
           )
+
+          switch result {
+          | Error(e) => {
+              Console.error("Error: " ++ e)
+              deps.process.exit(1)
+            }
+          | Ok(r) => {
+              switch r.shellErrors {
+              | Some(errs) if errs->Array.length > 0 =>
+                errs->Array.forEach(err => Console.warn("Shell warning: " ++ err))
+              | _ => ()
+              }
+              Console.log(
+                "Blueprint: generated " ++
+                Int.toString(r.filesCreated) ++
+                " file(s), " ++
+                Int.toString(r.commandsExecuted) ++
+                " command(s)",
+              )
+            }
+          }
         }
       }
     }

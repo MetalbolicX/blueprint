@@ -194,7 +194,7 @@ suite("Phase1", () => {
     ->ignore
   })
 
-  testAsync("run: produces InlineCommand when tool not found", resolve => {
+  testAsync("run: missing tool fails before shell queue is created", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
     let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
@@ -231,19 +231,54 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(true)
-      | Ok(phase1) => {
-          assert_eq(Array.length(phase1.shellCommands), 1)
-          switch phase1.shellCommands[0] {
-          | Some(shellCommand) =>
-            switch shellCommand.target {
-            | Template.InlineCommand(cmd) => assert_eq(cmd, "tool-not-found: eslint")
-            | _ => assert_false(true)
-            }
-          | None => assert_false(true)
-          }
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
-        }
+      | Error(_) => assert_false(false) // error branch reached = success for this negative test
+      | Ok(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: missing script fails before shell queue is created", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.Script("setup"),
+      ],
+      body: "export default '<%= Name %>'",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=Some({enabled: true}),
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(err) => assert_true(String.includes(err.message, "Script not found"))
+      | Ok(_) => assert_false(true)
       }
       resolve()
       Promise.resolve()
@@ -269,6 +304,11 @@ suite("Phase1", () => {
       body: "export default '<%= Name %>'",
     }
 
+    let shellCfg: Config.shellConfig = {
+      enabled: true,
+      tools: [{name: "prettier", command: "prettier"}],
+    }
+
     let fs = NodeJsFileSystem.make()
     let pathAdapter = NodeJsPath.make()
     let processAdapter = NodeJsProcess.make()
@@ -281,7 +321,7 @@ suite("Phase1", () => {
         ~context,
         ~outputDir,
         ~conflictDecisions=None,
-        ~shellConfig=None,
+        ~shellConfig=Some(shellCfg),
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
@@ -512,7 +552,7 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_true(true)
+      | Error(_) => assert_false(false)
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -555,7 +595,7 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_true(true)
+      | Error(_) => assert_false(false)
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -598,7 +638,7 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_true(true)
+      | Error(_) => assert_false(false)
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore

@@ -34,7 +34,6 @@ let executeShellCommands: (
   ~shell,
 ) => {
   let count = ref(0)
-  let errors: array<string> = []
 
   // Build safe env for child process execution
   let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = e => {
@@ -77,13 +76,11 @@ let executeShellCommands: (
                     count.contents = count.contents + 1
                     Promise.resolve(Ok())
                   })->Promise.catch(_ => {
-                    errors->Array.push("Failed to write fetched content: " ++ url)
-                    Promise.resolve(Ok())
+                    Promise.resolve(Error("Failed to write fetched content: " ++ url))
                   })
                 }
               | Error(msg) => {
-                  errors->Array.push("Fetch failed: " ++ msg)
-                  Promise.resolve(Ok())
+                  Promise.resolve(Error("Fetch failed: " ++ msg))
                 }
               }
             })
@@ -106,13 +103,11 @@ let executeShellCommands: (
                   Promise.resolve(Ok())
                 }
               | status => {
-                  errors->Array.push("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1)))
-                  Promise.resolve(Ok())
+                  Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
                 }
               }
             })->Promise.catch(_ => {
-              errors->Array.push("Tool '" ++ name ++ "' execution failed")
-              Promise.resolve(Ok())
+              Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
             })
           }
         | InlineCommand(command) => {
@@ -121,8 +116,7 @@ let executeShellCommands: (
             | None => false
             }
             if !shellEnabled {
-              errors->Array.push("Shell execution disabled")
-              Promise.resolve(Ok())
+              Promise.resolve(Error("Shell execution disabled"))
             } else {
               let baseCmd = command->String.split(" ")->Array.get(0)->Option.getOr(command)
               let isAllowed = switch shellConfig {
@@ -134,26 +128,23 @@ let executeShellCommands: (
               | None => false
               }
               if !isAllowed {
-                errors->Array.push("Command not in tools allowlist: " ++ command)
-                Promise.resolve(Ok())
+                Promise.resolve(Error("Command not in tools allowlist: " ++ command))
               } else {
                 let resolvedCmd = path.resolve(cwd, baseCmd)
                 PathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
                   if !isWithin {
-                    errors->Array.push("Command path outside project tree: " ++ baseCmd)
-                    Promise.resolve(Ok())
+                    Promise.resolve(Error("Command path outside project tree: " ++ baseCmd))
                   } else {
                     shell.execShellCommand(~command, ~cwd)->Promise.then(result => {
                       switch result {
-                      | Ok(_) => {
-                          count.contents = count.contents + 1
-                          Promise.resolve(Ok())
+                        | Ok(_) => {
+                            count.contents = count.contents + 1
+                            Promise.resolve(Ok())
+                          }
+                        | Error(e) => {
+                            Promise.resolve(Error("Shell command failed: " ++ e))
+                          }
                         }
-                      | Error(e) => {
-                          errors->Array.push("Shell command failed: " ++ e)
-                          Promise.resolve(Ok())
-                        }
-                      }
                     })
                   }
                 })
@@ -164,13 +155,11 @@ let executeShellCommands: (
             let resolvedPath = path.resolve(cmdPath, "")
             PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
               if !isWithin {
-                errors->Array.push("Script path outside project tree: " ++ cmdPath)
-                Promise.resolve(Ok())
+                Promise.resolve(Error("Script path outside project tree: " ++ cmdPath))
               } else {
                 fs.fileExists(resolvedPath)->Promise.then(exists => {
                   if !exists {
-                    errors->Array.push("Script file not found: " ++ cmdPath)
-                    Promise.resolve(Ok())
+                    Promise.resolve(Error("Script file not found: " ++ cmdPath))
                   } else {
                     let execOpts: Ports.shellOptions = {
                       cwd: cwd,
@@ -180,8 +169,7 @@ let executeShellCommands: (
                     }
                     shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
                       if result.killed {
-                        errors->Array.push("Script timed out and was killed: " ++ cmdPath)
-                        Promise.resolve(Ok())
+                        Promise.resolve(Error("Script timed out and was killed: " ++ cmdPath))
                       } else {
                         switch result.status {
                         | Some(0) => {
@@ -189,8 +177,7 @@ let executeShellCommands: (
                             Promise.resolve(Ok())
                           }
                         | status => {
-                            errors->Array.push("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath)
-                            Promise.resolve(Ok())
+                            Promise.resolve(Error("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath))
                           }
                         }
                       }
@@ -199,8 +186,7 @@ let executeShellCommands: (
                       | Some(m) => m
                       | None => "unknown"
                       }
-                      errors->Array.push("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")")
-                      Promise.resolve(Ok())
+                      Promise.resolve(Error("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")"))
                     })
                   }
                 })
@@ -213,7 +199,7 @@ let executeShellCommands: (
   })
   promise->Promise.then(r => {
     switch r {
-    | Ok(_) => Promise.resolve(Ok((count.contents, errors)))
+    | Ok(_) => Promise.resolve(Ok((count.contents, [])))
     | Error(e) => Promise.resolve(Error(e))
     }
   })
@@ -304,6 +290,8 @@ let run: (
   ~process,
   ~shell,
 ) => {
+  let committedFiles = renderedFiles->Array.map(((_, targetPath)) => path.join(outputDir, targetPath))
+
   // Commit files
   let commitResult = await commitFiles(~stagingDir, ~outputDir, ~renderedFiles, ~fs, ~path)
 
@@ -331,16 +319,12 @@ let run: (
             commandsExecuted: cmdsExec,
             shellErrors: ?shellErrs,
           }
-          await rollback(stagingDir, ~fs)
           Ok(result)
         }
-      | Error(_e) =>
+      | Error(message) => {
         await rollback(stagingDir, ~fs)
-        Ok({
-          filesCreated: count,
-          filesInjected: 0,
-          commandsExecuted: 0,
-        })
+        Error({message, partialCommit: committedFiles})
+        }
       }
     }
   | Error(err) => {

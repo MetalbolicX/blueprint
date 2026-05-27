@@ -8,6 +8,26 @@
 // fetches (within the same Phase2.run invocation) share a single request.
 let cache: Dict.t<promise<result<string, string>>> = Dict.make()
 
+type jsUrl
+
+@new
+external makeUrl: string => jsUrl = "URL"
+
+@get
+external protocol: jsUrl => string = "protocol"
+
+let validateUrl: string => result<unit, string> = url => {
+  try {
+    let parsed = makeUrl(url)
+    switch protocol(parsed) {
+    | "http:" | "https:" => Ok()
+    | _ => Error("Only http/https URLs are supported: " ++ url)
+    }
+  } catch {
+  | JsExn(_) => Error("Invalid URL: " ++ url)
+  }
+}
+
 module Impl = {
   @val
   external _nativeFetch: (string, 'options) => promise<'response> = "fetch"
@@ -59,12 +79,16 @@ let clearCache: unit => unit = () => {
  * @returns Ok(content) on success, Error(message) on failure
  */
 let fetch: (string, ~timeout: int=?) => promise<result<string, string>> = (url, ~timeout=10) => {
-  switch Dict.get(cache, url) {
-  | Some(cachedPromise) => cachedPromise
-  | None => {
-      let promise = Impl.httpGet(url, timeout)
-      Dict.set(cache, url, promise)
-      promise
+  switch validateUrl(url) {
+  | Error(message) => Promise.resolve(Error(message))
+  | Ok() =>
+    switch Dict.get(cache, url) {
+    | Some(cachedPromise) => cachedPromise
+    | None => {
+        let promise = Impl.httpGet(url, timeout)
+        Dict.set(cache, url, promise)
+        promise
+      }
     }
   }
 }

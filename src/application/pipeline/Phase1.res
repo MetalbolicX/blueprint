@@ -134,57 +134,68 @@ let _collectShellCommands: (
   ~actionfolder: string,
   ~path: Ports.path,
   ~process: Ports.process,
-) => array<shellCommand> = (
+) => result<array<shellCommand>, string> = (
   template,
   shellConfig,
   ~actionfolder,
   ~path,
   ~process,
 ) => {
-  template.directives->Array.filterMap(d => {
-    switch d {
-    | Fetch(url) =>
-      // Fetch directive: Phase2 handles the actual fetching
-      Some({target: Fetch(url), sourcePath: template.sourcePath})
-    | Tool(name) => {
-        // Tool directive: lookup in shellConfig tools
-        let tools = switch shellConfig {
-        | Some(cfg) => cfg.tools->Option.getOr([])
-        | None => []
+  let commands: array<shellCommand> = []
+  let errorRef: ref<option<string>> = ref(None)
+
+  template.directives->Array.forEach(d => {
+    switch errorRef.contents {
+    | Some(_) => ()
+    | None =>
+      switch d {
+      | Fetch(url) => {
+          let _ = commands->Array.push({target: Fetch(url), sourcePath: template.sourcePath})
         }
-        switch _findToolByName(tools, name) {
-        | Some(toolDef) =>
-          Some({target: ToolCall({name, toolDef, sourcePath: template.sourcePath}), sourcePath: template.sourcePath})
-        | None =>
-          // Tool not found - we'll collect error but Phase1 doesn't fail the whole pipeline
-          // Phase2 will report the error when trying to execute
-          Some({target: InlineCommand("tool-not-found: " ++ name), sourcePath: template.sourcePath})
-        }
-      }
-    | Script(name) => {
-        // Script directive: lookup in shellConfig scripts
-        let scripts = switch shellConfig {
-        | Some(cfg) => cfg.scripts->Option.getOr([])
-        | None => []
-        }
-        switch _findScriptByName(scripts, name) {
-        | Some(scriptDef) =>
-          let baseDir = if path.isAbsolute(actionfolder) {
-            actionfolder
-          } else {
-            path.resolve(process.cwd(), actionfolder)
+      | Tool(name) => {
+          let tools = switch shellConfig {
+          | Some(cfg) => cfg.tools->Option.getOr([])
+          | None => []
           }
-          let resolvedPath = path.isAbsolute(scriptDef.path)
-            ? scriptDef.path
-            : path.join(baseDir, scriptDef.path)
-          Some({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
-        | None =>
-          Some({target: InlineCommand("script-not-found: " ++ name), sourcePath: template.sourcePath})
+          switch _findToolByName(tools, name) {
+          | Some(toolDef) =>
+            let _ = commands->Array.push({
+              target: ToolCall({name, toolDef, sourcePath: template.sourcePath}),
+              sourcePath: template.sourcePath,
+            })
+          | None =>
+            errorRef.contents = Some("Tool not found: " ++ name ++ " (template: " ++ template.sourcePath ++ ")")
+          }
         }
+      | Script(name) => {
+          let scripts = switch shellConfig {
+          | Some(cfg) => cfg.scripts->Option.getOr([])
+          | None => []
+          }
+          switch _findScriptByName(scripts, name) {
+          | Some(scriptDef) =>
+            let baseDir = if path.isAbsolute(actionfolder) {
+              actionfolder
+            } else {
+              path.resolve(process.cwd(), actionfolder)
+            }
+            let resolvedPath = path.isAbsolute(scriptDef.path)
+              ? scriptDef.path
+              : path.join(baseDir, scriptDef.path)
+            let _ = commands->Array.push({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
+          | None =>
+            errorRef.contents = Some("Script not found: " ++ name ++ " (template: " ++ template.sourcePath ++ ")")
+          }
+        }
+      | _ => ()
       }
-    | _ => None
     }
   })
+
+  switch errorRef.contents {
+  | Some(message) => Error(message)
+  | None => Ok(commands)
+  }
 }
 
 let _renderTemplate: (
@@ -243,14 +254,16 @@ let _renderTemplate: (
               let renderCtx = Context.toRenderContext(context)
               switch Renderer.render(templateToRender, renderCtx) {
               | Ok(renderedBody) => {
-                  let shellCmds = _collectShellCommands(
+                  switch _collectShellCommands(
                     template,
                     shellConfig,
                     ~actionfolder=context.actionfolder,
                     ~path,
                     ~process,
-                  )
-                  Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                  ) {
+                  | Error(e) => Error(e)
+                  | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                  }
                 }
               | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
               }
@@ -264,14 +277,16 @@ let _renderTemplate: (
             let renderCtx = Context.toRenderContext(context)
             switch Renderer.render(templateToRender, renderCtx) {
             | Ok(renderedBody) => {
-                let shellCmds = _collectShellCommands(
+                switch _collectShellCommands(
                   template,
                   shellConfig,
                   ~actionfolder=context.actionfolder,
                   ~path,
                   ~process,
-                )
-                Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                ) {
+                | Error(e) => Error(e)
+                | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                }
               }
             | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
             }
