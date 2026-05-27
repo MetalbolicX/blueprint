@@ -11,7 +11,6 @@ type directive =
   | EofLast
   | Force
   | UnlessExists
-  | Sh(string)
   | Tool(string)
   | Fetch(string)
   | Script(string)

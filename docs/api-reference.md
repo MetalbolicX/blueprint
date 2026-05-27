@@ -186,7 +186,7 @@ default_attributes:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | \`templates\` | array | \`[]\` | Additional template search paths |
-| \`allow_dangerous_commands\` | bool | \`false\` | Allow \`sh:\` directives in templates |
+| \`allow_dangerous_commands\` | bool | \`false\` | Allow legacy shell execution |
 | \`force_overwrite\` | bool | \`false\` | Skip prompts, overwrite existing files |
 | \`dry_run\` | bool | \`false\` | Render templates without writing output |
 | \`timeout\` | int | \`5\` | Hook execution timeout in seconds |

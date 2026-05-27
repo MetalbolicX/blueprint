@@ -286,7 +286,7 @@ let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = as
 
           let directiveSelection =
             await deps.interactiveIO.ask(
-              "Additional directives (comma-separated; e.g. inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,sh,tool,fetch,script): ",
+              "Additional directives (comma-separated; e.g. inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,tool,fetch,script): ",
             )
           let selected = parseDirectiveSelection(directiveSelection)
 
@@ -352,12 +352,6 @@ let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = as
                 ? await deps.interactiveIO.askConfirm(~question="Enable unless_exists: true?", ~defaultYes=true)
                 : false
 
-            let shValue =
-              if hasDirective(~selected, ~key="sh") {
-                await deps.interactiveIO.ask("sh command: ")
-              } else {
-                ""
-              }
             let toolValue =
               if hasDirective(~selected, ~key="tool") {
                 await deps.interactiveIO.ask("tool name: ")
@@ -413,9 +407,6 @@ let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = as
             }
             if unlessExistsEnabled {
               Js.Array.push("unless_exists: true", frontmatterLines)->ignore
-            }
-            if shValue->String.trim != "" {
-              Js.Array.push("sh: " ++ shValue->String.trim, frontmatterLines)->ignore
             }
             if toolValue->String.trim != "" {
               Js.Array.push("tool: " ++ toolValue->String.trim, frontmatterLines)->ignore

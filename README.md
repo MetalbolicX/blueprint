@@ -227,11 +227,11 @@ force: true
 ---
 ```
 
-**sh** — Execute shell command after render:
+**script** — Run a configured script after render:
 ```yaml
 ---
 to: src/<%= name %>.tsx
-sh: prettier --write src/<%= name %>.tsx
+script: setup
 ---
 ```
 

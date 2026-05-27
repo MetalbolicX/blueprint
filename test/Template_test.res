@@ -99,14 +99,6 @@ suite("Template", () => {
     }
   })
 
-  test("directive: Sh variant", () => {
-    let dir = Template.Sh("npm run format")
-    switch dir {
-    | Template.Sh(cmd) => assert_eq(cmd, "npm run format")
-    | _ => assert_false(true)
-    }
-  })
-
   test("template: full structure", () => {
     let tmpl = {
       Template.sourcePath: "/templates/Hello.tsx.ejs.t",

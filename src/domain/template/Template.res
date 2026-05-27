@@ -12,7 +12,6 @@ type directive =
   | EofLast // trim newline at end of injected payload
   | Force // overwrite without confirmation
   | UnlessExists // only render when target file does not exist
-  | Sh(string) // legacy shell command (warn)
   | Tool(string) // tool name lookup
   | Fetch(string) // fetch URL content
   | Script(string) // script name for lookup + execution

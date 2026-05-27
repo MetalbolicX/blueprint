@@ -43,7 +43,8 @@ append:  true|false           # add to file end
 eof_last: true|false          # trim trailing newline from injected payload
 force:   true|false           # overwrite existing
 unless_exists: true|false     # skip render when target file already exists
-sh:      <command>            # shell cmd post-render
+tool:    <name>               # run a configured shell tool
+script:  <name>               # run a configured script
 ```
 
 ## Context keys

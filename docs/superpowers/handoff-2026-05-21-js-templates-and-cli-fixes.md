@@ -10,7 +10,7 @@ Created a `_templates/js-project` generator with 5 templates + manifest for scaf
 
 In this session: Implemented a new `script:` directive that executes named scripts from the template's `scripts/` folder.
 
-**Template now uses `script: setup`** instead of `sh:` inline commands. The script is defined in YAML config and resolved relative to the template directory.
+**Template now uses `script: setup`** instead of inline commands. The script is defined in YAML config and resolved relative to the template directory.
 
 ## Changes Made In This Session
 
@@ -22,7 +22,7 @@ In this session: Implemented a new `script:` directive that executes named scrip
   - Added `parseScriptDef` in `Config.res` to parse scripts array in YAML
 - ✅ **Created `_templates/js-project/scripts/setup.sh`** — plain bash script (not `.ejs.t`)
   - `curl ... -o .gitignore && npm install`
-- ✅ **Updated `.editorconfig.ejs.t`** — `sh: curl...` → `script: setup`
+- ✅ **Updated `.editorconfig.ejs.t`** — inline command → `script: setup`
 - ✅ Build compiles cleanly (10 modules)
 
 ## External Artifacts

@@ -261,13 +261,13 @@ Running `blueprint generate model --name Product` finds the line `func RegisterR
 > [!Warning|style:flat|label:Regex caution]
 > The `after` and `before` patterns are compiled as JavaScript regex. Always escape special characters (`\.`, `\(`, `\)`, etc.).
 
-## Use shell commands
+## Use configured tools and scripts
 
-Run a shell command after rendering a template.
+Run a configured tool or script after rendering a template.
 
 ```yaml
 ---
-sh: gofmt -w <%= h.snakeCase(Name) %>.go
+tool: gofmt
 to: <%= h.snakeCase(Name) %>.go
 ---
 package <%= package %>
@@ -282,19 +282,19 @@ The command runs in the staging directory. If it fails, the staged files are rol
 #### **Bash**
 
 ```yaml
-sh: bash scripts/format.sh
+script: format
 ```
 
 #### **Node.js**
 
 ```yaml
-sh: node scripts/postprocess.js
+script: postprocess
 ```
 
 #### **Python**
 
 ```yaml
-sh: python3 scripts/validate.py
+script: validate
 ```
 
 <!-- tabs:end -->

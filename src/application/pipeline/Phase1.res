@@ -161,9 +161,6 @@ let _collectShellCommands: (
           Some({target: InlineCommand("tool-not-found: " ++ name), sourcePath: template.sourcePath})
         }
       }
-    | Sh(rawString) =>
-      // sh: directives are legacy — exact-match validation in Phase2
-      Some({target: InlineCommand(rawString), sourcePath: template.sourcePath})
     | Script(name) => {
         // Script directive: lookup in shellConfig scripts
         let scripts = switch shellConfig {

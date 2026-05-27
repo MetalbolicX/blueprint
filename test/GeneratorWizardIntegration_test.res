@@ -154,14 +154,13 @@ suite("Generator wizard integration", () => {
         "new",
         "route.ejs.t",
         "src/routes/<%= name %>.ts",
-        "from,inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,sh,tool,fetch,script",
+        "from,inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,tool,fetch,script",
         "./partials/route.ejs",
         "router.use",
         "import",
         "export default",
         "42",
         "__ROUTE__",
-        "npm run lint",
         "format",
         "https://example.com/file.txt",
         "setup",
@@ -191,7 +190,6 @@ suite("Generator wizard integration", () => {
       assert_true(String.includes(content, "eof_last: true"))
       assert_true(String.includes(content, "force: true"))
       assert_true(String.includes(content, "unless_exists: true"))
-      assert_true(String.includes(content, "sh: npm run lint"))
       assert_true(String.includes(content, "tool: format"))
       assert_true(String.includes(content, "fetch: https://example.com/file.txt"))
       assert_true(String.includes(content, "script: setup"))

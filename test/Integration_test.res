@@ -3,7 +3,7 @@
 open TestHelpers
 
 suite("Integration", () => {
-  test("shell.enabled: false blocks sh: directive", () => {
+  test("shell.enabled: false blocks unsupported directive", () => {
     // Create a minimal shellConfig with enabled: false
     let disabledConfig: Config.shellConfig = {
       enabled: false,
@@ -47,7 +47,7 @@ suite("Integration", () => {
     }
   })
 
-  test("shell.enabled: false with legacy sh: string would be blocked", () => {
+  test("shell.enabled: false with unsupported shell command is blocked", () => {
     let disabledConfig: Config.shellConfig = {
       enabled: false,
     }
@@ -56,8 +56,8 @@ suite("Integration", () => {
     assert_eq(disabledConfig.enabled, false)
   })
 
-  test("shell.enabled: true with legacy sh: exact match works", () => {
-    // Legacy exact match: sh: string matched against tool.command+args
+  test("shell.enabled: true with tool command works", () => {
+    // Tool commands are matched against tool.command+args
     let config: Config.shellConfig = {
       enabled: true,
       tools: [
@@ -68,11 +68,11 @@ suite("Integration", () => {
       ],
     }
 
-    // When tool has no args, legacy sh: "npm run lint" matches exactly
+    // When tool has no args, command "npm run lint" matches exactly
     assert_eq(config.enabled, true)
   })
 
-  test("shell.enabled: true with legacy sh: no match is blocked", () => {
+  test("shell.enabled: true with mismatched tool command is blocked", () => {
     let config: Config.shellConfig = {
       enabled: true,
       tools: [
@@ -83,7 +83,7 @@ suite("Integration", () => {
       ],
     }
 
-    // If template has sh: "npm run lint" but tool is "npx prettier", no match
+    // If template declares one command but config exposes another, no match
     // Should be blocked
     switch config.tools {
     | Some(tools) =>

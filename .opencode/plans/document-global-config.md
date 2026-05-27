@@ -20,7 +20,7 @@ Insert after the `.blueprint.yaml` section (after line 157, before "Exit codes")
 templates:
   - ~/my-org/shared-templates
 
-# Allow shell commands in templates (default: false)
+# Allow legacy shell execution in config (default: false)
 allow_dangerous_commands: false
 
 # Force overwrite existing files without prompting (default: false)
@@ -41,7 +41,7 @@ default_attributes:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `templates` | array | `[]` | Additional template search paths |
-| `allow_dangerous_commands` | bool | `false` | Allow `sh:` directives in templates |
+| `allow_dangerous_commands` | bool | `false` | Allow legacy shell execution |
 | `force_overwrite` | bool | `false` | Skip prompts, overwrite existing files |
 | `dry_run` | bool | `false` | Render templates without writing output |
 | `timeout` | int | `5` | Hook execution timeout in seconds |

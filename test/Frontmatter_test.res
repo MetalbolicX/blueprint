@@ -40,15 +40,12 @@ suite("Frontmatter", () => {
     }
   })
 
-  test("parse: sh directive", () => {
+  test("parse: sh directive is rejected", () => {
     let content = "---\nsh: npm run format\n---\ncontent\n"
     let result = Frontmatter.parse(content)
     switch result {
-    | Ok(parsed) => switch parsed.directives[0] {
-      | Some(Template.Sh(cmd)) => assert_eq(cmd, "npm run format")
-      | _ => assert_false(true)
-      }
-    | Error(_) => assert_false(true)
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
     }
   })
 
@@ -79,12 +76,12 @@ suite("Frontmatter", () => {
     }
   })
 
-  test("parse: unknown directive skipped", () => {
+  test("parse: unknown directive is rejected", () => {
     let content = "---\nto: file.txt\nunknown: value\n---\ncontent\n"
     let result = Frontmatter.parse(content)
     switch result {
-    | Ok(parsed) => assert_eq(Array.length(parsed.directives), 1)
-    | Error(_) => assert_false(true)
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
     }
   })
 

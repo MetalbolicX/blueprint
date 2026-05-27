@@ -19,55 +19,55 @@ let frontmatterRegex: RegExp.t = /^---\n([\s\S]*?)\n---\n/
 let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 
 // Helper to check directive type
-let checkDirective: (string, string) => option<directive> = (key, value) => {
+let checkDirective: (string, string) => result<directive, string> = (key, value) => {
   if key == "to" {
-    Some(To(value))
+    Ok(To(value))
   } else if key == "from" {
-    Some(From(value))
+    Ok(From(value))
   } else if key == "inject" {
-    Some(Inject(value))
+    Ok(Inject(value))
   } else if key == "after" {
-    Some(After(value))
+    Ok(After(value))
   } else if key == "before" {
-    Some(Before(value))
+    Ok(Before(value))
   } else if key == "at_line" {
     switch Int.fromString(value) {
-    | Some(n) => Some(AtLine(n))
-    | None => None
+    | Some(n) => Ok(AtLine(n))
+    | None => Error("Invalid at_line directive: " ++ value)
     }
   } else if key == "skip_if" {
-    Some(SkipIf(value))
+    Ok(SkipIf(value))
   } else if key == "prepend" && (value == "" || value == "true") {
-    Some(Prepend)
+    Ok(Prepend)
   } else if key == "append" && (value == "" || value == "true") {
-    Some(Append)
+    Ok(Append)
   } else if key == "eof_last" && (value == "" || value == "true") {
-    Some(EofLast)
+    Ok(EofLast)
   } else if key == "force" && (value == "" || value == "true") {
-    Some(Force)
+    Ok(Force)
   } else if key == "unless_exists" && (value == "" || value == "true") {
-    Some(UnlessExists)
-  } else if key == "sh" {
-    Some(Sh(value))
+    Ok(UnlessExists)
   } else if key == "tool" {
-    Some(Tool(value))
+    Ok(Tool(value))
   } else if key == "fetch" {
-    Some(Fetch(value))
+    Ok(Fetch(value))
   } else if key == "script" {
-    Some(Script(value))
+    Ok(Script(value))
+  } else if key == "sh" {
+    Error("Unsupported directive: sh")
   } else {
-    None
+    Error("Unknown directive: " ++ key)
   }
 }
 
 // Parse directive - convert Js.String.t to string explicitly
-let parseDirective: string => option<directive> = line => {
+let parseDirective: string => result<directive, string> = line => {
   let matches = Js.String.match_(directiveRegex, line)
   switch matches {
-  | None => None
+  | None => Error("Invalid directive syntax: " ++ line)
   | Some(arr) =>
     if Array.length(arr) < 3 {
-      None
+      Error("Invalid directive syntax: " ++ line)
     } else {
       let keyOpt = arr[1]
       let valueOpt = arr[2]
@@ -76,7 +76,7 @@ let parseDirective: string => option<directive> = line => {
       let valueStr: option<string> = Obj.magic(valueOpt)
       switch (keyStr, valueStr) {
       | (Some(k), Some(v)) => checkDirective(k, v)
-      | _ => None
+      | _ => Error("Invalid directive syntax: " ++ line)
       }
     }
   }
@@ -101,8 +101,21 @@ let parse: string => result<parsedFrontmatter, string> = content => {
       | Some(fs) => {
           let body = Js.String.replaceByRe(frontmatterRegex, "", content)
           let lines = Js.String.split("\n", fs)->Array.filter(l => l !== "")
-          let directives = lines->Array.map(parseDirective)->Array.filterMap(x => x)
-          Ok({directives, body})
+          let rec collect = (items, index, acc) => {
+            if index >= Array.length(items) {
+              Ok(acc)
+            } else {
+              switch parseDirective(items[index]) {
+              | Ok(directive) => collect(items, index + 1, acc->Array.concat([directive]))
+              | Error(e) => Error(e)
+              }
+            }
+          }
+
+          switch collect(lines, 0, []) {
+          | Ok(directives) => Ok({directives, body})
+          | Error(e) => Error(e)
+          }
         }
       | None => Error("Missing frontmatter content")
       }

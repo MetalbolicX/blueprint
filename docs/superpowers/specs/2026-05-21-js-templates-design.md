@@ -12,7 +12,7 @@ Blueprint uses Hygen-compatible EJS templates (`.ejs.t` suffix) with YAML frontm
 | Flavored variants | 4 combos: node-js, node-ts, browser-js, browser-ts | Covers all JS/TS × Node/Browser combinations |
 | Build tool (Node-TS) | tsc only | User requested TypeScript compilation without a bundler for Node packages |
 | Build tool (Browser) | Vite | Fast dev server, excellent TS support, standard choice |
-| .gitignore fetch | `scripts/setup.sh` auto-run via `sh:` | Mirrors old Hygen behavior; `setup.sh` generated as template, then run |
+| .gitignore fetch | `scripts/setup.sh` auto-run via `script:` | Mirrors old Hygen behavior; `setup.sh` generated as template, then run |
 
 ## Template Structure
 
@@ -49,7 +49,7 @@ Static — no EJS conditionals, same content for all variants.
 ```yaml
 ---
 to: .editorconfig
-sh: bash scripts/setup.sh
+script: setup
 ---
 # Editor configuration, see https://editorconfig.org
 root = true
@@ -132,7 +132,7 @@ Fetches `.gitignore` from gitignore.io API using the `node` template.
 ```yaml
 ---
 to: scripts/setup.sh
-sh: chmod +x scripts/setup.sh
+script: setup
 ---
 #!/usr/bin/env bash
 set -euo pipefail
@@ -144,9 +144,9 @@ echo "Done."
 
 ## Shell Commands Execution
 
-Blueprint's Phase1 renders all templates in parallel. Phase2 writes all files first, then executes `sh:` commands sequentially. This means `scripts/setup.sh` exists on disk before `sh: bash scripts/setup.sh` runs.
+Blueprint's Phase1 renders all templates in parallel. Phase2 writes all files first, then executes `script:` directives sequentially. This means `scripts/setup.sh` exists on disk before `script: setup` runs.
 
-**Constraint**: `sh:` commands require `shell.enabled: true` in the consuming project's `.blueprint.yaml` with `curl` as an allowed tool. Without it, the script is still generated but auto-execution is silently skipped.
+**Constraint**: `script:` directives require `shell.enabled: true` in the consuming project's `.blueprint.yaml` with `curl` as an allowed tool. Without it, the script is still generated but auto-execution is silently skipped.
 
 ## Implementation Order
 

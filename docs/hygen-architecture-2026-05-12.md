@@ -44,7 +44,7 @@ Frontmatter properties define the operation mapped during execution.
 | Frontmatter Key | Associated Operation | Behavior |
 |-----------------|----------------------|----------|
 | `to:`           | `add` (or `inject`)  | Writes the template body to a file. Overwrites if `force: true`. If `inject: true` is set, modifies an existing file instead. |
-| `sh:`           | `shell`              | Executes a child process command. |
+| `setup:`        | `shell`              | Executes a child process command. |
 | `message:`      | `echo`               | Outputs a message to `stdout` during the execution cycle. |
 | `setup:`        | `setup`              | Executes preparatory scripts/prompts. |
 

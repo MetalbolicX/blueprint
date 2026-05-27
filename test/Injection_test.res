@@ -132,7 +132,7 @@ suite("Injection", () => {
     let result = Injection.apply(
       ~existingContent="content",
       ~renderedContent="ignored",
-      ~directive=Template.Sh("echo test"),
+      ~directive=Template.Tool("echo test"),
     )
 
     switch result {
