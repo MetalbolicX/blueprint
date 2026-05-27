@@ -1,5 +1,6 @@
 // test/Ports_test.res
 open TestHelpers
+open Ports
 
 suite("Ports", () => {
   test("fileSystem: has all required fields", () => {
@@ -35,7 +36,7 @@ suite("Ports", () => {
   })
 
   test("shellOptions: optional fields work", () => {
-    let opts: Ports.shellOptions = {cwd: Some("/tmp"), env: Some(Dict.make()), timeout: Some(30)}
+    let opts: shellOptions = {cwd: "/tmp", env: Dict.make(), timeout: 30}
     assert_eq(opts.cwd, Some("/tmp"))
     assert_eq(opts.timeout, Some(30))
   })
@@ -92,7 +93,7 @@ suite("Ports", () => {
         cp: (_, _, ~options=?) => Promise.resolve(),
         readdir: (_, ~options=?) => Promise.resolve([]),
         fileExists: _ => Promise.resolve(false),
-        stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}),
+stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : statResult),
         makeStagingDir: () => "/tmp/test",
       },
       path: {
