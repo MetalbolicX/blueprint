@@ -15,7 +15,7 @@ type mkdirOptions = {recursive: bool}
 type rmOptions = {recursive: bool}
 type cpOptions = {recursive: bool}
 type readdirOptions = {withFileTypes: bool}
-export type statResult = {isDirectory: unit => bool, isFile: unit => bool}
+type statResult = {isDirectory: unit => bool, isFile: unit => bool}
 
 type fileSystem = {
   readFile: (string, ~options: readFileOptions=?) => promise<string>,

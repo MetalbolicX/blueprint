@@ -31,6 +31,14 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
 
         let classification = switch args[1] {
         | Some(c) if !String.startsWith(c, "-") => c
+        | Some(c) if String.startsWith(c, "-") => {
+            // args[1] is a flag (like --help), not a classification
+            // The --help check above should have caught this, but handle gracefully
+            Console.error("Error: 'generate' requires a classification argument")
+            Help.printUsage()
+            deps.process.exit(1)
+            ""
+          }
         | _ => {
             Console.error("Error: 'generate' requires a classification argument")
             Help.printUsage()
@@ -123,6 +131,12 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         }
 
         let action = switch args[1] {
+        | Some(a) if String.startsWith(a, "-") => {
+            // args[1] is a flag (like --help), not an action — print help and exit
+            Help.printHelpFor("template")
+            deps.process.exit(0)
+            ""
+          }
         | Some(a) => a
         | None => {
             Console.error("Error: 'template' requires an action: copy | list | remove")
