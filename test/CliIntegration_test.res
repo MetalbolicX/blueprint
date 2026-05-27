@@ -154,6 +154,48 @@ suite("CLI Integration Parity", () => {
     })->ignore
   })
 
+  testAsync("generator --help prints generator usage", resolve => {
+    runCliNodeTyped(["generator", "--help"])->Promise.then(nodeRes => {
+      runCliDenoTyped(["generator", "--help"])->Promise.then(denoRes => {
+        let nStdout = nodeRes.stdout
+        let nCode = nodeRes.code
+
+        if denoRes.skipped {
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "Usage: blueprint generator <action> <name>"))
+        } else {
+          assert_eq(nCode, 0)
+          assert_eq(nCode, denoRes.code)
+          assert_true(String.includes(nStdout, "Usage: blueprint generator <action> <name>"))
+          assert_true(String.includes(denoRes.stdout, "Usage: blueprint generator <action> <name>"))
+        }
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
+  testAsync("help generator prints detailed generator help", resolve => {
+    runCliNodeTyped(["help", "generator"])->Promise.then(nodeRes => {
+      runCliDenoTyped(["help", "generator"])->Promise.then(denoRes => {
+        let nStdout = nodeRes.stdout
+        let nCode = nodeRes.code
+
+        if denoRes.skipped {
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "Usage: blueprint generator <action> <name>"))
+        } else {
+          assert_eq(nCode, denoRes.code)
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "Usage: blueprint generator <action> <name>"))
+          assert_true(String.includes(denoRes.stdout, "Usage: blueprint generator <action> <name>"))
+        }
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
   testAsync("help help prints global usage", resolve => {
     runCliNodeTyped(["help", "help"])->Promise.then(nodeRes => {
       runCliDenoTyped(["help", "help"])->Promise.then(denoRes => {

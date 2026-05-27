@@ -1,0 +1,7 @@
+name: generator
+classification: generator
+prompts:
+  - name: name
+    type: input
+    description: "Generator name (kebab-case)"
+    default: my-generator

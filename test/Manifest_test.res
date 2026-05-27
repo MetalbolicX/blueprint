@@ -307,4 +307,106 @@ suite("Manifest", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  test("appendPromptPreservingComments: appends prompt and keeps comments", () => {
+    let yaml =
+      "# generator manifest\nname: test\nclassification: test\n# prompts section\nprompts:\n  # existing prompt\n  - name: existing\n    type: input\n    description: Existing prompt\n"
+
+    let newPrompt: Manifest.prompt = {
+      name: "componentName",
+      promptType: Manifest.Input,
+      description: "Component name",
+      default: "Button",
+    }
+
+    let result = Manifest.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
+    switch result {
+    | Ok(updatedYaml) => {
+        assert_true(String.includes(updatedYaml, "# generator manifest"))
+        assert_true(String.includes(updatedYaml, "# prompts section"))
+        assert_true(String.includes(updatedYaml, "# existing prompt"))
+
+        switch Manifest.parse(updatedYaml) {
+        | Ok(manifest) =>
+          switch manifest.prompts {
+          | Some(prompts) => {
+              assert_eq(Array.length(prompts), 2)
+              switch prompts[1] {
+              | Some(appended) => {
+                  assert_eq(appended.name, "componentName")
+                  assert_eq(appended.description, "Component name")
+                  switch appended.default {
+                  | Some(v) => assert_eq(v, "Button")
+                  | None => assert_false(true)
+                  }
+                }
+              | None => assert_false(true)
+              }
+            }
+          | None => assert_false(true)
+          }
+        | Error(_) => assert_false(true)
+        }
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("appendPromptPreservingComments: creates prompts list when missing", () => {
+    let yaml = "# no prompts yet\nname: test\nclassification: test\n"
+
+    let newPrompt: Manifest.prompt = {
+      name: "feature",
+      promptType: Manifest.Select,
+      description: "Pick feature",
+      options: [
+        {label: "A", value: "a"},
+        {label: "B", value: "b"},
+      ],
+    }
+
+    let result = Manifest.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
+    switch result {
+    | Ok(updatedYaml) => {
+        assert_true(String.includes(updatedYaml, "# no prompts yet"))
+        switch Manifest.parse(updatedYaml) {
+        | Ok(manifest) =>
+          switch manifest.prompts {
+          | Some(prompts) => {
+              assert_eq(Array.length(prompts), 1)
+              switch prompts[0] {
+              | Some(appended) => {
+                  assert_eq(appended.name, "feature")
+                  assert_eq(appended.promptType, Manifest.Select)
+                  switch appended.options {
+                  | Some(options) => assert_eq(Array.length(options), 2)
+                  | None => assert_false(true)
+                  }
+                }
+              | None => assert_false(true)
+              }
+            }
+          | None => assert_false(true)
+          }
+        | Error(_) => assert_false(true)
+        }
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("appendPromptPreservingComments: returns error for invalid yaml", () => {
+    let invalidYaml = "name: [unterminated"
+    let newPrompt: Manifest.prompt = {
+      name: "x",
+      promptType: Manifest.Input,
+      description: "x",
+    }
+
+    let result = Manifest.appendPromptPreservingComments(~yamlContent=invalidYaml, ~prompt=newPrompt)
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.length(msg) > 0)
+    }
+  })
 })

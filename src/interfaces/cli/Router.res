@@ -164,6 +164,15 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
           }
         }
       }
+    | "generator" => {
+        if args->Array.includes("--help") || args->Array.includes("-h") {
+          Help.printHelpFor("generator")
+          deps.process.exit(0)
+        }
+
+        let subArgs = Array.slice(args, ~start=1)
+        await CommandsGenerator.run(~deps, ~args=subArgs)
+      }
     | "help" =>
         let cmd = switch args[1] {
         | Some(c) if !String.startsWith(c, "-") => c

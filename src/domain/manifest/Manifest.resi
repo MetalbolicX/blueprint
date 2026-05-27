@@ -28,5 +28,6 @@ type validationError = {
 
 let parsePromptType: string => option<promptType>
 let promptTypeToString: promptType => string
+let appendPromptPreservingComments: (~yamlContent: string, ~prompt: prompt) => result<string, string>
 let parse: string => result<manifest, string>
 let validate: manifest => result<unit, array<validationError>>

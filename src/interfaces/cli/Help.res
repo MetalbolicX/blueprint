@@ -19,6 +19,7 @@ let printUsage = () => {
   Console.log("  init                   Create a .blueprint.yaml config in current directory")
   Console.log("  init --global          Create global config at ~/.config/blueprint/config.yaml")
   Console.log("  generate <class>       Generate files from a template")
+  Console.log("  generator <action>     Manage generators (scaffold + future wizard actions)")
   Console.log("  template copy <name>   Install a template into the global registry")
   Console.log("  template list          Show globally installed templates")
   Console.log("  template remove <name> Uninstall a template from the global registry")
@@ -31,6 +32,8 @@ let printUsage = () => {
   Console.log("  blueprint init")
   Console.log("  blueprint init --global")
   Console.log("  blueprint generate react-component --name Button --force")
+  Console.log("  blueprint generate generator --name api-route")
+  Console.log("  blueprint generator list api-route")
   Console.log("  blueprint generate express-endpoint --name User --routePath /users \\")
   Console.log("    --methods GET --methods POST --methods PUT --methods DELETE")
   Console.log("  blueprint template copy express-endpoint")
@@ -89,11 +92,26 @@ let printHelpFor = (command: string) => {
     Console.log("  blueprint template list")
     Console.log("  blueprint template remove express-endpoint")
 
+  | "generator" =>
+    Console.log("")
+    Console.log("Usage: blueprint generator <action> <name>")
+    Console.log("")
+    Console.log("Manage an existing generator (wizard features are scaffolded in Slice 1).")
+    Console.log("")
+    Console.log("Actions:")
+    Console.log("  list <name>            List prompts/templates for a generator (stub)")
+    Console.log("  add-prompt <name>      Add prompt to manifest.yaml (stub)")
+    Console.log("  add-file <name>        Add .ejs.t template file (stub)")
+    Console.log("")
+    Console.log("Examples:")
+    Console.log("  blueprint generate generator --name mygen")
+    Console.log("  blueprint generator list mygen")
+
   | "help" =>
     printUsage()
 
   | _ =>
     Console.log("Unknown command: " ++ command)
-    Console.log("Available commands: init, generate, template, help")
+    Console.log("Available commands: init, generate, generator, template, help")
   }
 }
