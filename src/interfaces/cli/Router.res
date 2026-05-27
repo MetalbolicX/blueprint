@@ -1,5 +1,76 @@
 open Context
 
+// Known CLI flags that should NOT be collected as template attributes.
+// These are handled separately via deps.argParser.parse or direct Array.includes checks.
+let knownFlags: array<string> = ["name", "force", "output", "help"]
+
+let _isKnownFlag: string => bool = key => {
+  let found = ref(false)
+  knownFlags->Array.forEach(f => {
+    if f == key {
+      found := true
+    }
+  })
+  found.contents
+}
+
+/**
+ * Extracts template attributes from CLI flag arguments.
+ *
+ * Parses `--key=value`, `--key value`, and `--key` (boolean true) patterns.
+ * Stops parsing at `--` terminator.
+ * Skips known CLI flags (name, force, output, help) so they don't leak into templates.
+ *
+ * @param args - Raw flag arguments (e.g. `["--name=foo", "--myVar=hello"]`)
+ * @returns A dict of attribute key-value pairs for template rendering
+ */
+let extractAttributes: (~args: array<string>) => dict<Context.attrValue> = (~args) => {
+  let result: dict<Context.attrValue> = Dict.make()
+  let len = Array.length(args)
+  let i = ref(0)
+
+  while i.contents < len {
+    let arg = Array.getUnsafe(args, i.contents)
+
+    // Stop at -- terminator
+    if arg == "--" {
+      i := len
+    } else if String.startsWith(arg, "--") {
+      let eqIdx = String.indexOf(arg, "=")
+      let key = if eqIdx >= 0 {
+        String.slice(arg, ~start=2, ~end=eqIdx)
+      } else {
+        String.slice(arg, ~start=2)
+      }
+
+      // Only collect keys that are not known CLI flags.
+      let isKnown = _isKnownFlag(key)
+      if !isKnown {
+        let value = if eqIdx >= 0 {
+          // --key=value or --key= (empty string)
+          String.slice(arg, ~start=eqIdx + 1)
+        } else if i.contents + 1 < len && !String.startsWith(Array.getUnsafe(args, i.contents + 1), "-") {
+          // --key value (next arg is the value)
+          i := i.contents + 1
+          Array.getUnsafe(args, i.contents)
+        } else {
+          // --key (boolean flag, no value)
+          "true"
+        }
+
+        switch Dict.get(result, key) {
+        | Some(Values(existing)) => Dict.set(result, key, Values(existing->Array.concat([value])))
+        | Some(Scalar(existing)) => Dict.set(result, key, Values([existing, value]))
+        | None => Dict.set(result, key, Scalar(value))
+        }
+      }
+    }
+    i := i.contents + 1
+  }
+
+  result
+}
+
 let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~deps, ~args) => {
   if Array.length(args) == 0 {
     Help.printUsage()
@@ -83,35 +154,10 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         Dict.set(cliAttributes, "name", Context.Scalar(name))
 
         let flagArgs = Array.slice(args, ~start=2)
-        let len = Array.length(flagArgs)
-        let i = ref(0)
-        while i.contents < len {
-          let arg = Array.getUnsafe(flagArgs, i.contents)
-          if String.startsWith(arg, "--") {
-            let eqIdx = String.indexOf(arg, "=")
-            let key = if eqIdx >= 0 {
-              String.slice(arg, ~start=2, ~end=eqIdx)
-            } else {
-              String.slice(arg, ~start=2)
-            }
-            if key != "name" && key != "force" && key != "output" {
-              let value = if eqIdx >= 0 {
-                String.slice(arg, ~start=eqIdx + 1)
-              } else if i.contents + 1 < len && !String.startsWith(Array.getUnsafe(flagArgs, i.contents + 1), "-") {
-                i := i.contents + 1
-                Array.getUnsafe(flagArgs, i.contents)
-              } else {
-                "true"
-              }
-              switch Dict.get(cliAttributes, key) {
-              | Some(Values(existing)) => Dict.set(cliAttributes, key, Values(existing->Array.concat([value])))
-              | Some(Scalar(existing)) => Dict.set(cliAttributes, key, Values([existing, value]))
-              | None => Dict.set(cliAttributes, key, Scalar(value))
-              }
-            }
-          }
-          i := i.contents + 1
-        }
+        let extracted = extractAttributes(~args=flagArgs)
+        extracted->Dict.toArray->Array.forEach(((k, v)) => {
+          Dict.set(cliAttributes, k, v)
+        })
 
         await Commands.runGenerate(
           ~fs,
