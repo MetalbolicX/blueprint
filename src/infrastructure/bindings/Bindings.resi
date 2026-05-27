@@ -1,5 +1,5 @@
 // Bindings interface
-module NodeJs = NodeJs
-module Ejs = Ejs
-module Yaml = Yaml
-module WebApis = WebApis
+module NodeJs: module type of NodeJs
+module Ejs: module type of Ejs
+module Yaml: module type of Yaml
+module WebApis: module type of WebApis

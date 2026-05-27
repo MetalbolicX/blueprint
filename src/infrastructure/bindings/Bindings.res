@@ -1,5 +1,13 @@
 // Bindings - re-export all runtime bindings explicitly under namespaces
-module NodeJs = NodeJs
-module Ejs = Ejs
-module Yaml = Yaml
-module WebApis = WebApis
+module NodeJs = {
+  include NodeJs
+}
+module Ejs = {
+  include Ejs
+}
+module Yaml = {
+  include Yaml
+}
+module WebApis = {
+  include WebApis
+}
