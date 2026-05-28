@@ -19,9 +19,16 @@ let makeTrackingFs = (~readdirCalls: ref<int>): Ports.fileSystem => {
   }
 }
 
-let makeDeps = (~cwd: string, ~exitCodes: ref<array<int>>): Ports.deps => {
+let makeDeps = (
+  ~cwd: string,
+  ~exitCodes: ref<array<int>>,
+  ~loggedMessages: ref<array<string>>,
+): Ports.deps => {
   let fs = NodeJsFileSystem.make()
   let path = NodeJsPath.make()
+  // Patch globalThis.console.error to capture messages
+  let origError = %raw("console.error")
+  %raw("console.error = function(msg) { globalThis.__testMessages.push(msg); origError(msg); }")
   {
     fs,
     path,
@@ -51,8 +58,11 @@ suite("Commands", () => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let readdirCalls = ref(0)
     let exitCodes = ref([])
+    let loggedMessages: ref<array<string>> = ref([])
+    // Store reference so the raw JS can push to it
+    %raw("globalThis.__testMessages = []")
     let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
@@ -75,6 +85,10 @@ suite("Commands", () => {
       assert_eq(readdirCalls.contents, 0)
       assert_eq(Array.length(exitCodes.contents), 1)
       assert_eq(exitCodes.contents[0], Some(1))
+      // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_true(Array.length(msgs) >= 1)
+      assert_true(msgs[0]->String.includes("Error: timeout must be >= 1"))
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()
@@ -86,8 +100,11 @@ suite("Commands", () => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let readdirCalls = ref(0)
     let exitCodes = ref([])
+    let loggedMessages: ref<array<string>> = ref([])
+    // Store reference so the raw JS can push to it
+    %raw("globalThis.__testMessages = []")
     let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
@@ -110,6 +127,10 @@ suite("Commands", () => {
       assert_eq(readdirCalls.contents, 0)
       assert_eq(Array.length(exitCodes.contents), 1)
       assert_eq(exitCodes.contents[0], Some(1))
+      // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_true(Array.length(msgs) >= 1)
+      assert_true(msgs[0]->String.includes("Error: shell.enabled=true requires tools to be defined"))
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()
