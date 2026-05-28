@@ -20,6 +20,8 @@ let makeProcess = (): Ports.process => {
   env: () => Dict.make(),
   argv: () => ["node", "blueprint"],
   exit: _ => (),
+  onSignal: (_, _) => (),
+  removeSignalListeners: () => (),
 }
 
 suite("HookSecurity", () => {

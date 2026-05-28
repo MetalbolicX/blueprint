@@ -16,6 +16,8 @@ let printUsage = () => {
   Console.log("Usage: blueprint <command> [options]")
   Console.log("")
   Console.log("Commands:")
+  Console.log("  healthz                Report liveness status for the process")
+  Console.log("  readyz                 Report readiness status for startup/runtime checks")
   Console.log("  init                   Create a .blueprint.yaml config in current directory")
   Console.log("  init --global          Create global config at ~/.config/blueprint/config.yaml")
   Console.log("  generate <class>       Generate files from a template")

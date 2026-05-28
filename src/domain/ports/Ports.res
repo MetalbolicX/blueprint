@@ -35,6 +35,8 @@ type process = {
   env: unit => dict<string>,
   argv: unit => array<string>,
   exit: int => unit,
+  onSignal: (string, unit => unit) => unit,
+  removeSignalListeners: unit => unit,
 }
 
 type execResult = {

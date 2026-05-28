@@ -32,6 +32,11 @@ module TextDecoder = {
   @send external decode: (t, array<int>) => string = "decode"
 }
 
+module Signal = {
+  @val @scope("Deno") external addSignalListener: (string, unit => unit) => unit = "addSignalListener"
+  @val @scope("Deno") external removeSignalListener: (string, unit => unit) => unit = "removeSignalListener"
+}
+
 module Fs = {
   type mkdirOptions = {recursive: bool}
   type rmOptions = {recursive: bool}

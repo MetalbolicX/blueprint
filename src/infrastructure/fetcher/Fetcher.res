@@ -33,7 +33,27 @@ module Impl = {
   @val
   external _nativeFetch: (string, 'options) => promise<'response> = "fetch"
 
-  let httpGet: (string, int) => promise<result<string, string>> = async (url, timeout) => {
+  let sleepMs: int => promise<unit> = %raw(`
+    ms => new Promise(resolve => setTimeout(resolve, ms))
+  `)
+
+  let isRetryableError: string => bool = message => {
+    let normalized = String.toLowerCase(message)
+    String.startsWith(message, "HTTP 5")
+    || String.includes(normalized, "timeout")
+    || String.includes(normalized, "timed out")
+    || String.includes(normalized, "network error")
+    || String.includes(normalized, "fetch failed")
+  }
+
+  let backoffMs: int => int = attempt =>
+    switch attempt {
+    | 0 => 100
+    | 1 => 200
+    | _ => 400
+    }
+
+  let httpGetOnce: (string, int) => promise<result<string, string>> = async (url, timeout) => {
     try {
       let signal = Bindings.WebApis.AbortSignal.timeout(timeout * 1000)
       let response = await _nativeFetch(url, {"method": "GET", "signal": signal})
@@ -56,6 +76,28 @@ module Impl = {
       }
     }
   }
+
+  let rec httpGetWithRetry: (string, int, int) => promise<result<string, string>> = async (
+    url,
+    timeout,
+    attempt,
+  ) => {
+    let result = await httpGetOnce(url, timeout)
+    switch result {
+    | Ok(content) => Ok(content)
+    | Error(message) => {
+        if attempt >= 2 || !isRetryableError(message) {
+          Error(message)
+        } else {
+          await sleepMs(backoffMs(attempt))
+          await httpGetWithRetry(url, timeout, attempt + 1)
+        }
+      }
+    }
+  }
+
+  let httpGet: (string, int) => promise<result<string, string>> = (url, timeout) =>
+    httpGetWithRetry(url, timeout, 0)
 }
 
 /**

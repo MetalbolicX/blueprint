@@ -13,6 +13,8 @@ type phase2Result = {
 type phase2Error = {
   message: string,
   partialCommit?: array<string>, // files that were committed before error
+  catastrophic?: bool,
+  failedRollbackFiles?: array<string>,
 }
 
 type backupEntry = {
@@ -326,7 +328,8 @@ let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
   ~fs: Ports.fileSystem,
-) => promise<unit> = async (~committedFiles, ~backups, ~fs) => {
+) => promise<result<unit, array<string>>> = async (~committedFiles, ~backups, ~fs) => {
+  let failedPaths: array<string> = []
   let _ = await committedFiles->Array.reduce(Promise.resolve(), (acc, outputPath) => {
     acc->Promise.then(async _ => {
       switch backups->Array.find(b => b.outputPath == outputPath) {
@@ -334,28 +337,38 @@ let rollbackOutput: (
           try {
             await fs.cp(backup.backupPath, outputPath, ~options={recursive: false})
           } catch {
-          | _ => ()
+          | _ => failedPaths->Array.push(outputPath)->ignore
           }
         }
       | None => {
           try {
             await fs.rm(outputPath, ~options={recursive: false})
           } catch {
-          | _ => ()
+          | _ => failedPaths->Array.push(outputPath)->ignore
           }
         }
       }
     })
   })
-  ()
+
+  switch failedPaths->Array.length {
+  | 0 => Ok()
+  | _ => Error(failedPaths)
+  }
 }
 
 // Rollback: remove staging directory
-let rollback: (string, ~fs: Ports.fileSystem) => promise<unit> = async (stagingDir, ~fs) => {
+let rollback: (string, ~fs: Ports.fileSystem) => promise<result<unit, string>> = async (stagingDir, ~fs) => {
   try {
     await fs.rm(stagingDir, ~options={recursive: true})
+    Ok()
   } catch {
-  | _ => ()
+  | JsExn(obj) =>
+    let msg = switch JsExn.message(obj) {
+    | Some(message) => message
+    | None => "Failed to remove staging directory"
+    }
+    Error(msg)
   }
 }
 
@@ -401,7 +414,7 @@ let run: (
 
       switch shellResult {
       | Ok((cmdsExec, shellErrors)) => {
-          await rollback(stagingDir, ~fs)
+          let _ = await rollback(stagingDir, ~fs)
 
           let shellErrs: option<array<string>> = shellErrors->Array.length > 0 ? Some(shellErrors) : None
           let result: phase2Result = {
@@ -413,16 +426,46 @@ let run: (
           Ok(result)
         }
       | Error(message) => {
-        await rollbackOutput(~committedFiles, ~backups, ~fs)
-        await rollback(stagingDir, ~fs)
-        Error({message, partialCommit: committedFiles})
+          switch await rollbackOutput(~committedFiles, ~backups, ~fs) {
+          | Ok() =>
+            switch await rollback(stagingDir, ~fs) {
+            | Ok() => Error({message, partialCommit: committedFiles})
+            | Error(rollbackMessage) =>
+              Error({
+                message: message ++ " | rollback failed: " ++ rollbackMessage,
+                partialCommit: committedFiles,
+                catastrophic: true,
+              })
+            }
+          | Error(failedRollbackFiles) => {
+              let catastrophicError: phase2Error = {
+                message,
+                partialCommit: committedFiles,
+                catastrophic: true,
+                failedRollbackFiles,
+              }
+
+              switch await rollback(stagingDir, ~fs) {
+              | Ok() => Error(catastrophicError)
+              | Error(rollbackMessage) =>
+                Error({...catastrophicError, message: message ++ " | rollback failed: " ++ rollbackMessage})
+              }
+            }
+          }
         }
       }
     }
   | Error(err) => {
       // Commit failed — rollback
-      await rollback(stagingDir, ~fs)
-      Error(err)
+      switch await rollback(stagingDir, ~fs) {
+      | Ok() => Error(err)
+      | Error(rollbackMessage) =>
+        Error({
+          ...err,
+          message: err.message ++ " | rollback failed: " ++ rollbackMessage,
+          catastrophic: true,
+        })
+      }
     }
   }
 }

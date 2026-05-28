@@ -2,6 +2,8 @@
 
 open TestHelpers
 
+let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
+
 let makeDeps = () => {
   (
     NodeJsFileSystem.make(),
@@ -9,6 +11,28 @@ let makeDeps = () => {
     NodeJsProcess.make(),
     NodeJsShell.make(),
   )
+}
+
+let makeFsWithRestoreFailure = (~failingRestoreFromPath: string): Ports.fileSystem => {
+  let base = NodeJsFileSystem.make()
+
+  {
+    readFile: (file, ~options=?) => base.readFile(file, ~options?),
+    writeFile: (file, content, ~options=?) => base.writeFile(file, content, ~options?),
+    mkdir: (dir, ~options=?) => base.mkdir(dir, ~options?),
+    rm: (target, ~options=?) => base.rm(target, ~options?),
+    cp: (fromPath, toPath, ~options=?) =>
+      if fromPath == failingRestoreFromPath {
+        rejectError("restore failed for " ++ toPath)
+      } else {
+        base.cp(fromPath, toPath, ~options?)
+      },
+    readdir: (dir, ~options=?) => base.readdir(dir, ~options?),
+    fileExists: file => base.fileExists(file),
+    stat: file => base.stat(file),
+    makeStagingDir: () => base.makeStagingDir(),
+    realpath: file => base.realpath(file),
+  }
 }
 
 suite("Phase2 Integration", () => {
@@ -267,6 +291,89 @@ suite("Phase2 Integration", () => {
           NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
           ->Promise.then(exists => {
             assert_false(exists)
+            NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+            resolve()
+            Promise.resolve()
+          })
+        }
+      }
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: returns catastrophic error when shell failure and output rollback restore both fail", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let path = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+    let shell = NodeJsShell.make()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let outputFile = NodeJs.Path.join(outputDir, "out.txt")
+    let stagedFile = NodeJs.Path.join(stagingDir, "out.txt")
+    let backupPath = NodeJs.Path.join(stagingDir, ".blueprint-backup/out.txt")
+    let fs = makeFsWithRestoreFailure(~failingRestoreFromPath=backupPath)
+    let renderedFiles = [("t.ejs.t", "out.txt")]
+
+    let shellConfig: Config.shellConfig = {
+      enabled: true,
+      tools: [{name: "failing-tool", command: "node", args: ["-e", "process.exit(7)"]}],
+    }
+
+    let toolDef: Config.shellTool = {
+      name: "failing-tool",
+      command: "node",
+      args: ["-e", "process.exit(7)"],
+    }
+
+    let shellCommands: array<Template.shellCommand> = [
+      {target: Template.ToolCall({name: "failing-tool", toolDef, sourcePath: "t.ejs.t"}), sourcePath: "t.ejs.t"},
+    ]
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedFile), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "new content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputFile, "original content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=Some(shellConfig),
+        ~fs,
+        ~path,
+        ~process=processAdapter,
+        ~shell,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => {
+          NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+          assert_false(true)
+          resolve()
+          Promise.resolve()
+        }
+      | Error(err) => {
+          assert_true(String.includes(err.message, "Tool 'failing-tool' exited with code"))
+          assert_true(err.catastrophic == Some(true))
+          switch err.failedRollbackFiles {
+          | Some(paths) => {
+              assert_eq(Array.length(paths), 1)
+              assert_eq(Array.get(paths, 0), Some(outputFile))
+            }
+          | None => assert_false(true)
+          }
+
+          NodeJs.Fs.readFile(outputFile, ~options={encoding: "utf8"})
+          ->Promise.then(content => {
+            assert_eq(content, "new content")
             NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
             resolve()
             Promise.resolve()

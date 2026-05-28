@@ -38,7 +38,10 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
           directives: parsed.directives,
           body: parsed.body,
         })
-      | Error(e) => Js.Exn.raiseError("Parse error in " ++ sourcePath ++ ": " ++ e)
+      | Error(e) => {
+          Console.warn("Skipping template " ++ sourcePath ++ ": " ++ e)
+          None
+        }
       }
     }
   } catch {
@@ -48,7 +51,8 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
     | None => "Failed to load template " ++ sourcePath
     }
     if String.startsWith(msg, "Parse error in ") {
-      Js.Exn.raiseError(msg)
+      Console.warn(msg)
+      None
     } else {
       None
     }
@@ -167,7 +171,8 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<ar
       | None => ""
       }
       if String.startsWith(msg, "Parse error in ") {
-        Js.Exn.raiseError(msg)
+        Console.warn(msg)
+        []
       } else {
         // Silent — errors on non-generator dirs are expected
         []

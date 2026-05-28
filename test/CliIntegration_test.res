@@ -217,6 +217,68 @@ suite("CLI Integration Parity", () => {
     })->ignore
   })
 
+  testAsync("help usage lists probe commands", resolve => {
+    runCliNodeTyped(["help"])->Promise.then(nodeRes => {
+      runCliDenoTyped(["help"])->Promise.then(denoRes => {
+        let nStdout = nodeRes.stdout
+        let nCode = nodeRes.code
+
+        if denoRes.skipped {
+          assert_eq(nCode, 0)
+          assert_true(String.includes(nStdout, "healthz"))
+          assert_true(String.includes(nStdout, "readyz"))
+        } else {
+          assert_eq(nCode, 0)
+          assert_eq(nCode, denoRes.code)
+          assert_true(String.includes(nStdout, "healthz"))
+          assert_true(String.includes(nStdout, "readyz"))
+          assert_true(String.includes(denoRes.stdout, "healthz"))
+          assert_true(String.includes(denoRes.stdout, "readyz"))
+        }
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
+  testAsync("healthz and readyz print probe status across runtimes", resolve => {
+    runCliNodeTyped(["healthz"])->Promise.then(nodeHealth => {
+      runCliDenoTyped(["healthz"])->Promise.then(denoHealth => {
+        let nHealthStdout = nodeHealth.stdout
+        let nHealthCode = nodeHealth.code
+
+        if denoHealth.skipped {
+          assert_eq(nHealthCode, 0)
+          assert_true(String.includes(nHealthStdout, "\"status\":\"ok\""))
+        } else {
+          assert_eq(nHealthCode, 0)
+          assert_eq(nHealthCode, denoHealth.code)
+          assert_true(String.includes(nHealthStdout, "\"status\":\"ok\""))
+          assert_true(String.includes(denoHealth.stdout, "\"status\":\"ok\""))
+        }
+
+        runCliNodeTyped(["readyz"])->Promise.then(nodeReady => {
+          runCliDenoTyped(["readyz"])->Promise.then(denoReady => {
+            let nReadyStdout = nodeReady.stdout
+            let nReadyCode = nodeReady.code
+
+            if denoReady.skipped {
+              assert_eq(nReadyCode, 0)
+              assert_true(String.includes(nReadyStdout, "\"status\":\"not_ready\""))
+            } else {
+              assert_eq(nReadyCode, 0)
+              assert_eq(nReadyCode, denoReady.code)
+              assert_true(String.includes(nReadyStdout, "\"status\":\"not_ready\""))
+              assert_true(String.includes(denoReady.stdout, "\"status\":\"not_ready\""))
+            }
+            resolve()
+            Promise.resolve()
+          })
+        })->ignore
+      })
+    })->ignore
+  })
+
   testAsync("generate unknown classification prints error", resolve => {
     runCliNodeTyped(["generate", "unknown_test_class"])->Promise.then(nodeRes => {
       runCliDenoTyped(["generate", "unknown_test_class"])->Promise.then(denoRes => {

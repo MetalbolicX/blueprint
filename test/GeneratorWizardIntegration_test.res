@@ -15,6 +15,8 @@ let makeProcessHarness = (~cwd: string): processHarness => {
       exitCode.contents = Some(code)
       throw(Not_found)
     },
+    onSignal: (_, _) => (),
+    removeSignalListeners: () => (),
   }
   {process, getExitCode: () => exitCode.contents}
 }

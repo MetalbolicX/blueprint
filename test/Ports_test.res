@@ -20,13 +20,29 @@ suite("Ports", () => {
   })
 
   test("process: has all required fields", () => {
+    let handledSignals = ref([])
+    let removedListeners = ref(false)
     let proc: Ports.process = {
       cwd: () => "/home/user",
       env: () => Dict.make(),
       argv: () => ["node", "main.mjs"],
       exit: _ => (),
+      onSignal: (signal, callback) => {
+        handledSignals := Array.concat(handledSignals.contents, [signal])
+        callback()
+      },
+      removeSignalListeners: () => removedListeners := true,
     }
-    assert_true(true)
+
+    proc.onSignal("SIGINT", () => handledSignals := Array.concat(handledSignals.contents, ["handled:SIGINT"]))
+    proc.onSignal("SIGTERM", () => handledSignals := Array.concat(handledSignals.contents, ["handled:SIGTERM"]))
+    proc.removeSignalListeners()
+
+    assert_eq(Array.get(handledSignals.contents, 0), Some("SIGINT"))
+    assert_eq(Array.get(handledSignals.contents, 1), Some("handled:SIGINT"))
+    assert_eq(Array.get(handledSignals.contents, 2), Some("SIGTERM"))
+    assert_eq(Array.get(handledSignals.contents, 3), Some("handled:SIGTERM"))
+    assert_true(removedListeners.contents)
   })
 
   test("execResult: has expected shape", () => {
@@ -110,6 +126,8 @@ stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : stat
         env: () => Dict.make(),
         argv: () => ["node"],
         exit: _ => (),
+        onSignal: (_signal, callback) => callback(),
+        removeSignalListeners: () => (),
       },
       shell: {
         execShellCommand: (~command, ~cwd=?) => Promise.resolve(Ok("")),

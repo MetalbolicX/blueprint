@@ -26,9 +26,8 @@ let makeDeps = (
 ): Ports.deps => {
   let fs = NodeJsFileSystem.make()
   let path = NodeJsPath.make()
-  // Patch globalThis.console.error to capture messages
-  let origError = %raw("console.error")
-  %raw("console.error = function(msg) { globalThis.__testMessages.push(msg); origError(msg); }")
+  // Patch globalThis.console.error to capture messages for assertions
+  %raw("console.error = function(msg) { globalThis.__testMessages.push(msg); }")
   {
     fs,
     path,
@@ -40,6 +39,8 @@ let makeDeps = (
         let _ = exitCodes.contents->Array.push(code)
         ()
       },
+      onSignal: (_, _) => (),
+      removeSignalListeners: () => (),
     },
     shell: NodeJsShell.make(),
     interactiveIO: {
@@ -88,7 +89,12 @@ suite("Commands", () => {
       // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
       let msgs: array<string> = %raw("globalThis.__testMessages")
       assert_true(Array.length(msgs) >= 1)
-      assert_true(msgs[0]->String.includes("Error: timeout must be >= 1"))
+      assert_true(
+        switch Array.get(msgs, 0) {
+        | Some(msg) => msg->String.includes("Error: timeout must be >= 1")
+        | None => false
+        }
+      )
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()
@@ -130,7 +136,12 @@ suite("Commands", () => {
       // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
       let msgs: array<string> = %raw("globalThis.__testMessages")
       assert_true(Array.length(msgs) >= 1)
-      assert_true(msgs[0]->String.includes("Error: shell.enabled=true requires tools to be defined"))
+      assert_true(
+        switch Array.get(msgs, 0) {
+        | Some(msg) => msg->String.includes("Error: shell.enabled=true requires tools to be defined")
+        | None => false
+        }
+      )
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()

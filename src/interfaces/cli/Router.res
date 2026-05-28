@@ -84,6 +84,19 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
     }
 
     switch command {
+    | "healthz" => {
+        Console.log("{\"status\":\"ok\"}")
+        deps.process.exit(0)
+      }
+    | "readyz" => {
+        let status = if ProbeState.isReady() {
+          "{\"status\":\"ready\"}"
+        } else {
+          "{\"status\":\"not_ready\"}"
+        }
+        Console.log(status)
+        deps.process.exit(0)
+      }
     | "init" => {
         if args->Array.includes("--global") {
           await Commands.runInitGlobal(~deps)

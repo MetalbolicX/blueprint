@@ -2,6 +2,46 @@
 
 open TestHelpers
 
+let installConsoleLogSpy: unit => unit = %raw(`
+  function() {
+    globalThis.__testMessages = [];
+    globalThis.__originalConsoleLog = console.log;
+    console.log = function(msg) { globalThis.__testMessages.push(msg); };
+  }
+`)
+
+let restoreConsoleLog: unit => unit = %raw(`
+  function() {
+    if (globalThis.__originalConsoleLog) {
+      console.log = globalThis.__originalConsoleLog;
+      delete globalThis.__originalConsoleLog;
+    }
+  }
+`)
+
+let makeProbeDeps = (~exitCodes: ref<array<int>>): Ports.deps => {
+  fs: NodeJsFileSystem.make(),
+  path: NodeJsPath.make(),
+  process: {
+    cwd: () => ".",
+    env: () => Dict.make(),
+    argv: () => ["node", "blueprint"],
+    exit: code => exitCodes.contents = Array.concat(exitCodes.contents, [code]),
+    onSignal: (_, _) => (),
+    removeSignalListeners: () => (),
+  },
+  shell: NodeJsShell.make(),
+  interactiveIO: {
+    ask: _ => Promise.resolve(""),
+    askConfirm: (~question as _, ~defaultYes=?) => Promise.resolve(false),
+    close: () => (),
+  },
+  argParser: {
+    parse: (~args as _, ~strict as _, ~allowPositionals as _) =>
+      Ok({values: Dict.make(), positionals: []}),
+  },
+}
+
 suite("Router extractAttributes", () => {
   test("extracts --key=value", () => {
     let result = Router.extractAttributes(~args=["--myVar=hello"])
@@ -30,22 +70,10 @@ suite("Router extractAttributes", () => {
   test("skips known flags (name, force, output, help)", () => {
     let result = Router.extractAttributes(~args=["--name=foo", "--force", "--output=./dist", "--help", "--myVar=bar"])
     // name, force, output, help should NOT be in the result
-    switch Dict.get(result, "name") {
-    | None => assert_true(true)
-    | Some(_) => assert_false(true)
-    }
-    switch Dict.get(result, "force") {
-    | None => assert_true(true)
-    | Some(_) => assert_false(true)
-    }
-    switch Dict.get(result, "output") {
-    | None => assert_true(true)
-    | Some(_) => assert_false(true)
-    }
-    switch Dict.get(result, "help") {
-    | None => assert_true(true)
-    | Some(_) => assert_false(true)
-    }
+    assert_eq(Dict.get(result, "name"), None)
+    assert_eq(Dict.get(result, "force"), None)
+    assert_eq(Dict.get(result, "output"), None)
+    assert_eq(Dict.get(result, "help"), None)
     // myVar SHOULD be in the result
     switch Dict.get(result, "myVar") {
     | Some(Scalar(v)) => assert_eq(v, "bar")
@@ -60,7 +88,7 @@ suite("Router extractAttributes", () => {
     | _ => assert_false(true)
     }
     switch Dict.get(result, "other") {
-    | None => assert_true(true)
+    | None => assert_eq(Dict.get(result, "other"), None)
     | Some(_) => assert_false(true)
     }
   })
@@ -89,5 +117,99 @@ suite("Router extractAttributes", () => {
     | Some(Scalar(v)) => assert_eq(v, "")
     | _ => assert_false(true)
     }
+  })
+
+  test("Help usage mentions healthz and readyz", () => {
+    installConsoleLogSpy()
+    Help.printUsage()
+    let msgs: array<string> = %raw("globalThis.__testMessages")
+    assert_true(Array.some(msgs, msg => String.includes(msg, "healthz")))
+    assert_true(Array.some(msgs, msg => String.includes(msg, "readyz")))
+    restoreConsoleLog()
+  })
+
+  testAsync("healthz routes to liveness output and exits 0", resolve => {
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+
+    Router.route(~deps, ~args=["healthz"])
+    ->Promise.then(_ => {
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_eq(Array.length(msgs), 1)
+      switch Array.get(msgs, 0) {
+      | Some(msg) => assert_eq(msg, "{\"status\":\"ok\"}")
+      | None => assert_false(true)
+      }
+      assert_eq(exitCodes.contents->Array.length, 1)
+      assert_eq(exitCodes.contents[0], Some(0))
+      restoreConsoleLog()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreConsoleLog()
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("readyz reports not_ready before ProbeState.setReady", resolve => {
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+
+    Router.route(~deps, ~args=["readyz"])
+    ->Promise.then(_ => {
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_eq(Array.length(msgs), 1)
+      switch Array.get(msgs, 0) {
+      | Some(msg) => assert_eq(msg, "{\"status\":\"not_ready\"}")
+      | None => assert_false(true)
+      }
+      assert_eq(exitCodes.contents->Array.length, 1)
+      assert_eq(exitCodes.contents[0], Some(0))
+      restoreConsoleLog()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreConsoleLog()
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("readyz reports ready after ProbeState.setReady", resolve => {
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    ProbeState.setReady()
+
+    Router.route(~deps, ~args=["readyz"])
+    ->Promise.then(_ => {
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_eq(Array.length(msgs), 1)
+      switch Array.get(msgs, 0) {
+      | Some(msg) => assert_eq(msg, "{\"status\":\"ready\"}")
+      | None => assert_false(true)
+      }
+      assert_eq(exitCodes.contents->Array.length, 1)
+      assert_eq(exitCodes.contents[0], Some(0))
+      restoreConsoleLog()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreConsoleLog()
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 })

@@ -2,6 +2,8 @@
 
 open TestHelpers
 
+let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
+
 let makeDeps = () => {
   (
     NodeJsFileSystem.make(),
@@ -9,6 +11,105 @@ let makeDeps = () => {
     NodeJsProcess.make(),
     NodeJsShell.make(),
   )
+}
+
+let makeProcess = (): Ports.process => {
+  cwd: () => "/workspace/project",
+  env: () => Dict.make(),
+  argv: () => ["node", "blueprint"],
+  exit: _ => (),
+  onSignal: (_, _) => (),
+  removeSignalListeners: () => (),
+}
+
+let makeShell = (~status: int): Ports.shell => {
+  execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
+  execAsync: (_cmd, ~options=?) =>
+    Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
+  execFileAsync: (_cmd, ~args=?, ~options=?) =>
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+}
+
+let makeFsWithFailures = (
+  ~cpFailure: option<((string, string) => option<string>)>=?,
+  ~rmFailure: option<(string => option<string>)>=?,
+): Ports.fileSystem => {
+  let base = NodeJsFileSystem.make()
+
+  {
+    readFile: (file, ~options=?) => base.readFile(file, ~options?),
+    writeFile: (file, content, ~options=?) => base.writeFile(file, content, ~options?),
+    mkdir: (dir, ~options=?) => base.mkdir(dir, ~options?),
+    rm: (target, ~options=?) =>
+      switch rmFailure {
+      | Some(fail) =>
+        switch fail(target) {
+        | Some(message) => rejectError(message)
+        | None => base.rm(target, ~options?)
+        }
+      | None => base.rm(target, ~options?)
+      },
+    cp: (fromPath, toPath, ~options=?) =>
+      switch cpFailure {
+      | Some(fail) =>
+        switch fail(fromPath, toPath) {
+        | Some(message) => rejectError(message)
+        | None => base.cp(fromPath, toPath, ~options?)
+        }
+      | None => base.cp(fromPath, toPath, ~options?)
+      },
+    readdir: (dir, ~options=?) => base.readdir(dir, ~options?),
+    fileExists: file => base.fileExists(file),
+    stat: file => base.stat(file),
+    makeStagingDir: () => base.makeStagingDir(),
+    realpath: file => base.realpath(file),
+  }
+}
+
+let makeRollbackFs = (
+  ~restored: ref<array<(string, string)>>,
+  ~removed: ref<array<string>>,
+  ~cpFailure: option<((string, string) => option<string>)>=?,
+  ~rmFailure: option<(string => option<string>)>=?,
+): Ports.fileSystem => {
+  readFile: (_, ~options=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options=?) => Promise.resolve(),
+  mkdir: (_, ~options=?) => Promise.resolve(""),
+  rm: (target, ~options=?) =>
+    switch rmFailure {
+    | Some(fail) =>
+      switch fail(target) {
+      | Some(message) => rejectError(message)
+      | None => {
+          removed.contents->Array.push(target)->ignore
+          Promise.resolve()
+        }
+      }
+    | None => {
+        removed.contents->Array.push(target)->ignore
+        Promise.resolve()
+      }
+    },
+  cp: (fromPath, toPath, ~options=?) =>
+    switch cpFailure {
+    | Some(fail) =>
+      switch fail(fromPath, toPath) {
+      | Some(message) => rejectError(message)
+      | None => {
+          restored.contents->Array.push((fromPath, toPath))->ignore
+          Promise.resolve()
+        }
+      }
+    | None => {
+        restored.contents->Array.push((fromPath, toPath))->ignore
+        Promise.resolve()
+      }
+    },
+  readdir: (_, ~options=?) => Promise.resolve([]),
+  fileExists: _ => Promise.resolve(false),
+  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+  makeStagingDir: () => "/tmp/test",
+  realpath: path => Promise.resolve(path),
 }
 
 suite("Phase2", () => {
@@ -168,6 +269,89 @@ suite("Phase2", () => {
       resolve()
       Promise.resolve()
     })
+  })
+
+  testAsync("rollbackOutput: returns Error with failed restore path when restore throws", resolve => {
+    let restored = ref([])
+    let removed = ref([])
+    let fs = makeRollbackFs(
+      ~restored,
+      ~removed,
+      ~cpFailure=(fromPath, _toPath) => fromPath == "/backups/fail.txt" ? Some("restore failed") : None,
+    )
+    let committedFiles = ["/output/ok.txt", "/output/fail.txt"]
+    let backups: array<Phase2.backupEntry> = [
+      {outputPath: "/output/ok.txt", backupPath: "/backups/ok.txt"},
+      {outputPath: "/output/fail.txt", backupPath: "/backups/fail.txt"},
+    ]
+
+    Phase2.rollbackOutput(~committedFiles, ~backups, ~fs)
+    ->Promise.then(result => {
+      switch result {
+      | Ok() => assert_false(true)
+      | Error(paths) => {
+          assert_eq(Array.length(paths), 1)
+          assert_eq(Array.get(paths, 0), Some("/output/fail.txt"))
+        }
+      }
+
+      switch restored.contents {
+      | [(_, restoredPath)] => assert_eq(restoredPath, "/output/ok.txt")
+      | _ => assert_false(true)
+      }
+
+      assert_eq(Array.length(removed.contents), 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollbackOutput: returns Error with failed new-file deletion path when rm throws", resolve => {
+    let restored = ref([])
+    let removed = ref([])
+    let outputNew = "/output/new.txt"
+    let fs = makeRollbackFs(
+      ~restored,
+      ~removed,
+      ~rmFailure=target => target == outputNew ? Some("cannot delete") : None,
+    )
+
+    Phase2.rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~fs)
+    ->Promise.then(result => {
+      switch result {
+      | Ok() => assert_false(true)
+      | Error(paths) => {
+          assert_eq(Array.length(paths), 1)
+          assert_eq(Array.get(paths, 0), Some(outputNew))
+        }
+      }
+
+      assert_eq(Array.length(restored.contents), 0)
+      assert_eq(Array.length(removed.contents), 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollback: returns Error when fs.rm throws", resolve => {
+    let fs = makeRollbackFs(
+      ~restored=ref([]),
+      ~removed=ref([]),
+      ~rmFailure=target => target == "/tmp/locked-staging" ? Some("permission denied") : None,
+    )
+
+    Phase2.rollback("/tmp/locked-staging", ~fs)
+    ->Promise.then(result => {
+      switch result {
+      | Ok() => assert_false(true)
+      | Error(message) => assert_true(String.includes(message, "permission denied"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   // Skipped: ScriptFile is deprecated, requires shellConfig which tests don't provide
@@ -564,7 +748,13 @@ suite("Phase2", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(err) => assert_true(String.includes(err.message, "always-fail"))
+      | Error(err) => {
+          assert_true(String.includes(err.message, "always-fail"))
+          switch err.catastrophic {
+          | Some(_) => assert_eq(err.catastrophic, Some(true))
+          | None => assert_false(true)
+          }
+        }
       }
       NodeJs.Fs.readFile(outputOverwrite, ~options={encoding: "utf8"})
       ->Promise.then(content => {
@@ -573,6 +763,152 @@ suite("Phase2", () => {
       })
       ->Promise.then(newExists => {
         assert_false(newExists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: shell failure with rollbackOutput failure returns catastrophic error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let path = NodeJsPath.make()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedOverwrite = NodeJs.Path.join(stagingDir, "keep.txt")
+    let stagedNew = NodeJs.Path.join(stagingDir, "new.txt")
+    let outputOverwrite = NodeJs.Path.join(outputDir, "keep.txt")
+    let outputNew = NodeJs.Path.join(outputDir, "new.txt")
+    let renderedFiles = [("keep.t.ejs", "keep.txt"), ("new.t.ejs", "new.txt")]
+    let toolDef: Config.shellTool = {name: "always-fail", command: "node"}
+    let shellCommands: array<Template.shellCommand> = [
+      {
+        target: Template.ToolCall({name: "always-fail", toolDef, sourcePath: "post.ejs.t"}),
+        sourcePath: "post.ejs.t",
+      },
+    ]
+    let fs = makeFsWithFailures(
+      ~cpFailure=(fromPath, toPath) =>
+        String.includes(fromPath, ".blueprint-backup") && toPath == outputOverwrite ? Some("restore failed") : None,
+    )
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedOverwrite), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputOverwrite, "original-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedOverwrite, "updated-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedNew, "brand-new-content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=Some({enabled: true, tools: [toolDef]}),
+        ~fs,
+        ~path,
+        ~process=makeProcess(),
+        ~shell=makeShell(~status=17),
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          assert_true(String.includes(err.message, "always-fail"))
+          switch err.catastrophic {
+          | Some(true) => ()
+          | _ => assert_false(true)
+          }
+          switch err.failedRollbackFiles {
+          | Some(paths) => {
+              assert_eq(Array.length(paths), 1)
+              assert_eq(Array.get(paths, 0), Some(outputOverwrite))
+            }
+          | None => assert_false(true)
+          }
+        }
+      }
+
+      NodeJs.Fs.readFile(outputOverwrite, ~options={encoding: "utf8"})
+      ->Promise.then(content => {
+        assert_true(String.includes(content, "updated-content"))
+        NodeJs.Fs.fileExists(outputNew)
+      })
+      ->Promise.then(newExists => {
+        assert_false(newExists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: commit failure with rollback failure returns catastrophic error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let path = NodeJsPath.make()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedOk = NodeJs.Path.join(stagingDir, "ok.txt")
+    let stagedFail = NodeJs.Path.join(stagingDir, "fail.txt")
+    let renderedFiles = [("ok.t.ejs", "ok.txt"), ("fail.t.ejs", "fail.txt")]
+    let fs = makeFsWithFailures(
+      ~cpFailure=(fromPath, toPath) => fromPath == stagedFail && String.endsWith(toPath, "fail.txt") ? Some("copy blocked") : None,
+      ~rmFailure=target => target == stagingDir ? Some("staging locked") : None,
+    )
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedOk, "ok-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFail, "fail-content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands=[],
+        ~shellConfig=None,
+        ~fs,
+        ~path,
+        ~process=makeProcess(),
+        ~shell=NodeJsShell.make(),
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          assert_true(String.includes(err.message, "copy blocked"))
+          switch err.partialCommit {
+          | Some(files) => assert_eq(Array.length(files), 1)
+          | None => assert_false(true)
+          }
+          switch err.catastrophic {
+          | Some(true) => ()
+          | _ => assert_false(true)
+          }
+          switch err.failedRollbackFiles {
+          | Some(_) => assert_false(true)
+          | None => ()
+          }
+        }
+      }
+
+      NodeJs.Fs.fileExists(stagingDir)
+      ->Promise.then(stagingExists => {
+        assert_true(stagingExists)
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
         Promise.resolve()
