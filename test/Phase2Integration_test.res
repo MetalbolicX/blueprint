@@ -264,9 +264,9 @@ suite("Phase2 Integration", () => {
         }
       | Error(err) => {
           assert_true(String.includes(err.message, "Tool 'failing-tool' exited with code"))
-          NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
-          ->Promise.then(content => {
-            assert_true(String.includes(content, "content"))
+          NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+          ->Promise.then(exists => {
+            assert_false(exists)
             NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
             resolve()
             Promise.resolve()
@@ -321,9 +321,9 @@ suite("Phase2 Integration", () => {
         }
       | Error(err) => {
           assert_true(String.includes(err.message, "Fetch failed"))
-          NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
-          ->Promise.then(content => {
-            assert_true(String.includes(content, "content"))
+          NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+          ->Promise.then(exists => {
+            assert_false(exists)
             NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
             resolve()
             Promise.resolve()
@@ -383,9 +383,9 @@ suite("Phase2 Integration", () => {
         }
       | Error(err) => {
           assert_true(String.includes(err.message, "Script exited with code 9"))
-          NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
-          ->Promise.then(content => {
-            assert_true(String.includes(content, "content"))
+          NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+          ->Promise.then(exists => {
+            assert_false(exists)
             NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
             resolve()
             Promise.resolve()

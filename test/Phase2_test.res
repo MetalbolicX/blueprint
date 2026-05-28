@@ -60,7 +60,7 @@ suite("Phase2", () => {
 
     switch err.partialCommit {
     | Some(_) => assert_false(true)
-    | None => assert_true(true)
+    | None => assert_eq(err.message, "Early failure")
     }
   })
 
@@ -76,7 +76,7 @@ suite("Phase2", () => {
     }
 
     switch Config.validateMergedConfig(merged) {
-    | Ok(_) => assert_true(true)
+    | Ok(_) => assert_eq(merged.timeout, 5)
     | Error(_) => assert_false(true)
     }
   })
@@ -145,7 +145,11 @@ suite("Phase2", () => {
     }
 
     switch Config.validateMergedConfig(merged) {
-    | Ok(_) => assert_true(true)
+    | Ok(_) =>
+      switch merged.shell {
+      | Some(shellCfg) => assert_eq(shellCfg.enabled, true)
+      | None => assert_false(true)
+      }
     | Error(_) => assert_false(true)
     }
   })
@@ -368,9 +372,9 @@ suite("Phase2", () => {
           }
         }
       }
-      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
-      ->Promise.then(content => {
-        assert_true(String.includes(content, "content"))
+      NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+      ->Promise.then(exists => {
+        assert_false(exists)
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
         Promise.resolve()
@@ -431,9 +435,9 @@ suite("Phase2", () => {
           }
         }
       }
-      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
-      ->Promise.then(content => {
-        assert_true(String.includes(content, "content"))
+      NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+      ->Promise.then(exists => {
+        assert_false(exists)
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
         Promise.resolve()
@@ -490,9 +494,179 @@ suite("Phase2", () => {
           }
         }
       }
-      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "out.txt"), ~options={encoding: "utf8"})
+      NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))
+      ->Promise.then(exists => {
+        assert_false(exists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: shell failure restores overwritten files and deletes newly created files", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let (fs, path, processAdapter, shell) = makeDeps()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+
+    let stagedOverwrite = NodeJs.Path.join(stagingDir, "keep.txt")
+    let stagedNew = NodeJs.Path.join(stagingDir, "new.txt")
+    let outputOverwrite = NodeJs.Path.join(outputDir, "keep.txt")
+    let outputNew = NodeJs.Path.join(outputDir, "new.txt")
+
+    let renderedFiles = [
+      ("keep.t.ejs", "keep.txt"),
+      ("new.t.ejs", "new.txt"),
+    ]
+
+    let toolDef: Config.shellTool = {
+      name: "always-fail",
+      command: "node",
+      args: ["-e", "process.exit(13)"],
+    }
+    let shellConfig: Config.shellConfig = {
+      enabled: true,
+      tools: [toolDef],
+    }
+    let shellCommands: array<Template.shellCommand> = [
+      {
+        target: Template.ToolCall({name: "always-fail", toolDef, sourcePath: "post.ejs.t"}),
+        sourcePath: "post.ejs.t",
+      },
+    ]
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedOverwrite), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputOverwrite, "original-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedOverwrite, "updated-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedNew, "brand-new-content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands,
+        ~shellConfig=Some(shellConfig),
+        ~fs,
+        ~path,
+        ~process=processAdapter,
+        ~shell,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => assert_true(String.includes(err.message, "always-fail"))
+      }
+      NodeJs.Fs.readFile(outputOverwrite, ~options={encoding: "utf8"})
       ->Promise.then(content => {
-        assert_true(String.includes(content, "content"))
+        assert_true(String.includes(content, "original-content"))
+        NodeJs.Fs.fileExists(outputNew)
+      })
+      ->Promise.then(newExists => {
+        assert_false(newExists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: successful fetch removes fetch tmp files", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let commands = [
+      {
+        Template.target: Template.Fetch("https://example.com"),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    Phase2.executeShellCommands(
+      ~commands,
+      ~cwd=tmpDir,
+      ~shellConfig=None,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok((count, _)) => assert_eq(count, 1)
+      | Error(msg) => assert_true(String.length(msg) > 0)
+      }
+      NodeJs.Fs.readdir(tmpDir)->Promise.then(entries => {
+        let hasFetchTmp = entries->Array.some(name => String.startsWith(name, "fetch-") && String.endsWith(name, ".tmp"))
+        assert_false(hasFetchTmp)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands: fetch tmp files are removed on later command failure", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let toolDef: Config.shellTool = {
+      name: "always-fail",
+      command: "node",
+      args: ["-e", "process.exit(17)"],
+    }
+    let shellConfig: option<Config.shellConfig> = Some({
+      enabled: true,
+      tools: [toolDef],
+    })
+
+    let commands = [
+      {
+        Template.target: Template.Fetch("https://example.com"),
+        sourcePath: "template.ejs.t",
+      },
+      {
+        Template.target: Template.ToolCall({name: "always-fail", toolDef, sourcePath: "template.ejs.t"}),
+        sourcePath: "template.ejs.t",
+      },
+    ]
+
+    Phase2.executeShellCommands(
+      ~commands,
+      ~cwd=tmpDir,
+      ~shellConfig,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.length(msg) > 0)
+      }
+      NodeJs.Fs.readdir(tmpDir)->Promise.then(entries => {
+        let hasFetchTmp = entries->Array.some(name => String.startsWith(name, "fetch-") && String.endsWith(name, ".tmp"))
+        assert_false(hasFetchTmp)
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
         Promise.resolve()

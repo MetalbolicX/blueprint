@@ -118,6 +118,8 @@ let run: (
 ) => {
   let {fs, path, process: proc, shell, interactiveIO: io} = deps
 
+  Fetcher.clearCache()
+
   let cwd = switch await fs.fileExists(generator.path) {
   | true => generator.path
   | false => "."

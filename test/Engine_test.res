@@ -81,7 +81,7 @@ suite("Engine", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Ok(_) => assert_true(true)
+      | Ok(r) => assert_eq(r.classification, "component")
       | Error(_) => assert_false(true)
       }
       resolve()
@@ -116,7 +116,7 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(_msg) => assert_true(true) // Hook failure produces error
+      | Error(msg) => assert_true(String.includes(msg, "pre_generate hook failed"))
       }
       resolve()
       Promise.resolve()
@@ -150,7 +150,7 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(_msg) => assert_true(true) // Hook failure produces error
+      | Error(msg) => assert_true(String.includes(msg, "post_generate hook failed"))
       }
       resolve()
       Promise.resolve()
@@ -254,9 +254,54 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(_msg) => assert_true(true) // Error expected, test passes if we get here
+      | Error(msg) => assert_true(String.includes(msg, "pre_generate hook failed"))
       }
       // Test passes if we get here without hanging (readline was closed)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: clears fetch cache for each invocation", resolve => {
+    Fetcher._resetClearCacheCount()
+
+    let gen: Discovery.generator = {
+      name: "component",
+      path: "/tmp/blueprint-test-nonexistent",
+      templates: [],
+    }
+
+    Engine.run(
+      ~generator=gen,
+      ~name="Button",
+      ~cliAttributes=Dict.make(),
+      ~outputDir="/tmp/blueprint-test-output",
+      ~force=true,
+      ~deps,
+    )
+    ->Promise.then(_ =>
+      Engine.run(
+        ~generator=gen,
+        ~name="ButtonAgain",
+        ~cliAttributes=Dict.make(),
+        ~outputDir="/tmp/blueprint-test-output",
+        ~force=true,
+        ~deps,
+      )
+    )
+    ->Promise.then(secondResult => {
+      switch secondResult {
+      | Ok(_) => {
+          assert_eq(Fetcher._getClearCacheCount(), 2)
+          resolve()
+          Promise.resolve()
+        }
+      | Error(_) => assert_false(true)
+      }
+    })
+    ->Promise.catch(_ => {
+      assert_false(true)
       resolve()
       Promise.resolve()
     })

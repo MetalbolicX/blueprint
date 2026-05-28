@@ -105,23 +105,29 @@ let _loadTemplateBodyFromDirective: (
     }
   }) {
   | Some(From(fromPath)) => {
-      let baseDir = path.dirname(template.sourcePath)
+      let templateDir = path.dirname(template.sourcePath)
       let resolvedPath = if path.isAbsolute(fromPath) {
         fromPath
       } else {
-        path.join(baseDir, fromPath)
+        path.join(templateDir, fromPath)
       }
 
-      try {
-        let externalBody = await fs.readFile(resolvedPath, ~options={encoding: "utf8"})
-        Ok({...template, body: externalBody})
-      } catch {
-      | JsExn(obj) =>
-        let msg = switch JsExn.message(obj) {
-        | Some(m) => m
-        | None => "Read failed"
+      let isWithin = await PathSecurity.isWithinTree(resolvedPath, templateDir, path, fs)
+      if !isWithin {
+        Error("Invalid 'from' path outside template tree: " ++ fromPath)
+      } else {
+
+        try {
+          let externalBody = await fs.readFile(resolvedPath, ~options={encoding: "utf8"})
+          Ok({...template, body: externalBody})
+        } catch {
+        | JsExn(obj) =>
+          let msg = switch JsExn.message(obj) {
+          | Some(m) => m
+          | None => "Read failed"
+          }
+          Error("Failed to read 'from' template " ++ resolvedPath ++ ": " ++ msg)
         }
-        Error("Failed to read 'from' template " ++ resolvedPath ++ ": " ++ msg)
       }
     }
   | _ => Ok(template)

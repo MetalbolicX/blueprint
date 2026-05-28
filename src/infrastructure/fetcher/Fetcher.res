@@ -7,6 +7,7 @@
 // In-memory cache: keyed by URL, stores the pending promise so duplicate
 // fetches (within the same Phase2.run invocation) share a single request.
 let cache: Dict.t<promise<result<string, string>>> = Dict.make()
+let clearCacheCount = ref(0)
 
 type jsUrl
 
@@ -62,9 +63,16 @@ module Impl = {
  * to prevent stale URLs from being served across different templates.
  */
 let clearCache: unit => unit = () => {
+  clearCacheCount.contents = clearCacheCount.contents + 1
   let keys: array<string> = []
   cache->Dict.forEachWithKey((_v, k) => keys->Array.push(k))
   keys->Array.forEach(key => cache->Dict.delete(key))
+}
+
+let _getClearCacheCount: unit => int = () => clearCacheCount.contents
+
+let _resetClearCacheCount: unit => unit = () => {
+  clearCacheCount.contents = 0
 }
 
 /**

@@ -63,11 +63,13 @@ flowchart LR
     subgraph Phase1["Phase 1 — Stage"]
         P1_Render[Render templates]
         P1_Inject[Apply injections]
-        P1_Shell[Execute shell commands]
+        P1_Shell[Queue shell commands]
     end
 
     subgraph Phase2["Phase 2 — Commit"]
         P2_Copy[Copy to output root]
+        P2_Shell[Execute shell commands]
+        P2_Rollback[Rollback output on command failure]
         P2_Cleanup[Cleanup staging dir]
     end
 
@@ -77,8 +79,8 @@ flowchart LR
 | Phase | Action | Failure handling |
 |-------|--------|-----------------|
 | 0 | Prompt resolution, conflict detection | Return error immediately |
-| 1 | Render to `os.TempDir()`, inject, execute shell | **Rollback**: `os.RemoveAll(stagingDir)` |
-| 2 | Atomic copy to output root | No partial writes — commit is all-or-nothing |
+| 1 | Render to `os.TempDir()`, inject, collect shell commands | **Rollback**: `os.RemoveAll(stagingDir)` |
+| 2 | Commit files, execute queued commands, cleanup | On command failure, restore overwritten files and delete newly created files |
 
 ## Component state flow
 
@@ -108,12 +110,16 @@ flowchart TD
     HasInject -- No --> WriteStaged[Write new file to staging]
     ApplyInjection --> WriteStaged
     WriteStaged --> HasShell{frontmatter has sh?}
-    HasShell -- Yes --> RunShell[Execute command in staging dir]
+    HasShell -- Yes --> QueueShell[Queue command for Phase2]
     HasShell -- No --> MoreTemplates{more templates?}
-    RunShell --> MoreTemplates
+    QueueShell --> MoreTemplates
     MoreTemplates -- Yes --> Render
-    MoreTemplates -- No --> Commit[Atomic copy to output root]
-    Commit --> Cleanup[Remove staging dir]
+    MoreTemplates -- No --> Commit[Copy staged files to output root]
+    Commit --> RunQueuedShell[Execute queued shell/fetch/script commands]
+    RunQueuedShell --> ShellFail{command failed?}
+    ShellFail -- Yes --> RollbackOutput[Restore backups + delete newly created files]
+    ShellFail -- No --> Cleanup[Remove staging dir]
+    RollbackOutput --> Cleanup
     Cleanup --> PostHooks[Run post_generate hooks]
     PostHooks --> Finish[Done]
 ```
@@ -152,8 +158,17 @@ sequenceDiagram
     Engine->>Phase1: Execute
     Phase1->>Staging: Write staged files
     Phase1-->>Engine: OK
-    Engine->>Phase2: Execute(stagedFiles, outputRoot)
-    Phase2->>Output: Copy files
+    Engine->>Phase2: Execute(stagedFiles, outputRoot, shellCommands)
+    Phase2->>Output: Copy files (backup overwritten targets)
+    Phase2->>Phase2: Execute queued shell/fetch/script commands
+    alt command fails
+      Phase2->>Output: Restore overwritten files from backup
+      Phase2->>Output: Remove newly created files
+      Note over Output: Output state restored
+    else all commands succeed
+      Note over Output: All files committed
+    end
     Phase2->>Staging: os.RemoveAll
-    Note over Output: All files present atomically
+
+Fetch commands write transient `fetch-*.tmp` files in output during execution; Phase2 removes those files on both success and failure paths.
 ```

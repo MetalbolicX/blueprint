@@ -7,6 +7,10 @@
  */
 let clearCache: unit => unit
 
+let _getClearCacheCount: unit => int
+
+let _resetClearCacheCount: unit => unit
+
 /**
  * Fetches content from a URL via GET request, with caching.
  * Subsequent fetches of the same URL return the cached result.

@@ -51,7 +51,7 @@ suite("Phase1", () => {
     let result = Phase1.resolveTargetPath(Template.Tool("npm install"), ctx)
     switch result {
     | Some(_) => assert_false(true)
-    | None => assert_true(true)
+    | None => assert_eq(result, None)
     }
   })
 
@@ -231,7 +231,7 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(false) // error branch reached = success for this negative test
+      | Error(err) => assert_true(String.includes(err.message, "Tool not found"))
       | Ok(_) => assert_false(true)
       }
       resolve()
@@ -464,6 +464,107 @@ suite("Phase1", () => {
     ->ignore
   })
 
+  testAsync("run: From directive rejects path traversal outside template tree", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let outsidePath = NodeJs.Path.join(tmpDir, "outside.ejs")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.From("../../../../outside.ejs"),
+      ],
+      body: "fallback",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    NodeJs.Fs.mkdir(templateDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outsidePath, "should-not-be-readable"))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(err) => assert_true(String.includes(err.message, "Invalid 'from' path outside template tree"))
+      | Ok(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: From directive accepts safe relative file inside template tree", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let templateSourcePath = NodeJs.Path.join(templateDir, "index.tsx.ejs.t")
+    let partialPath = NodeJs.Path.join(templateDir, "partials/content.ejs")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+
+    let template: Template.template = {
+      sourcePath: templateSourcePath,
+      directives: [
+        Template.To("src/<%= Name %>.tsx"),
+        Template.From("./partials/content.ejs"),
+      ],
+      body: "fallback",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(partialPath), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(partialPath, "safe external <%= Name %>"))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[template],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.renderedFiles), 1)
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+        }
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("run: UnlessExists skips template when target exists", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
@@ -552,7 +653,10 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(false)
+      | Error(err) => {
+          assert_true(String.length(err.message) > 0)
+          assert_true(String.includes(err.message, templateSourcePath))
+        }
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -595,7 +699,10 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(false)
+      | Error(err) => {
+          assert_true(String.length(err.message) > 0)
+          assert_true(String.includes(err.message, templateSourcePath))
+        }
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -638,7 +745,10 @@ suite("Phase1", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Error(_) => assert_false(false)
+      | Error(err) => {
+          assert_true(String.length(err.message) > 0)
+          assert_true(String.includes(err.message, templateSourcePath))
+        }
       | Ok(_) => assert_false(true)
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
