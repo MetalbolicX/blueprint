@@ -93,6 +93,66 @@ let _hasUnlessExists: template => bool = template => {
   })
 }
 
+// Check if template has directives that require an existing target file
+let _requiresExistingTarget: template => bool = template => {
+  template.directives->Array.some(d => {
+    switch d {
+    | Inject(_) | After(_) | Before(_) | AtLine(_) | Prepend | Append | SkipIf(_) => true
+    | _ => false
+    }
+  })
+}
+
+// Apply injection directives to rendered content
+let _applyInjection: (
+  ~renderedBody: string,
+  ~template: template,
+  ~finalTargetPath: string,
+  ~fs: Ports.fileSystem,
+) => promise<result<string, string>> = async (~renderedBody, ~template, ~finalTargetPath, ~fs) => {
+  // Find the injection directive (before, after, inject, prepend, append, atLine)
+  let injectionDirective = template.directives->Array.find(d => {
+    switch d {
+    | Inject(_) | After(_) | Before(_) | AtLine(_) | Prepend | Append => true
+    | _ => false
+    }
+  })
+
+  switch injectionDirective {
+  | None => Ok(renderedBody) // no injection needed
+  | Some(directive) =>
+    // Read existing content from target file
+    let fileExists = ref(true)
+    let existingContent = try {
+      await fs.readFile(finalTargetPath, ~options={encoding: "utf8"})
+    } catch {
+    | _ =>
+      fileExists := false
+      ""
+    }
+
+    // For inject/before/after/atLine/skipIf, file must exist
+    if !fileExists.contents {
+      switch directive {
+      | Inject(_) | Before(_) | After(_) | AtLine(_) | SkipIf(_) =>
+        Error("Target file not found: " ++ finalTargetPath)
+      | _ => Ok(existingContent) // prepend/append can work with empty content
+      }
+    } else {
+      // Apply injection
+      switch Injection.apply(
+        ~existingContent,
+        ~renderedContent=renderedBody,
+        ~directive,
+        ~allDirectives=template.directives,
+      ) {
+      | Error(e) => Error("Injection failed for " ++ finalTargetPath ++ ": " ++ e)
+      | Ok({content, applied: _}) => Ok(content)
+      }
+    }
+  }
+}
+
 let _loadTemplateBodyFromDirective: (
   template,
   ~fs: Ports.fileSystem,
@@ -283,15 +343,28 @@ let _renderTemplate: (
             let renderCtx = Context.toRenderContext(context)
             switch Renderer.render(templateToRender, renderCtx) {
             | Ok(renderedBody) => {
-                switch _collectShellCommands(
-                  template,
-                  shellConfig,
-                  ~actionfolder=context.actionfolder,
-                  ~path,
-                  ~process,
-                ) {
+                // Apply injection if template has injection directives
+                let finalRenderedBody = if _requiresExistingTarget(template) {
+                  switch await _applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
+                  | Error(e) => Error(e)
+                  | Ok(injected) => Ok(injected)
+                  }
+                } else {
+                  Ok(renderedBody)
+                }
+                switch finalRenderedBody {
                 | Error(e) => Error(e)
-                | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
+                | Ok(body) =>
+                  switch _collectShellCommands(
+                    template,
+                    shellConfig,
+                    ~actionfolder=context.actionfolder,
+                    ~path,
+                    ~process,
+                  ) {
+                  | Error(e) => Error(e)
+                  | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, body, shellCmds)))
+                  }
                 }
               }
             | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)

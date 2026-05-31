@@ -22,7 +22,19 @@ let insertAfter: (string, string, string) => result<string, string> = (
 ) => {
   try {
     let regex = RegExp.fromString(pattern)
-    let result = Js.String.replaceByRe(regex, "$&" ++ insertion, content)
+    let lines = Js.String.split("\n", content)
+    let found = ref(false)
+    let result =
+      lines
+      ->Array.map(line => {
+        if !found.contents && regex->RegExp.test(line) {
+          found := true
+          line ++ "\n" ++ insertion
+        } else {
+          line
+        }
+      })
+      ->Array.join("\n")
     Ok(result)
   } catch {
   | JsExn(_) => Error("Invalid regex pattern: " ++ pattern)
