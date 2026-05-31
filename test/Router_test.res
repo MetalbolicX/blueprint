@@ -157,6 +157,7 @@ suite("Router extractAttributes", () => {
   })
 
   testAsync("readyz reports not_ready before ProbeState.setReady", resolve => {
+    ProbeState.reset()
     installConsoleLogSpy()
     let exitCodes = ref([])
     let deps = makeProbeDeps(~exitCodes)
@@ -177,6 +178,7 @@ suite("Router extractAttributes", () => {
     })
     ->Promise.catch(_ => {
       restoreConsoleLog()
+      ProbeState.reset()
       assert_false(true)
       resolve()
       Promise.resolve()
@@ -201,11 +203,13 @@ suite("Router extractAttributes", () => {
       assert_eq(exitCodes.contents->Array.length, 1)
       assert_eq(exitCodes.contents[0], Some(0))
       restoreConsoleLog()
+      ProbeState.reset()
       resolve()
       Promise.resolve()
     })
     ->Promise.catch(_ => {
       restoreConsoleLog()
+      ProbeState.reset()
       assert_false(true)
       resolve()
       Promise.resolve()

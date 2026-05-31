@@ -455,4 +455,61 @@ suite("Config", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  test("validateMergedConfig: returns Error when timeout < 1", () => {
+  let cfg: Config.mergedConfig = {
+    templates: [],
+    allowDangerousCommands: false,
+    forceOverwrite: false,
+    dryRun: false,
+    timeout: 0,
+    defaultAttributes: Dict.make(),
+  }
+    let result = Config.validateMergedConfig(cfg)
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.includes(msg, "timeout must be >= 1"))
+    }
+  })
+
+  test("validateMergedConfig: returns Error when shell enabled but tools missing", () => {
+    let shell: Config.shellConfig = {
+      enabled: true,
+    }
+    let cfg: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: shell,
+    }
+    let result = Config.validateMergedConfig(cfg)
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_eq(msg, "shell.enabled=true requires tools to be defined")
+    }
+  })
+
+  test("validateMergedConfig: returns Ok when valid", () => {
+    let shell: Config.shellConfig = {
+      enabled: true,
+      tools: [{name: "fmt", command: "prettier"}],
+    }
+    let cfg: Config.mergedConfig = {
+      templates: [],
+      allowDangerousCommands: false,
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 5,
+      defaultAttributes: Dict.make(),
+      shell: shell,
+    }
+    let result = Config.validateMergedConfig(cfg)
+    switch result {
+    | Ok(_) => assert_true(true)
+    | Error(_) => assert_false(true)
+    }
+  })
 })

@@ -274,7 +274,7 @@ suite("CLI Integration Parity", () => {
             resolve()
             Promise.resolve()
           })
-        })->ignore
+        })
       })
     })->ignore
   })

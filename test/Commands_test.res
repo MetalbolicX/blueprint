@@ -27,7 +27,7 @@ let makeDeps = (
   let fs = NodeJsFileSystem.make()
   let path = NodeJsPath.make()
   // Patch globalThis.console.error to capture messages for assertions
-  %raw("console.error = function(msg) { globalThis.__testMessages.push(msg); }")
+  let _ = %raw("console.error = function(msg) { globalThis.__testMessages.push(msg); }")
   {
     fs,
     path,
@@ -60,9 +60,9 @@ suite("Commands", () => {
     let readdirCalls = ref(0)
     let exitCodes = ref([])
     let loggedMessages: ref<array<string>> = ref([])
-    // Store reference so the raw JS can push to it
-    %raw("globalThis.__testMessages = []")
-    let fs = makeTrackingFs(~readdirCalls)
+  // Store reference so the raw JS can push to it
+  let _ = %raw("globalThis.__testMessages = []")
+  let fs = makeTrackingFs(~readdirCalls)
     let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
     let path = NodeJsPath.make()
 
@@ -107,9 +107,9 @@ suite("Commands", () => {
     let readdirCalls = ref(0)
     let exitCodes = ref([])
     let loggedMessages: ref<array<string>> = ref([])
-    // Store reference so the raw JS can push to it
-    %raw("globalThis.__testMessages = []")
-    let fs = makeTrackingFs(~readdirCalls)
+  // Store reference so the raw JS can push to it
+  let _ = %raw("globalThis.__testMessages = []")
+  let fs = makeTrackingFs(~readdirCalls)
     let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
     let path = NodeJsPath.make()
 

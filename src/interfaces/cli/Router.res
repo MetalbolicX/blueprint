@@ -236,6 +236,8 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
             deps.process.exit(1)
           }
         }
+
+        deps.process.exit(0)
       }
     | "generator" => {
         if args->Array.includes("--help") || args->Array.includes("-h") {

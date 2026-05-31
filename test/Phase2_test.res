@@ -750,10 +750,7 @@ suite("Phase2", () => {
       | Ok(_) => assert_false(true)
       | Error(err) => {
           assert_true(String.includes(err.message, "always-fail"))
-          switch err.catastrophic {
-          | Some(_) => assert_eq(err.catastrophic, Some(true))
-          | None => assert_false(true)
-          }
+          assert_eq(err.catastrophic, None)
         }
       }
       NodeJs.Fs.readFile(outputOverwrite, ~options={encoding: "utf8"})

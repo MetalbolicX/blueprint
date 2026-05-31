@@ -155,14 +155,18 @@ suite("Fetcher", () => {
             resolve()
             Promise.resolve()
           })
-          ->ignore
         } else {
           assert_false(true)
           restoreFetch()
           resolve()
           Promise.resolve()
         }
-      | Error(_) => assert_false(true)
+      | Error(_) => {
+          assert_false(true)
+          restoreFetch()
+          resolve()
+          Promise.resolve()
+        }
       }
     })
     ->Promise.catch(_ => {
