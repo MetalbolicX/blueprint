@@ -1,5 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "skills": {
+    "paths": [
+      ".ocr/skills"
+    ]
+  },
   "lsp": {
     "rescript-lsp": {
       "command": ["rescript-language-server", "--stdio"],
