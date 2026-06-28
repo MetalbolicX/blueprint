@@ -16,22 +16,6 @@ type phase1Error = {
   message: string,
 }
 
-// Lookup a tool by name in the shell config
-let _findToolByName: (array<Config.shellTool>, string) => option<Config.shellTool> = (
-  tools,
-  name,
-) => {
-  tools->Array.find(tool => tool.name == name)
-}
-
-// Lookup a script by name in the shell config
-let _findScriptByName: (array<Config.scriptDef>, string) => option<Config.scriptDef> = (
-  scripts,
-  name,
-) => {
-  scripts->Array.find(script => script.name == name)
-}
-
 // Resolve target path from "to" directive using context
 let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
   directive,
@@ -194,76 +178,6 @@ let _loadTemplateBodyFromDirective: (
   }
 }
 
-let _collectShellCommands: (
-  template,
-  option<Config.shellConfig>,
-  ~actionfolder: string,
-  ~path: Ports.path,
-  ~process: Ports.process,
-) => result<array<shellCommand>, string> = (
-  template,
-  shellConfig,
-  ~actionfolder,
-  ~path,
-  ~process,
-) => {
-  let commands: array<shellCommand> = []
-  let errorRef: ref<option<string>> = ref(None)
-
-  template.directives->Array.forEach(d => {
-    switch errorRef.contents {
-    | Some(_) => ()
-    | None =>
-      switch d {
-      | Fetch(url) => {
-          let _ = commands->Array.push({target: Fetch(url), sourcePath: template.sourcePath})
-        }
-      | Tool(name) => {
-          let tools = switch shellConfig {
-          | Some(cfg) => cfg.tools->Option.getOr([])
-          | None => []
-          }
-          switch _findToolByName(tools, name) {
-          | Some(toolDef) =>
-            let _ = commands->Array.push({
-              target: ToolCall({name, toolDef, sourcePath: template.sourcePath}),
-              sourcePath: template.sourcePath,
-            })
-          | None =>
-            errorRef.contents = Some("Tool not found: " ++ name ++ " (template: " ++ template.sourcePath ++ ")")
-          }
-        }
-      | Script(name) => {
-          let scripts = switch shellConfig {
-          | Some(cfg) => cfg.scripts->Option.getOr([])
-          | None => []
-          }
-          switch _findScriptByName(scripts, name) {
-          | Some(scriptDef) =>
-            let baseDir = if path.isAbsolute(actionfolder) {
-              actionfolder
-            } else {
-              path.resolve(process.cwd(), actionfolder)
-            }
-            let resolvedPath = path.isAbsolute(scriptDef.path)
-              ? scriptDef.path
-              : path.join(baseDir, scriptDef.path)
-            let _ = commands->Array.push({target: ScriptFile(resolvedPath), sourcePath: template.sourcePath})
-          | None =>
-            errorRef.contents = Some("Script not found: " ++ name ++ " (template: " ++ template.sourcePath ++ ")")
-          }
-        }
-      | _ => ()
-      }
-    }
-  })
-
-  switch errorRef.contents {
-  | Some(message) => Error(message)
-  | None => Ok(commands)
-  }
-}
-
 let _renderTemplate: (
   ~template: template,
   ~context: Context.context,
@@ -318,9 +232,9 @@ let _renderTemplate: (
           | Error(e) => Error(e)
           | Ok(templateToRender) => {
               let renderCtx = Context.toRenderContext(context)
-              switch Renderer.render(templateToRender, renderCtx) {
+switch Renderer.render(templateToRender, renderCtx) {
               | Ok(renderedBody) => {
-                  switch _collectShellCommands(
+                  switch ShellQueue.collectTemplate(
                     template,
                     shellConfig,
                     ~actionfolder=context.actionfolder,
@@ -342,36 +256,36 @@ let _renderTemplate: (
         | Ok(templateToRender) => {
             let renderCtx = Context.toRenderContext(context)
             switch Renderer.render(templateToRender, renderCtx) {
-            | Ok(renderedBody) => {
-                // Apply injection if template has injection directives
-                let finalRenderedBody = if _requiresExistingTarget(template) {
-                  switch await _applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
-                  | Error(e) => Error(e)
-                  | Ok(injected) => Ok(injected)
+              | Ok(renderedBody) => {
+                  // Apply injection if template has injection directives
+                  let finalRenderedBody = if _requiresExistingTarget(template) {
+                    switch await _applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
+                    | Error(e) => Error(e)
+                    | Ok(injected) => Ok(injected)
+                    }
+                  } else {
+                    Ok(renderedBody)
                   }
-                } else {
-                  Ok(renderedBody)
-                }
-                switch finalRenderedBody {
-                | Error(e) => Error(e)
-                | Ok(body) =>
-                  switch _collectShellCommands(
-                    template,
-                    shellConfig,
-                    ~actionfolder=context.actionfolder,
-                    ~path,
-                    ~process,
-                  ) {
+                  switch finalRenderedBody {
                   | Error(e) => Error(e)
-                  | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, body, shellCmds)))
+                  | Ok(body) =>
+                    switch ShellQueue.collectTemplate(
+                      template,
+                      shellConfig,
+                      ~actionfolder=context.actionfolder,
+                      ~path,
+                      ~process,
+                    ) {
+                    | Error(e) => Error(e)
+                    | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, body, shellCmds)))
+                    }
                   }
                 }
+              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
               }
-            | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
             }
           }
-        }
-    }
+      }
   }
 }
 
