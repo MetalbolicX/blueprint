@@ -10,6 +10,5 @@ let parseHooks: JSON.t => option<hooksConfig>
 let parseShellConfig: JSON.t => option<shellConfig>
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig
 let validateMergedConfig: mergedConfig => result<unit, string>
-let _globalConfigToYamlExport: globalConfig => string
 let defaultOutputDir: string
 let defaultTimeout: int

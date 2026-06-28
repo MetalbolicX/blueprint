@@ -25,7 +25,7 @@ let saveGlobalAtPath: (
     if !dirExists {
       let _ = await fs.mkdir(configDir, ~options={recursive: true})
     }
-    let yaml = ConfigParser._globalConfigToYamlExport(cfg)
+    let yaml = ConfigYaml.serializeGlobalConfig(cfg)
     let _ = await fs.writeFile(configPath, yaml)
     Ok(())
   } catch {
