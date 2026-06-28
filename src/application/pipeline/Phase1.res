@@ -18,7 +18,7 @@ type phase1Error = {
 // Re-exported alias so tests + external callers using `Phase1.resolveTargetPath` keep compiling.
 let resolveTargetPath = TemplateRenderer.resolveTargetPath
 
-let _renderTemplate: (
+let _prepareTemplate: (
   ~template: template,
   ~context: Context.context,
   ~outputDir: string,
@@ -83,35 +83,21 @@ let run: (
   ~path,
   ~process,
 ) => {
-  let effectiveShellConfig = shellConfig
-  let stagingDir = fs.makeStagingDir()
-
-  let mkdirResult: result<unit, phase1Error> = try {
-    let _ = await fs.mkdir(stagingDir, ~options={recursive: true})
-    Ok()
-  } catch {
-  | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => "Failed to create staging dir: " ++ m
-    | None => "Failed to create staging dir"
-    }
-    Error({stagingDir, message: msg})
-  }
-
-  switch mkdirResult {
-  | Error(err) => Error(err)
-  | Ok() =>
+  switch await Staging.create(~fs) {
+  | Error(message) =>
+    Error({stagingDir: "", message: "Failed to create staging dir: " ++ message})
+  | Ok(stagingDir) =>
     let renderedFiles: array<(string, string)> = []
     let shellCommands: array<shellCommand> = []
     let errorRef: ref<option<phase1Error>> = ref(None)
 
     let renderOps = _templates->Array.map(async tmpl => {
-      switch await _renderTemplate(
+      switch await _prepareTemplate(
         ~template=tmpl,
         ~context=_context,
         ~outputDir=_outputDir,
         ~conflictDecisions=_conflictDecisions,
-        ~shellConfig=effectiveShellConfig,
+        ~shellConfig,
         ~fs,
         ~path,
         ~process,
@@ -120,22 +106,23 @@ let run: (
         errorRef.contents = Some({stagingDir, message: e})
       | Ok(None) => ()
       | Ok(Some((sourcePath, targetPath, renderedBody, shellCmds))) =>
-        let stagedPath = path.join(stagingDir, targetPath)
-        let stagedDir = path.dirname(stagedPath)
-        try {
-          let _ = await fs.mkdir(stagedDir, ~options={recursive: true})
-          await fs.writeFile(stagedPath, renderedBody)
+        switch await Staging.writeStagedFile(
+          ~stagingDir,
+          ~targetPath,
+          ~renderedBody,
+          ~path,
+          ~fs,
+        ) {
+        | Error(message) =>
+          errorRef.contents = Some({
+            stagingDir,
+            message: "Failed to write staged file: " ++ message,
+          })
+        | Ok() =>
           let _ = renderedFiles->Array.push((sourcePath, targetPath))
           shellCmds->Array.forEach(cmd => {
             let _ = shellCommands->Array.push(cmd)
           })
-        } catch {
-        | JsExn(obj) =>
-          let msg = switch JsExn.message(obj) {
-          | Some(m) => m
-          | None => "Write failed"
-          }
-          errorRef.contents = Some({stagingDir, message: "Failed to write staged file: " ++ msg})
         }
       }
     })
@@ -144,11 +131,7 @@ let run: (
 
     switch errorRef.contents {
     | Some(err) =>
-      try {
-        await fs.rm(stagingDir, ~options={recursive: true})
-      } catch {
-      | _ => ()
-      }
+      await Staging.removeStagingDir(stagingDir, ~fs)
       Error(err)
     | None => Ok({stagingDir, renderedFiles, shellCommands})
     }
