@@ -117,7 +117,7 @@ let _parseDefaultAttributes: JSON.t => dict<string> = json => {
 
 let parseGlobal: string => result<globalConfig, string> = yamlContent => {
   try {
-    let json = Bindings.Yaml.parse(yamlContent)
+    let json = ConfigYaml.parse(yamlContent)
     switch json {
     | JSON.Object(dict) => {
         let templates = switch Dict.get(dict, "templates") {
@@ -476,7 +476,7 @@ let parseShellConfig: JSON.t => option<shellConfig> = json => {
 
 let parse: string => result<config, string> = yamlContent => {
   try {
-    let json = Bindings.Yaml.parse(yamlContent)
+    let json = ConfigYaml.parse(yamlContent)
 
     switch json {
     | JSON.Object(dict) => {
@@ -519,5 +519,5 @@ let defaultTimeout: int = 5 // seconds
 
 // Export for ConfigStore — converts globalConfig to YAML string
 let _globalConfigToYamlExport: globalConfig => string = cfg => {
-  Bindings.Yaml.stringify(JSON.Object(_globalConfigToYamlObject(cfg)))
+  ConfigYaml.stringify(JSON.Object(_globalConfigToYamlObject(cfg)))
 }
