@@ -3,7 +3,6 @@
 // Mirrors Go version's phase1/phase1.go
 
 open Template
-open FuncMap
 
 type phase1Result = {
   stagingDir: string,
@@ -16,167 +15,8 @@ type phase1Error = {
   message: string,
 }
 
-// Resolve target path from "to" directive using context
-let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
-  directive,
-  ctx,
-) => {
-  switch directive {
-  | To(path) => {
-      // Render the path template with context
-      let data = Dict.make()
-      Dict.set(data, "name", ctx.nameVariants.name)
-      Dict.set(data, "Name", ctx.nameVariants.pascalName)
-      Dict.set(data, "names", ctx.nameVariants.names)
-      Dict.set(data, "Names", ctx.nameVariants.pluralPascalName)
-      Dict.set(data, "cwd", ctx.cwd)
-      Dict.set(data, "actionfolder", ctx.actionfolder)
-
-      // Add attributes (convert attrValue to string)
-      ctx.attributes
-      ->Dict.toArray
-      ->Array.forEach(((k, v)) => {
-        let strValue = switch v {
-        | Context.Scalar(s) => s
-        | Context.Values(arr) => arr->Array.join(",")
-        }
-        Dict.set(data, k, strValue)
-      })
-
-      // Add h helper functions (pascalCase, kebabCase, etc.)
-      let helpers = makeHelpers()
-      let hObj = Dict.make()
-      Dict.set(hObj, "pascalCase", helpers.pascalCase->Obj.magic)
-      Dict.set(hObj, "camelCase", helpers.camelCase->Obj.magic)
-      Dict.set(hObj, "kebabCase", helpers.kebabCase->Obj.magic)
-      Dict.set(hObj, "snakeCase", helpers.snakeCase->Obj.magic)
-      Dict.set(hObj, "upper", helpers.upper->Obj.magic)
-      Dict.set(hObj, "lower", helpers.lower->Obj.magic)
-      Dict.set(hObj, "trim", helpers.trim->Obj.magic)
-      Dict.set(hObj, "title", helpers.title->Obj.magic)
-      Dict.set(data, "h", hObj->Obj.magic)
-
-      try {
-        let rendered = Bindings.Ejs.render(path, data)
-        Some(rendered)
-      } catch {
-      | _ => None
-      }
-    }
-  | _ => None
-  }
-}
-
-// Render a single template
-let _hasUnlessExists: template => bool = template => {
-  template.directives->Array.some(d => {
-    switch d {
-    | UnlessExists => true
-    | _ => false
-    }
-  })
-}
-
-// Check if template has directives that require an existing target file
-let _requiresExistingTarget: template => bool = template => {
-  template.directives->Array.some(d => {
-    switch d {
-    | Inject(_) | After(_) | Before(_) | AtLine(_) | Prepend | Append | SkipIf(_) => true
-    | _ => false
-    }
-  })
-}
-
-// Apply injection directives to rendered content
-let _applyInjection: (
-  ~renderedBody: string,
-  ~template: template,
-  ~finalTargetPath: string,
-  ~fs: Ports.fileSystem,
-) => promise<result<string, string>> = async (~renderedBody, ~template, ~finalTargetPath, ~fs) => {
-  // Find the injection directive (before, after, inject, prepend, append, atLine)
-  let injectionDirective = template.directives->Array.find(d => {
-    switch d {
-    | Inject(_) | After(_) | Before(_) | AtLine(_) | Prepend | Append => true
-    | _ => false
-    }
-  })
-
-  switch injectionDirective {
-  | None => Ok(renderedBody) // no injection needed
-  | Some(directive) =>
-    // Read existing content from target file
-    let fileExists = ref(true)
-    let existingContent = try {
-      await fs.readFile(finalTargetPath, ~options={encoding: "utf8"})
-    } catch {
-    | _ =>
-      fileExists := false
-      ""
-    }
-
-    // For inject/before/after/atLine/skipIf, file must exist
-    if !fileExists.contents {
-      switch directive {
-      | Inject(_) | Before(_) | After(_) | AtLine(_) | SkipIf(_) =>
-        Error("Target file not found: " ++ finalTargetPath)
-      | _ => Ok(existingContent) // prepend/append can work with empty content
-      }
-    } else {
-      // Apply injection
-      switch Injection.apply(
-        ~existingContent,
-        ~renderedContent=renderedBody,
-        ~directive,
-        ~allDirectives=template.directives,
-      ) {
-      | Error(e) => Error("Injection failed for " ++ finalTargetPath ++ ": " ++ e)
-      | Ok({content, applied: _}) => Ok(content)
-      }
-    }
-  }
-}
-
-let _loadTemplateBodyFromDirective: (
-  template,
-  ~fs: Ports.fileSystem,
-  ~path: Ports.path,
-) => promise<result<template, string>> = async (template, ~fs, ~path) => {
-  switch template.directives->Array.find(d => {
-    switch d {
-    | From(_) => true
-    | _ => false
-    }
-  }) {
-  | Some(From(fromPath)) => {
-      let templateDir = path.dirname(template.sourcePath)
-      let resolvedPath = if path.isAbsolute(fromPath) {
-        fromPath
-      } else {
-        path.join(templateDir, fromPath)
-      }
-
-      let isWithin = await PathSecurity.isWithinTree(resolvedPath, templateDir, path, fs)
-      if !isWithin {
-        Error("Invalid 'from' path outside template tree: " ++ fromPath)
-      } else {
-
-        try {
-          let externalBody = await fs.readFile(resolvedPath, ~options={encoding: "utf8"})
-          Ok({...template, body: externalBody})
-        } catch {
-        | JsExn(obj) =>
-          let msg = switch JsExn.message(obj) {
-          | Some(m) => m
-          | None => "Read failed"
-          }
-          Error("Failed to read 'from' template " ++ resolvedPath ++ ": " ++ msg)
-        }
-      }
-    }
-  | _ => Ok(template)
-  }
-}
+// Re-exported alias so tests + external callers using `Phase1.resolveTargetPath` keep compiling.
+let resolveTargetPath = TemplateRenderer.resolveTargetPath
 
 let _renderTemplate: (
   ~template: template,
@@ -197,95 +37,29 @@ let _renderTemplate: (
   ~path,
   ~process,
 ) => {
-  // Find "to" directive for target path
-  let targetPathOpt =
-    template.directives
-    ->Array.find(d => {
-      switch d {
-      | To(_) => true
-      | _ => false
-      }
-    })
-    ->Option.flatMap(d => resolveTargetPath(d, context))
-
-  switch targetPathOpt {
-  | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
-  | Some(targetPath) =>
-    let finalTargetPath = path.join(outputDir, targetPath)
-
-    // Check conflict decisions: skip files the user chose not to overwrite
-    let skipFromDecision = switch conflictDecisions {
-    | Some(decisions) =>
-      decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
-    | None => false
+  let renderResult = await TemplateRenderer.render(
+    ~template,
+    ~context,
+    ~outputDir,
+    ~conflictDecisions,
+    ~fs,
+    ~path,
+    ~process,
+  )
+  switch renderResult {
+  | Error(e) => Error(e)
+  | Ok(None) => Ok(None)
+  | Ok(Some({sourcePath, targetPath, renderedBody})) =>
+    switch ShellQueue.collectTemplate(
+      template,
+      shellConfig,
+      ~actionfolder=context.actionfolder,
+      ~path,
+      ~process,
+    ) {
+    | Error(e) => Error(e)
+    | Ok(shellCmds) => Ok(Some((sourcePath, targetPath, renderedBody, shellCmds)))
     }
-
-    if skipFromDecision {
-      Ok(None)
-    } else if _hasUnlessExists(template) {
-        let finalTargetPath = path.join(outputDir, targetPath)
-        let exists = await fs.fileExists(finalTargetPath)
-        if exists {
-          Ok(None)
-        } else {
-          switch await _loadTemplateBodyFromDirective(template, ~fs, ~path) {
-          | Error(e) => Error(e)
-          | Ok(templateToRender) => {
-              let renderCtx = Context.toRenderContext(context)
-switch Renderer.render(templateToRender, renderCtx) {
-              | Ok(renderedBody) => {
-                  switch ShellQueue.collectTemplate(
-                    template,
-                    shellConfig,
-                    ~actionfolder=context.actionfolder,
-                    ~path,
-                    ~process,
-                  ) {
-                  | Error(e) => Error(e)
-                  | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, renderedBody, shellCmds)))
-                  }
-                }
-              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
-              }
-            }
-          }
-        }
-      } else {
-        switch await _loadTemplateBodyFromDirective(template, ~fs, ~path) {
-        | Error(e) => Error(e)
-        | Ok(templateToRender) => {
-            let renderCtx = Context.toRenderContext(context)
-            switch Renderer.render(templateToRender, renderCtx) {
-              | Ok(renderedBody) => {
-                  // Apply injection if template has injection directives
-                  let finalRenderedBody = if _requiresExistingTarget(template) {
-                    switch await _applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
-                    | Error(e) => Error(e)
-                    | Ok(injected) => Ok(injected)
-                    }
-                  } else {
-                    Ok(renderedBody)
-                  }
-                  switch finalRenderedBody {
-                  | Error(e) => Error(e)
-                  | Ok(body) =>
-                    switch ShellQueue.collectTemplate(
-                      template,
-                      shellConfig,
-                      ~actionfolder=context.actionfolder,
-                      ~path,
-                      ~process,
-                    ) {
-                    | Error(e) => Error(e)
-                    | Ok(shellCmds) => Ok(Some((template.sourcePath, targetPath, body, shellCmds)))
-                    }
-                  }
-                }
-              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
-              }
-            }
-          }
-      }
   }
 }
 
