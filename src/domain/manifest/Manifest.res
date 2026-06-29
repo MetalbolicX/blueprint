@@ -168,31 +168,6 @@ let parse: string => result<manifest, string> = yamlContent => {
       }
     }
 
-    // Helper to get array of strings
-    let _getStringArray = (obj, key) => {
-      switch obj {
-      | JSON.Object(dict) =>
-        switch dict->Dict.get(key) {
-        | Some(v) =>
-          switch v {
-          | JSON.Array(arr) =>
-            arr
-            ->Array.map(v' => {
-              switch v' {
-              | JSON.String(s) => Some(s)
-              | _ => None
-              }
-            })
-            ->Array.filterMap(x => x)
-            ->Some
-          | _ => None
-          }
-        | None => None
-        }
-      | _ => None
-      }
-    }
-
     let getMetadata = (obj, key) => {
       switch obj {
       | JSON.Object(dict) =>

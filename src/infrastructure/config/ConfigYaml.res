@@ -73,27 +73,6 @@ let _parseRegistry: JSON.t => array<templateSource> = json => {
   }
 }
 
-let _parseDictString: (dict<JSON.t>, string) => option<string> = (dict, key) => {
-  switch Dict.get(dict, key) {
-  | Some(JSON.String(s)) => Some(s)
-  | _ => None
-  }
-}
-
-let _parseDictInt: (dict<JSON.t>, string) => option<int> = (dict, key) => {
-  switch Dict.get(dict, key) {
-  | Some(JSON.Number(n)) => Some(Js.Math.floor(n))
-  | _ => None
-  }
-}
-
-let _parseDictBool: (dict<JSON.t>, string) => option<bool> = (dict, key) => {
-  switch Dict.get(dict, key) {
-  | Some(JSON.Boolean(b)) => Some(b)
-  | _ => None
-  }
-}
-
 let _parseTemplates: JSON.t => array<string> = json => {
   switch json {
   | JSON.Array(arr) => {
