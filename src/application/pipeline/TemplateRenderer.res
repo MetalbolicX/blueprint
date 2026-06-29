@@ -199,60 +199,69 @@ let render: (
 
   switch targetPathOpt {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
-  | Some(targetPath) =>
+  | Some(targetPath) => {
     let finalTargetPath = path.join(outputDir, targetPath)
 
-    // Check conflict decisions: skip files the user chose not to overwrite
-    let skipFromDecision = switch conflictDecisions {
-    | Some(decisions) =>
-      decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
-    | None => false
-    }
+    // WS1: reject any rendered `to:` that escapes the output tree.
+    // Covers absolute paths, `..` traversal, and symlinks that resolve outside outputDir.
+    // Mirrors the existing `from:` guard at TemplateRenderer.loadTemplateBodyFromDirective:149.
+    let isWithin = await PathSecurity.isWithinTree(finalTargetPath, outputDir, path, fs)
+    if !isWithin {
+      Error("Rendered 'to' path escapes output tree: " ++ targetPath)
+    } else {
+      // Check conflict decisions: skip files the user chose not to overwrite
+      let skipFromDecision = switch conflictDecisions {
+      | Some(decisions) =>
+        decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
+      | None => false
+      }
 
-    if skipFromDecision {
-      Ok(None)
-    } else if hasUnlessExists(template) {
-      let exists = await fs.fileExists(finalTargetPath)
-      if exists {
+      if skipFromDecision {
         Ok(None)
+      } else if hasUnlessExists(template) {
+        let exists = await fs.fileExists(finalTargetPath)
+        if exists {
+          Ok(None)
+        } else {
+          switch await loadTemplateBodyFromDirective(template, ~fs, ~path) {
+          | Error(e) => Error(e)
+          | Ok(templateToRender) => {
+              let renderCtx = Context.toRenderContext(context)
+              switch Renderer.render(templateToRender, renderCtx) {
+              | Ok(renderedBody) =>
+                Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody}))
+              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
+              }
+            }
+          }
+        }
       } else {
         switch await loadTemplateBodyFromDirective(template, ~fs, ~path) {
         | Error(e) => Error(e)
         | Ok(templateToRender) => {
             let renderCtx = Context.toRenderContext(context)
             switch Renderer.render(templateToRender, renderCtx) {
-            | Ok(renderedBody) =>
-              Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody}))
+            | Ok(renderedBody) => {
+                // Apply injection if template has injection directives
+                let finalRenderedBody = if requiresExistingTarget(template) {
+                  switch await applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
+                  | Error(e) => Error(e)
+                  | Ok(injected) => Ok(injected)
+                  }
+                } else {
+                  Ok(renderedBody)
+                }
+                switch finalRenderedBody {
+                | Error(e) => Error(e)
+                | Ok(body) => Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody: body}))
+                }
+              }
             | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
             }
           }
         }
       }
-    } else {
-      switch await loadTemplateBodyFromDirective(template, ~fs, ~path) {
-      | Error(e) => Error(e)
-      | Ok(templateToRender) => {
-          let renderCtx = Context.toRenderContext(context)
-          switch Renderer.render(templateToRender, renderCtx) {
-          | Ok(renderedBody) => {
-              // Apply injection if template has injection directives
-              let finalRenderedBody = if requiresExistingTarget(template) {
-                switch await applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
-                | Error(e) => Error(e)
-                | Ok(injected) => Ok(injected)
-                }
-              } else {
-                Ok(renderedBody)
-              }
-              switch finalRenderedBody {
-              | Error(e) => Error(e)
-              | Ok(body) => Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody: body}))
-              }
-            }
-          | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
-          }
-        }
-      }
+    }
     }
   }
 }

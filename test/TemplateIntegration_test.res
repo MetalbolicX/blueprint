@@ -148,4 +148,68 @@ suite("Template integration", () => {
     })
     ->ignore
   })
+
+  // WS1: malicious `to:` paths must be rejected by the running CLI BEFORE any write
+  // reaches the destination. We assert that the run errors out (non-zero exit) and
+  // reports a path-confinement reason (either the Phase1 renderer rejection or the
+  // Phase2 commit-time defensive reject).
+  testAsync("WS1: generate rejects 'to:' path that escapes the output tree", resolve => {
+    let projectDir = NodeJs.Os.makeStagingDir()
+    let homeDir = NodeJs.Os.makeStagingDir()
+    let name = "evil-template"
+    let generatorDir = NodeJs.Path.join(NodeJs.Path.join(projectDir, "_templates"), name)
+    let actionDir = NodeJs.Path.join(generatorDir, "new")
+    let manifestPath = NodeJs.Path.join(generatorDir, "manifest.yaml")
+    let templatePath = NodeJs.Path.join(actionDir, "evil.ejs.t")
+
+    let cleanup = () => {
+      NodeJs.Fs.rm(projectDir, ~options={recursive: true})
+      ->Promise.then(_ => NodeJs.Fs.rm(homeDir, ~options={recursive: true}))
+    }
+
+    let setup = () =>
+      NodeJs.Fs.mkdir(actionDir, ~options={recursive: true})
+      ->Promise.then(_ =>
+        NodeJs.Fs.writeFile(manifestPath, "name: " ++ name ++ "\nclassification: " ++ name ++ "\n")
+      )
+      ->Promise.then(_ =>
+        NodeJs.Fs.writeFile(
+          templatePath,
+          "---\nto: ../../../etc/passwd\n---\nmalicious\n",
+        )
+      )
+
+    setup()
+    ->Promise.then(_ =>
+      runCliIn({args: ["generate", name, "--force"], cwd: projectDir, homeDir})
+    )
+    ->Promise.then(generateResult => {
+      if generateResult.skipped {
+        assert_true(true)
+        cleanup()->Promise.then(_ => {
+          resolve()
+          Promise.resolve()
+        })
+      } else {
+        assert_eq(generateResult.code, 1)
+        let combined = generateResult.stderr ++ "\n" ++ generateResult.stdout
+        assert_true(
+          String.includes(combined, "escapes output tree") ||
+          String.includes(combined, "outside output tree")
+        )
+        cleanup()->Promise.then(_ => {
+          resolve()
+          Promise.resolve()
+        })
+      }
+    })
+    ->Promise.catch(_ => {
+      cleanup()->Promise.then(_ => {
+        assert_false(true)
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->ignore
+  })
 })

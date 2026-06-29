@@ -75,8 +75,15 @@ let commitFiles: (
         let stagedPath = path.join(stagingDir, targetPath)
         let destPath = path.join(outputDir, targetPath)
         let destDir = path.dirname(destPath)
-        switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
-        | Error(e) => errorRef.contents = Some(e)
+
+        // WS1 defensive reject: even if TemplateRenderer.render was bypassed,
+        // never commit to a target that already escaped the output tree.
+        let isWithin = await PathSecurity.isWithinTree(destPath, outputDir, path, fs)
+        if !isWithin {
+          errorRef.contents = Some("Target path outside output tree: " ++ targetPath)
+        } else {
+          switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
+          | Error(e) => errorRef.contents = Some(e)
         | Ok(backupOpt) =>
           backupOpt->Option.forEach(entry => {
             let _ = backups->Array.push(entry)
@@ -93,6 +100,7 @@ let commitFiles: (
             }
             errorRef.contents = Some("Failed to commit " ++ targetPath ++ ": " ++ msg)
           }
+        }
         }
       }
     },
