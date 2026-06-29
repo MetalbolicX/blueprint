@@ -11,3 +11,6 @@ module Yaml = {
 module WebApis = {
   include WebApis
 }
+module Net = {
+  include Net
+}

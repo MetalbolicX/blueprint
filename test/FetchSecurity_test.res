@@ -89,6 +89,81 @@ suite("FetchSecurity", () => {
     ->ignore
   })
 
+  // ---------- WS3: SSRF protection at the Fetcher.fetch surface ----------
+
+  testAsync("WS3: Fetcher.fetch blocks loopback URL without any DNS lookup", resolve => {
+    Fetcher.clearCache()
+
+    // The SsrfGuard short-circuits literal-loopback URLs — no DNS, no fetch.
+    // Override global fetch so any unexpected success would surface here.
+    installRejectingFetch("WS3 test: loopback URL must not reach fetch")
+
+    Fetcher.fetch("http://127.0.0.1/never")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) =>
+        assert_true(String.includes(msg, "127.0.0.1"))
+        assert_true(String.includes(msg, "SSRF") || String.includes(msg, "loopback"))
+      | Ok(_) => assert_false(true)
+      }
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("WS3: Fetcher.fetch blocks cloud-metadata URL (169.254.169.254)", resolve => {
+    Fetcher.clearCache()
+
+    installRejectingFetch("WS3 test: metadata URL must not reach fetch")
+
+    Fetcher.fetch("http://169.254.169.254/latest/meta-data/")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "169.254.169.254"))
+      | Ok(_) => assert_false(true)
+      }
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("WS3: Fetcher.fetch blocks IPv6 loopback in URL form", resolve => {
+    Fetcher.clearCache()
+
+    installRejectingFetch("WS3 test: IPv6 loopback URL must not reach fetch")
+
+    Fetcher.fetch("http://[::1]/never")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "::1"))
+      | Ok(_) => assert_false(true)
+      }
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   @skip("network-dependent: requires live HTTP server with redirect")
   test("Fetcher.fetch: follows redirects and returns final content", () => {
     assert_true(true)

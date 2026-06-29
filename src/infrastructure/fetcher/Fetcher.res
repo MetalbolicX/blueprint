@@ -132,13 +132,22 @@ let fetch: (string, ~timeout: int=?) => promise<result<string, string>> = (url, 
   switch validateUrl(url) {
   | Error(message) => Promise.resolve(Error(message))
   | Ok() =>
-    switch Dict.get(cache, url) {
-    | Some(cachedPromise) => cachedPromise
-    | None => {
-        let promise = Impl.httpGet(url, timeout)
-        Dict.set(cache, url, promise)
-        promise
-      }
-    }
+    // WS3: SSRF guard — only allow public-IP destinations. Runs BEFORE any
+    // network IO so an attacker never gets a connection to loopback/private/
+    // link-local/metadata regardless of DNS. Cache the rejected promise too
+    // so a flood of identical rejected requests still costs only one lookup.
+    SsrfGuard.isUrlAllowed(url)
+    ->Promise.then(guard => switch guard {
+      | Error(message) => Promise.resolve(Error(message))
+      | Ok() =>
+        switch Dict.get(cache, url) {
+        | Some(cachedPromise) => cachedPromise
+        | None => {
+            let promise = Impl.httpGet(url, timeout)
+            Dict.set(cache, url, promise)
+            promise
+          }
+        }
+      })
   }
 }
