@@ -47,9 +47,11 @@ type templateSource = {
   path: string,
 }
 
+// WS4: `allowDangerousCommands` removed from globalConfig + mergedConfig.
+// ExecPolicy (src/domain/exec/ExecPolicy.res) is the single authority for
+// which shell commands are allowed.
 type globalConfig = {
   templates: array<string>,
-  allowDangerousCommands: bool,
   forceOverwrite: bool,
   dryRun: bool,
   timeout: int,
@@ -59,7 +61,6 @@ type globalConfig = {
 
 type mergedConfig = {
   templates: array<string>,
-  allowDangerousCommands: bool,
   forceOverwrite: bool,
   dryRun: bool,
   timeout: int,

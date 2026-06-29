@@ -110,14 +110,14 @@ suite("Config", () => {
   // --- Global config tests ---
 
   test("parseGlobal: parses all fields correctly", () => {
-    let yaml = "templates:\n  - /opt/team\n  - ~/my-templates\nallow_dangerous_commands: true\nforce_overwrite: true\ndry_run: true\ntimeout: 30\ndefault_attributes:\n  author: \"me\"\n  license: \"MIT\"\n"
+    // WS4: allow_dangerous_commands removed from the global config surface.
+    let yaml = "templates:\n  - /opt/team\n  - ~/my-templates\nforce_overwrite: true\ndry_run: true\ntimeout: 30\ndefault_attributes:\n  author: \"me\"\n  license: \"MIT\"\n"
     let result = Config.parseGlobal(yaml)
     switch result {
     | Ok(cfg) => {
         assert_eq(Array.length(cfg.templates), 2)
         assert_eq(cfg.templates[0], Some("/opt/team"))
         assert_eq(cfg.templates[1], Some("~/my-templates"))
-        assert_eq(cfg.allowDangerousCommands, true)
         assert_eq(cfg.forceOverwrite, true)
         assert_eq(cfg.dryRun, true)
         assert_eq(cfg.timeout, 30)
@@ -134,7 +134,7 @@ suite("Config", () => {
     switch result {
     | Ok(cfg) => {
         assert_eq(Array.length(cfg.templates), 1)
-        assert_eq(cfg.allowDangerousCommands, false)
+        // WS4: `allowDangerousCommands` no longer on globalConfig.
         assert_eq(cfg.forceOverwrite, false)
         assert_eq(cfg.dryRun, false)
         assert_eq(cfg.timeout, 5)
@@ -149,7 +149,6 @@ suite("Config", () => {
     switch result {
     | Ok(cfg) => {
         assert_eq(Array.length(cfg.templates), 0)
-        assert_eq(cfg.allowDangerousCommands, false)
         assert_eq(cfg.forceOverwrite, false)
         assert_eq(cfg.dryRun, false)
         assert_eq(cfg.timeout, 5)
@@ -161,7 +160,6 @@ suite("Config", () => {
   test("defaultGlobalConfig: has correct defaults", () => {
     let cfg = Config.defaultGlobalConfig
     assert_eq(Array.length(cfg.templates), 0)
-    assert_eq(cfg.allowDangerousCommands, false)
     assert_eq(cfg.forceOverwrite, false)
     assert_eq(cfg.dryRun, false)
     assert_eq(cfg.timeout, 5)
@@ -171,7 +169,6 @@ suite("Config", () => {
   test("mergeConfig: project timeout overrides global", () => {
     let global: Config.globalConfig = {
       templates: ["/opt/team"],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 30,
@@ -189,7 +186,6 @@ suite("Config", () => {
     let merged = Config.mergeConfig(~global, ~project=Some(project))
     assert_eq(merged.timeout, 10)
     assert_eq(Array.length(merged.templates), 1)
-    assert_eq(merged.allowDangerousCommands, false)
     assert_eq(merged.forceOverwrite, false)
     assert_eq(merged.dryRun, false)
   })
@@ -197,7 +193,6 @@ suite("Config", () => {
   test("mergeConfig: global used when project has no hooks timeout", () => {
     let global: Config.globalConfig = {
       templates: [],
-      allowDangerousCommands: true,
       forceOverwrite: true,
       dryRun: true,
       timeout: 30,
@@ -213,7 +208,6 @@ suite("Config", () => {
 
     let merged = Config.mergeConfig(~global, ~project=Some(project))
     assert_eq(merged.timeout, 30)  // global used
-    assert_eq(merged.allowDangerousCommands, true)
     assert_eq(merged.forceOverwrite, true)
     assert_eq(merged.dryRun, true)
   })
@@ -221,7 +215,6 @@ suite("Config", () => {
   test("mergeConfig: global used when no project config", () => {
     let global: Config.globalConfig = {
       templates: ["/opt/team", "/home/user/templates"],
-      allowDangerousCommands: true,
       forceOverwrite: false,
       dryRun: false,
       timeout: 60,
@@ -232,7 +225,6 @@ suite("Config", () => {
     let merged = Config.mergeConfig(~global, ~project=None)
     assert_eq(merged.timeout, 60)
     assert_eq(Array.length(merged.templates), 2)
-    assert_eq(merged.allowDangerousCommands, true)
   })
 
   testAsync("loadGlobal: returns None when no global config exists", resolve => {
@@ -352,17 +344,54 @@ suite("Config", () => {
     }
   })
 
-  test("parseGlobal: allow_dangerous_commands migrates to shell.enabled true", () => {
+  test("parseGlobal: allow_dangerous_commands is ignored (WS4 removed)", () => {
+    // WS4: the legacy key is dropped silently — it no longer migrates to
+    // shell.enabled (ExecPolicy/ShellConfig drives exec safety now), so the
+    // field must be absent from globalConfig and have no observable effect.
     let yaml = "allow_dangerous_commands: true\n"
     let result = Config.parseGlobal(yaml)
     switch result {
-    | Ok(cfg) =>
-      // allowDangerousCommands is the old field, new system uses shell.enabled
-      // The migration: allow_dangerous_commands: true → shell.enabled: true
-      // This is stored in globalConfig.allowDangerousCommands for migration compat
-      assert_eq(cfg.allowDangerousCommands, true)
+    | Ok(cfg) => {
+        // No `cfg.allowDangerousCommands` field exists any more — just
+        // confirm the parse succeeded and the YAML is otherwise accepted.
+        assert_eq(Array.length(cfg.templates), 0)
+        assert_eq(cfg.timeout, 5)
+      }
     | Error(_) => assert_false(true)
     }
+  })
+
+  testAsync("saveGlobalAtPath: serialized YAML omits allow_dangerous_commands (WS4)", resolve => {
+    // The serializer must not write the removed field — round-trip yields a
+    // parseable config without `allow_dangerous_commands`.
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let configPath = NodeJs.Path.join(tmpDir, "config.yaml")
+    let cfg = Config.defaultGlobalConfig
+
+    Config.saveGlobalAtPath(~fs, ~path=pathAdapter, ~configPath, cfg)
+    ->Promise.then(writeResult => {
+      switch writeResult {
+      | Ok(()) => NodeJs.Fs.readFile(configPath, ~options={encoding: "utf8"})
+      | Error(_) => {
+          assert_false(true)
+          Promise.resolve("")
+        }
+      }
+    })
+    ->Promise.then(yaml => {
+      assert_false(String.includes(yaml, "allow_dangerous_commands"))
+      // Round-trip must still parse.
+      switch Config.parseGlobal(yaml) {
+      | Ok(_) => ()
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   test("parseGlobal: parses registry entries", () => {
@@ -401,7 +430,6 @@ suite("Config", () => {
     Dict.set(defaults, "author", "blueprint")
     let cfg: Config.globalConfig = {
       templates: ["/opt/templates"],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -457,14 +485,13 @@ suite("Config", () => {
   })
 
   test("validateMergedConfig: returns Error when timeout < 1", () => {
-  let cfg: Config.mergedConfig = {
-    templates: [],
-    allowDangerousCommands: false,
-    forceOverwrite: false,
-    dryRun: false,
-    timeout: 0,
-    defaultAttributes: Dict.make(),
-  }
+    let cfg: Config.mergedConfig = {
+      templates: [],
+      forceOverwrite: false,
+      dryRun: false,
+      timeout: 0,
+      defaultAttributes: Dict.make(),
+    }
     let result = Config.validateMergedConfig(cfg)
     switch result {
     | Ok(_) => assert_false(true)
@@ -478,7 +505,6 @@ suite("Config", () => {
     }
     let cfg: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -499,7 +525,6 @@ suite("Config", () => {
     }
     let cfg: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,

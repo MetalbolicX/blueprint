@@ -19,6 +19,11 @@ let defaultSafeVars = ["PATH", "HOME"]
 
 /**
  * Checks if a value contains shell metacharacters that could be used for injection
+ *
+ * WS4: also rejects `${...}` shell parameter expansion. The existing `resolveValue`
+ * only handles the bare `$VAR` form; the `${...}` form would otherwise fall
+ * through to the child process shell and exfiltrate the named env value
+ * regardless of `buildSafeEnv`'s filters.
  */
 let containsShellMetachar: string => bool = value => {
   // Check for common shell injection characters
@@ -28,6 +33,7 @@ let containsShellMetachar: string => bool = value => {
     String.includes(value, "|") ||
     String.includes(value, "`") ||
     String.includes(value, "$(") ||
+    String.includes(value, "${") ||
     String.includes(value, ">") ||
     String.includes(value, "<") ||
     String.includes(value, "\n")

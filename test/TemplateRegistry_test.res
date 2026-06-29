@@ -58,7 +58,6 @@ suite("TemplateRegistry", () => {
 
     let cfg: Config.globalConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -146,7 +145,6 @@ suite("TemplateRegistry", () => {
 
     let cfg: Config.globalConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -196,7 +194,6 @@ suite("TemplateRegistry", () => {
     let configPath = NodeJs.Path.join(tmpDir, "config.yaml")
     let cfg: Config.globalConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,

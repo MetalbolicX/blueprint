@@ -168,7 +168,6 @@ suite("Phase2", () => {
   test("validateMergedConfig: accepts valid merged config", () => {
     let merged: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -185,7 +184,6 @@ suite("Phase2", () => {
   test("validateMergedConfig: rejects negative timeout", () => {
     let merged: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: -1,
@@ -201,7 +199,6 @@ suite("Phase2", () => {
   test("validateMergedConfig: rejects zero timeout", () => {
     let merged: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 0,
@@ -217,7 +214,6 @@ suite("Phase2", () => {
   test("validateMergedConfig: rejects shell enabled without tools", () => {
     let merged: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -234,7 +230,6 @@ suite("Phase2", () => {
   test("validateMergedConfig: accepts shell enabled with tools", () => {
     let merged: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,

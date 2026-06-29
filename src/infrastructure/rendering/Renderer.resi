@@ -1,10 +1,9 @@
+// WS4: cwd and actionfolder removed from the public renderContext type.
 type renderContext = {
   name: string,
   pascalName: string,
   names: string,
   pluralPascalName: string,
-  cwd: string,
-  actionfolder: string,
   attributes: dict<string>,
 }
 

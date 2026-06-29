@@ -162,7 +162,6 @@ suite("Integration", () => {
     // Config.validateMergedConfig should exist and reject timeout <= 0
     let badConfig: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 0,
@@ -178,7 +177,6 @@ suite("Integration", () => {
   test("validateMergedConfig exists and accepts valid config", () => {
     let goodConfig: Config.mergedConfig = {
       templates: [],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,

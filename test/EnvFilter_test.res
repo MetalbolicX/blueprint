@@ -103,4 +103,56 @@ suite("EnvFilter", () => {
     assert_eq(Dict.get(result, "VAR2"), None)
     assert_eq(Dict.get(result, "VAR3"), None)
   })
+
+  // ---------- WS4: ${...} parameter expansion rejected ----------
+
+  test("WS4: var value containing \${VAR} is rejected and not in env", () => {
+    let inheritedEnv = Dict.fromArray([
+      ("PATH", "/usr/bin"),
+      ("HOME", "/home/user"),
+      ("SECRET", "actual-secret"),
+    ])
+    let shellEnv: EnvFilter.shellEnvConfig = {
+      vars: [
+        {key: "LEAK_VAR", value: "${SECRET}"},
+      ],
+    }
+    let result = EnvFilter.buildSafeEnv(Some(shellEnv), inheritedEnv)
+    // The dangerous value is filtered out — SECRET value never reaches the
+    // child process, and LEAK_VAR isn't set at all.
+    assert_eq(Dict.get(result, "LEAK_VAR"), None)
+    assert_eq(Dict.get(result, "SECRET"), None)
+  })
+
+  test("WS4: var value with inline \${...} (not at start) is also rejected", () => {
+    let inheritedEnv = Dict.fromArray([
+      ("PATH", "/usr/bin"),
+      ("HOME", "/home/user"),
+      ("SECRET", "actual-secret"),
+    ])
+    let shellEnv: EnvFilter.shellEnvConfig = {
+      vars: [
+        {key: "INLINE_LEAK", value: "/safe/prefix/${SECRET}/suffix"},
+      ],
+    }
+    let result = EnvFilter.buildSafeEnv(Some(shellEnv), inheritedEnv)
+    assert_eq(Dict.get(result, "INLINE_LEAK"), None)
+  })
+
+  test("WS4: bare $VAR reference (existing behavior) still works", () => {
+    // Negative control: the bare-dollar syntax that resolveValue already
+    // handles must continue to pass through, so we don't regress.
+    let inheritedEnv = Dict.fromArray([
+      ("PATH", "/usr/bin"),
+      ("HOME", "/home/user"),
+      ("API_KEY", "my-api-key"),
+    ])
+    let shellEnv: EnvFilter.shellEnvConfig = {
+      vars: [
+        {key: "MY_API_KEY", value: "$API_KEY"},
+      ],
+    }
+    let result = EnvFilter.buildSafeEnv(Some(shellEnv), inheritedEnv)
+    assert_eq(Dict.get(result, "MY_API_KEY"), Some("my-api-key"))
+  })
 })

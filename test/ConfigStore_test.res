@@ -12,7 +12,6 @@ suite("ConfigStore", () => {
     let configPath = NodeJs.Path.join(tmpDir, "config.yaml")
     let cfg: globalConfig = {
       templates: ["/opt/templates"],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,
@@ -60,7 +59,6 @@ suite("ConfigStore", () => {
     let pathAdapter = NodeJsPath.make()
     let cfg: globalConfig = {
       templates: ["/opt/team", "/home/user/templates"],
-      allowDangerousCommands: true,
       forceOverwrite: false,
       dryRun: false,
       timeout: 30,
@@ -82,7 +80,7 @@ suite("ConfigStore", () => {
       switch result {
       | Ok(Some(loaded)) => {
           assert_eq(Array.length(loaded.templates), 2)
-          assert_eq(loaded.allowDangerousCommands, true)
+          // WS4: allowDangerousCommands removed from globalConfig.
           assert_eq(loaded.timeout, 30)
         }
       | _ => assert_false(true)
@@ -139,7 +137,6 @@ suite("ConfigStore", () => {
     let pathAdapter = NodeJsPath.make()
     let cfg: globalConfig = {
       templates: ["/opt"],
-      allowDangerousCommands: false,
       forceOverwrite: false,
       dryRun: false,
       timeout: 5,

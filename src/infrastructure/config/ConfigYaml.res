@@ -27,7 +27,7 @@ let _defaultAttributesToJson: dict<string> => dict<JSON.t> = attrs => {
 let _globalConfigToYamlObject: globalConfig => dict<JSON.t> = cfg => {
   let root = Dict.make()
   Dict.set(root, "templates", JSON.Array(cfg.templates->Array.map(s => JSON.String(s))))
-  Dict.set(root, "allow_dangerous_commands", JSON.Boolean(cfg.allowDangerousCommands))
+  // WS4: `allow_dangerous_commands` removed — ExecPolicy is the authority.
   Dict.set(root, "force_overwrite", JSON.Boolean(cfg.forceOverwrite))
   Dict.set(root, "dry_run", JSON.Boolean(cfg.dryRun))
   Dict.set(root, "timeout", JSON.Number(Int.toFloat(cfg.timeout)))
@@ -357,14 +357,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
         | Some(v) => _parseTemplates(v)
         | None => []
         }
-        let allowDangerousCommands = switch Dict.get(dict, "allow_dangerous_commands") {
-        | Some(v) =>
-          switch v {
-          | JSON.Boolean(b) => b
-          | _ => false
-          }
-        | None => false
-        }
+        // WS4: allowDangerousCommands dropped from parsing — ExecPolicy is the authority.
         let forceOverwrite = switch Dict.get(dict, "force_overwrite") {
         | Some(v) =>
           switch v {
@@ -399,7 +392,6 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
         }
         Ok({
           templates,
-          allowDangerousCommands,
           forceOverwrite,
           dryRun,
           timeout,
@@ -420,6 +412,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
 }
 
 // Merge project + global configs. Project values take precedence.
+// WS4: allowDangerousCommands dropped — ExecPolicy is the authority.
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig = (
   ~global,
   ~project,
@@ -436,14 +429,12 @@ let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConf
     }
   | None => global.timeout
   }
-  // Migration: allow_dangerous_commands: true → shell.enabled: true
   let effectiveShell = switch project {
   | Some(p) => p.shell
   | None => None
   }
   {
     templates: global.templates,
-    allowDangerousCommands: global.allowDangerousCommands,
     forceOverwrite: global.forceOverwrite,
     dryRun: global.dryRun,
     timeout: effectiveTimeout,

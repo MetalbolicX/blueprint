@@ -3,13 +3,14 @@
 open Template
 open FuncMap
 
+// WS4: cwd and actionfolder removed from the renderContext type. Template
+// rendering must not expose host filesystem paths; both fields are stripped
+// at `Context.toRenderContext` (src/domain/context/Context.res).
 type renderContext = {
   name: string,
   pascalName: string,
   names: string,
   pluralPascalName: string,
-  cwd: string,
-  actionfolder: string,
   attributes: dict<string>,
 }
 
@@ -46,8 +47,6 @@ let render: (template, renderContext) => result<string, string> = (tmpl, ctx) =>
   Dict.set(data, "Name", ctx.pascalName)
   Dict.set(data, "names", ctx.names)
   Dict.set(data, "Names", ctx.pluralPascalName)
-  Dict.set(data, "cwd", ctx.cwd)
-  Dict.set(data, "actionfolder", ctx.actionfolder)
 
   // Merge attributes
   Dict.toArray(ctx.attributes)->Array.forEach(((k, v)) => {

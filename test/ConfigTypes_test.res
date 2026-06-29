@@ -6,7 +6,7 @@ suite("ConfigTypes", () => {
   test("defaultGlobalConfig: has correct field values", () => {
     let cfg = ConfigTypes.defaultGlobalConfig
     assert_eq(Array.length(cfg.templates), 0)
-    assert_eq(cfg.allowDangerousCommands, false)
+    // WS4: `allowDangerousCommands` removed — ExecPolicy is the authority.
     assert_eq(cfg.forceOverwrite, false)
     assert_eq(cfg.dryRun, false)
     assert_eq(cfg.timeout, 5)
@@ -62,9 +62,9 @@ suite("ConfigTypes", () => {
   })
 
   test("mergedConfig: shell merged correctly", () => {
+    // WS4: `allowDangerousCommands` removed from mergedConfig.
     let merged: ConfigTypes.mergedConfig = {
       templates: ["/opt"],
-      allowDangerousCommands: true,
       forceOverwrite: false,
       dryRun: false,
       timeout: 10,

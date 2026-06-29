@@ -120,7 +120,11 @@ let build: (
   }
 }
 
-// Convert context to Renderer.renderContext for EJS rendering
+// Convert context to Renderer.renderContext for EJS rendering.
+// WS4: cwd and actionfolder are stripped here — they stay on the internal
+// context type for shell exec, but templates must never see host filesystem
+// paths. Spec scenario "Clean render context" expects both fields to be
+// absent from the render data.
 let toRenderContext: context => Renderer.renderContext = ctx => {
   let plainAttrs = Dict.make()
   ctx.attributes->Dict.toArray->Array.forEach(((k, v)) => {
@@ -134,8 +138,6 @@ let toRenderContext: context => Renderer.renderContext = ctx => {
     pascalName: ctx.nameVariants.pascalName,
     names: ctx.nameVariants.names,
     pluralPascalName: ctx.nameVariants.pluralPascalName,
-    cwd: ctx.cwd,
-    actionfolder: ctx.actionfolder,
     attributes: plainAttrs,
   }
 }

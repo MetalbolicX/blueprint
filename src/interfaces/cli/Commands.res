@@ -14,7 +14,9 @@ let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
     if !dirExists {
       let _ = await deps.fs.mkdir(configDir, ~options={recursive: true})
     }
-    let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nallow_dangerous_commands: false\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\nregistry: []\n"
+    // WS4: `allow_dangerous_commands` removed from the bootstrapped config —
+    // ExecPolicy (WS2) is the single authority over shell command safety.
+    let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\nregistry: []\n"
     let _ = await deps.fs.writeFile(configPath, content)
     Console.log("Scaffolded global config at " ++ configPath)
   }

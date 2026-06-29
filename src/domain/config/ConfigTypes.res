@@ -48,9 +48,11 @@ type templateSource = {
 }
 
 // Global config (loaded from ~/.config/blueprint/config.yaml)
+// WS4: `allowDangerousCommands` removed. WS2 ExecPolicy is the single
+// authority over which shell commands may run (via args[] or exact
+// allowlist match); config no longer carries a bypass key.
 type globalConfig = {
   templates: array<string>,
-  allowDangerousCommands: bool,
   forceOverwrite: bool,
   dryRun: bool,
   timeout: int,
@@ -61,7 +63,6 @@ type globalConfig = {
 // Merged config — effective values after project overrides global
 type mergedConfig = {
   templates: array<string>,         // from global (no project override for templates)
-  allowDangerousCommands: bool,    // project or global
   forceOverwrite: bool,             // project or global
   dryRun: bool,                     // project or global
   timeout: int,                     // project hooks.timeout or global
@@ -71,7 +72,6 @@ type mergedConfig = {
 
 let defaultGlobalConfig: globalConfig = {
   templates: [],
-  allowDangerousCommands: false,
   forceOverwrite: false,
   dryRun: false,
   timeout: 5,

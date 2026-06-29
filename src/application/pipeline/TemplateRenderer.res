@@ -16,14 +16,15 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
 ) => {
   switch directive {
   | To(path) => {
-      // Render the path template with context
+      // Render the path template with context.
+      // WS4: cwd and actionfolder are intentionally NOT injected into the
+      // template-facing data. They remain on the internal `context` type for
+      // shell exec but templates must never see host filesystem paths.
       let data = Dict.make()
       Dict.set(data, "name", ctx.nameVariants.name)
       Dict.set(data, "Name", ctx.nameVariants.pascalName)
       Dict.set(data, "names", ctx.nameVariants.names)
       Dict.set(data, "Names", ctx.nameVariants.pluralPascalName)
-      Dict.set(data, "cwd", ctx.cwd)
-      Dict.set(data, "actionfolder", ctx.actionfolder)
 
       // Add attributes (convert attrValue to string)
       ctx.attributes
