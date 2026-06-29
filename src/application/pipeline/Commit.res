@@ -104,7 +104,7 @@ let commitFiles: (
   let errors = allResults->Array.filterMap(r => switch r { | Error((e, _)) => Some(e) | Ok(_) => None })
   let successful = allResults->Array.filterMap(r => switch r { | Ok(x) => Some(x) | Error(_) => None })
   let partialCommit = successful->Array.map(((path, _)) => path)
-  let backups: array<backupEntry> = successful->Array.map(((path, backup)) => (path, backup))->Array.filterMap(((path, backup)) => {
+  let backups: array<backupEntry> = successful->Array.map(((path, backup)) => (path, backup))->Array.filterMap(((_, backup)) => {
     switch backup {
     | Some(entry) => Some(entry)
     | None => None

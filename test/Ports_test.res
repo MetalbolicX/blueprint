@@ -4,13 +4,13 @@ open Ports
 
 suite("Ports", () => {
   test("fileSystem: has all required fields", () => {
-    let fs: Ports.fileSystem = {
-      readFile: (_, ~options=?) => Promise.resolve(""),
-      writeFile: (_, _, ~options=?) => Promise.resolve(),
-      mkdir: (_, ~options=?) => Promise.resolve(""),
-      rm: (_, ~options=?) => Promise.resolve(),
-      cp: (_, _, ~options=?) => Promise.resolve(),
-      readdir: (_, ~options=?) => Promise.resolve([]),
+    let _fs: Ports.fileSystem = {
+      readFile: (_, ~options as _=?) => Promise.resolve(""),
+      writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+      mkdir: (_, ~options as _=?) => Promise.resolve(""),
+      rm: (_, ~options as _=?) => Promise.resolve(),
+      cp: (_, _, ~options as _=?) => Promise.resolve(),
+      readdir: (_, ~options as _=?) => Promise.resolve([]),
       fileExists: _ => Promise.resolve(false),
       stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}),
       makeStagingDir: () => "/tmp/test",
@@ -59,29 +59,29 @@ suite("Ports", () => {
   })
 
   test("shell: has execShellCommand, execAsync, execFileAsync", () => {
-    let shell: Ports.shell = {
-      execShellCommand: (~command, ~cwd=?) => Promise.resolve(Ok("")),
-      execAsync: (_, ~options=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
-      execFileAsync: (_, ~args=?, ~options=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
+    let _shell: Ports.shell = {
+      execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+      execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
+      execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
     }
     assert_true(true)
   })
 
   test("path: has join, resolve, dirname, isAbsolute, basename", () => {
-    let p: Ports.path = {
+    let _p: Ports.path = {
       join: (a, b) => a ++ "/" ++ b,
       resolve: (a, b) => a ++ "/" ++ b,
       dirname: s => s,
       isAbsolute: s => String.startsWith(s, "/"),
-      basename: (s, ~ext=?) => s,
+      basename: (s, ~ext as _=?) => s,
     }
     assert_true(true)
   })
 
   test("interactiveIO: has ask, askConfirm, close", () => {
-    let io: Ports.interactiveIO = {
+    let _io: Ports.interactiveIO = {
       ask: _ => Promise.resolve(""),
-      askConfirm: (~question, ~defaultYes=?) => Promise.resolve(false),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(false),
       close: () => (),
     }
     assert_true(true)
@@ -94,23 +94,23 @@ suite("Ports", () => {
   })
 
   test("argParser: has parse function", () => {
-    let parser: Ports.argParser = {
-      parse: (~args, ~strict, ~allowPositionals) => Ok({values: Dict.make(), positionals: []}),
+    let _parser: Ports.argParser = {
+      parse: (~args as _, ~strict as _, ~allowPositionals as _) => Ok({values: Dict.make(), positionals: []}),
     }
     assert_true(true)
   })
 
   test("deps: bundles all ports", () => {
-    let deps: Ports.deps = {
+    let _deps: Ports.deps = {
       fs: {
-        readFile: (_, ~options=?) => Promise.resolve(""),
-        writeFile: (_, _, ~options=?) => Promise.resolve(),
-        mkdir: (_, ~options=?) => Promise.resolve(""),
-        rm: (_, ~options=?) => Promise.resolve(),
-        cp: (_, _, ~options=?) => Promise.resolve(),
-        readdir: (_, ~options=?) => Promise.resolve([]),
+        readFile: (_, ~options as _=?) => Promise.resolve(""),
+        writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+        mkdir: (_, ~options as _=?) => Promise.resolve(""),
+        rm: (_, ~options as _=?) => Promise.resolve(),
+        cp: (_, _, ~options as _=?) => Promise.resolve(),
+        readdir: (_, ~options as _=?) => Promise.resolve([]),
         fileExists: _ => Promise.resolve(false),
-stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : statResult),
+        stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : statResult),
         makeStagingDir: () => "/tmp/test",
         realpath: path => Promise.resolve(path),
       },
@@ -119,7 +119,7 @@ stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : stat
         resolve: (a, b) => a ++ "/" ++ b,
         dirname: s => s,
         isAbsolute: s => String.startsWith(s, "/"),
-        basename: (s, ~ext=?) => s,
+        basename: (s, ~ext as _=?) => s,
       },
       process: {
         cwd: () => "/home/user",
@@ -130,17 +130,17 @@ stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : stat
         removeSignalListeners: () => (),
       },
       shell: {
-        execShellCommand: (~command, ~cwd=?) => Promise.resolve(Ok("")),
-        execAsync: (_, ~options=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
-        execFileAsync: (_, ~args=?, ~options=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
+        execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+        execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
+        execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
       },
       interactiveIO: {
         ask: _ => Promise.resolve(""),
-        askConfirm: (~question, ~defaultYes=?) => Promise.resolve(false),
+        askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(false),
         close: () => (),
       },
       argParser: {
-        parse: (~args, ~strict, ~allowPositionals) => Ok({values: Dict.make(), positionals: []}),
+        parse: (~args as _, ~strict as _, ~allowPositionals as _) => Ok({values: Dict.make(), positionals: []}),
       },
     }
     assert_true(true)

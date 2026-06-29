@@ -483,8 +483,8 @@ module NodeProcess = {
   @module("node:process") external env: dict<string> = "env"
   @module("node:process") external exit: int => unit = "exit"
   @module("node:process") external cwd: unit => string = "cwd"
-  let onSignal: (string, unit => unit) => unit = %raw(`(signal, callback) => process.on(signal, callback)`)
-  let removeSignalListeners: unit => unit = %raw(`() => { process.removeAllListeners("SIGINT"); process.removeAllListeners("SIGTERM"); }`)
+  let _onSignal: (string, unit => unit) => unit = %raw(`(signal, callback) => process.on(signal, callback)`)
+  let _removeSignalListeners: unit => unit = %raw(`() => { process.removeAllListeners("SIGINT"); process.removeAllListeners("SIGTERM"); }`)
 }
 
 module ParseArgs = Util

@@ -4,12 +4,12 @@ open TestHelpers
 open Ports
 
 let makeMockFs = (): Ports.fileSystem => {
-  readFile: (_, ~options=?) => Promise.resolve(""),
-  writeFile: (_, _, ~options=?) => Promise.resolve(),
-  mkdir: (_, ~options=?) => Promise.resolve(""),
-  rm: (_, ~options=?) => Promise.resolve(),
-  cp: (_, _, ~options=?) => Promise.resolve(),
-  readdir: (_, ~options=?) => Promise.resolve([]),
+  readFile: (_, ~options as _=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+  mkdir: (_, ~options as _=?) => Promise.resolve(""),
+  rm: (_, ~options as _=?) => Promise.resolve(),
+  cp: (_, _, ~options as _=?) => Promise.resolve(),
+  readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   makeStagingDir: () => "/tmp/test",
@@ -25,15 +25,15 @@ let runIsWithinTree = (path, root, pathAdapter) => {
 // escaped paths BEFORE any write reaches the destination, and inside-tree writes
 // actually call cp.
 let makeRecordingFs = (~cpCalls: ref<int>): Ports.fileSystem => {
-  readFile: (_, ~options=?) => Promise.resolve(""),
-  writeFile: (_, _, ~options=?) => Promise.resolve(),
-  mkdir: (_, ~options=?) => Promise.resolve(""),
-  rm: (_, ~options=?) => Promise.resolve(),
+  readFile: (_, ~options as _=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+  mkdir: (_, ~options as _=?) => Promise.resolve(""),
+  rm: (_, ~options as _=?) => Promise.resolve(),
   cp: (_srcPath, _destPath, ~options as _=?) => {
     let _ = cpCalls.contents = cpCalls.contents + 1
     Promise.resolve()
   },
-  readdir: (_, ~options=?) => Promise.resolve([]),
+  readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   makeStagingDir: () => "/tmp/test",

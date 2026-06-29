@@ -20,15 +20,15 @@ let makeCleanupFs = (
   ~directoryPaths: array<string>=[],
   ~removed: ref<array<string>>,
 ): Ports.fileSystem => {
-  readFile: (_, ~options=?) => Promise.resolve(""),
-  writeFile: (_, _, ~options=?) => Promise.resolve(),
-  mkdir: (_, ~options=?) => Promise.resolve(""),
-  rm: (target, ~options=?) => {
+  readFile: (_, ~options as _=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+  mkdir: (_, ~options as _=?) => Promise.resolve(""),
+  rm: (target, ~options as _=?) => {
     removed.contents->Array.push(target)->ignore
     Promise.resolve()
   },
-  cp: (_, _, ~options=?) => Promise.resolve(),
-  readdir: (target, ~options=?) => Promise.resolve(target == tmpRoot ? tmpEntries : []),
+  cp: (_, _, ~options as _=?) => Promise.resolve(),
+  readdir: (target, ~options as _=?) => Promise.resolve(target == tmpRoot ? tmpEntries : []),
   fileExists: target => Promise.resolve(existingPaths->Array.some(path => path == target)),
   stat: target =>
     Promise.resolve({

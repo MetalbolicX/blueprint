@@ -23,10 +23,10 @@ let makeProcess = (): Ports.process => {
 }
 
 let makeShell = (~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
-  execAsync: (_cmd, ~options=?) =>
+  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
-  execFileAsync: (_cmd, ~args=?, ~options=?) =>
+  execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
 }
 
@@ -72,10 +72,10 @@ let makeRollbackFs = (
   ~cpFailure: option<((string, string) => option<string>)>=?,
   ~rmFailure: option<(string => option<string>)>=?,
 ): Ports.fileSystem => {
-  readFile: (_, ~options=?) => Promise.resolve(""),
-  writeFile: (_, _, ~options=?) => Promise.resolve(),
-  mkdir: (_, ~options=?) => Promise.resolve(""),
-  rm: (target, ~options=?) =>
+  readFile: (_, ~options as _=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+  mkdir: (_, ~options as _=?) => Promise.resolve(""),
+  rm: (target, ~options as _=?) =>
     switch rmFailure {
     | Some(fail) =>
       switch fail(target) {
@@ -90,7 +90,7 @@ let makeRollbackFs = (
         Promise.resolve()
       }
     },
-  cp: (fromPath, toPath, ~options=?) =>
+  cp: (fromPath, toPath, ~options as _=?) =>
     switch cpFailure {
     | Some(fail) =>
       switch fail(fromPath, toPath) {
@@ -105,7 +105,7 @@ let makeRollbackFs = (
         Promise.resolve()
       }
     },
-  readdir: (_, ~options=?) => Promise.resolve([]),
+  readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   makeStagingDir: () => "/tmp/test",

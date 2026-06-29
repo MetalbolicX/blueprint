@@ -2,7 +2,6 @@
 // Owns the render/injection concerns of Phase1; Phase1 stitches it with ShellQueue for the full tuple.
 
 open Template
-open FuncMap
 
 type renderedOutput = {
   sourcePath: string,
@@ -175,7 +174,7 @@ let render: (
   ~conflictDecisions,
   ~fs,
   ~path,
-  ~process,
+  ~process as _,
 ) => {
   // Find "to" directive for target path
   let targetPathOpt =

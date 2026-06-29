@@ -23,10 +23,10 @@ let makeShell = (
   ~execFileAsyncStatus: int = 0,
   ~execFileAsyncKilled: bool = false,
 ): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(execShellCommandResult),
-  execAsync: (_cmd, ~options=?) =>
+  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(execShellCommandResult),
+  execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(mkExecResult(~status=execAsyncStatus, ~killed=execAsyncKilled)),
-  execFileAsync: (_cmd, ~args=?, ~options=?) =>
+  execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
     Promise.resolve(mkExecResult(~status=execFileAsyncStatus, ~killed=execFileAsyncKilled)),
 }
 
@@ -40,12 +40,12 @@ let makeTrackingShell = (): trackingShell => {
   let execFileAsyncCalls: array<string> = []
   let execAsyncCalls: array<string> = []
   let shell: Ports.shell = {
-    execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
-    execAsync: (cmd, ~options=?) => {
+    execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+    execAsync: (cmd, ~options as _=?) => {
       let _ = execAsyncCalls->Array.push(cmd)
       Promise.resolve(mkExecResult())
     },
-    execFileAsync: (cmd, ~args=?, ~options=?) => {
+    execFileAsync: (cmd, ~args=?, ~options as _=?) => {
       let _ = execFileAsyncCalls->Array.push(
         cmd ++ "|" ++ (args->Option.getOr([])->Array.join(" ")),
       )
@@ -73,7 +73,7 @@ let makeFs = (~fileExistsResult: bool = true, ~rmResult: promise<unit> = Promise
   {
     ...base,
     fileExists: _ => Promise.resolve(fileExistsResult),
-    rm: (_target, ~options=?) => rmResult,
+    rm: (_target, ~options as _=?) => rmResult,
   }
 }
 
@@ -132,7 +132,7 @@ suite("ShellExecutor.cleanupFetchTmpFiles", () => {
     let base = NodeJsFileSystem.make()
     let fs: Ports.fileSystem = {
       ...base,
-      rm: (_target, ~options=?) => rejectError("EACCES"),
+      rm: (_target, ~options as _=?) => rejectError("EACCES"),
     }
     ShellExecutor.cleanupFetchTmpFiles(["/tmp/bad.tmp"], ~fs)
     ->Promise.then(_ => {
@@ -348,7 +348,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
       assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
       switch result {
       | Ok((count, _)) => assert_eq(count, 1)
-      | Error(msg) => assert_true(false)
+      | Error(_msg) => assert_true(false)
       }
       resolve()
       Promise.resolve()
@@ -488,7 +488,7 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     ->Promise.then(result => {
       switch result {
       | Ok((count, _logs)) => assert_eq(count, 1)
-      | Error(msg) => assert_true(false) // should not error
+      | Error(_msg) => assert_true(false) // should not error
       }
       resolve()
       Promise.resolve()

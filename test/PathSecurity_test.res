@@ -7,12 +7,12 @@ open Ports
 // This is sufficient for testing path traversal scenarios since
 // those don't involve actual symlinks.
 let makeMockFs = (): Ports.fileSystem => {
-  readFile: (_, ~options=?) => Promise.resolve(""),
-  writeFile: (_, _, ~options=?) => Promise.resolve(),
-  mkdir: (_, ~options=?) => Promise.resolve(""),
-  rm: (_, ~options=?) => Promise.resolve(),
-  cp: (_, _, ~options=?) => Promise.resolve(),
-  readdir: (_, ~options=?) => Promise.resolve([]),
+  readFile: (_, ~options as _=?) => Promise.resolve(""),
+  writeFile: (_, _, ~options as _=?) => Promise.resolve(),
+  mkdir: (_, ~options as _=?) => Promise.resolve(""),
+  rm: (_, ~options as _=?) => Promise.resolve(),
+  cp: (_, _, ~options as _=?) => Promise.resolve(),
+  readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   makeStagingDir: () => "/tmp/test",

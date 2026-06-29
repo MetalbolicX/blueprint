@@ -67,7 +67,7 @@ let executeShellCommands: (
                       | Some(n) => n
                       | None => 0
                       }
-                      Js_math.imul(acc, 31) + code
+                      Math.Int.imul(acc, 31) + code
                     })
                     let hash = hashVal < 0 ? Int.toString(-hashVal) : Int.toString(hashVal)
                     "fetch-" ++ hash ++ ".tmp"

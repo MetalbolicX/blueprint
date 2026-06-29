@@ -38,7 +38,7 @@ let extractUndefinedVar: string => option<string> = msg => {
 }
 
 let render: (template, renderContext) => result<string, string> = (tmpl, ctx) => {
-  let helpers = makeHelpers()
+  let _helpers = makeHelpers()
 
   // Build EJS data object — merge name variants, attributes, and h helper
   let data = Dict.make()

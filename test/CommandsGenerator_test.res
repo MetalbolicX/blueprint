@@ -23,7 +23,7 @@ let makeDeps = (~cwd: string, ~exitCodes: ref<array<int>>): Ports.deps => {
     shell: NodeJsShell.make(),
     interactiveIO: {
       ask: _ => Promise.resolve(""),
-      askConfirm: (~question as _, ~defaultYes=?) => Promise.resolve(false),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(false),
       close: () => (),
     },
     argParser: {

@@ -166,7 +166,7 @@ suite("SsrfGuard.isUrlAllowed", () => {
     ->Promise.then(result => {
       switch result {
       | Ok() => ()
-      | Error(msg) => assert_true(false)
+      | Error(_msg) => assert_true(false)
       }
       resolve()
       Promise.resolve()

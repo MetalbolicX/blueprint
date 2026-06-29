@@ -5,13 +5,13 @@ open TestHelpers
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
 let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
-  execAsync: (_cmd, ~options=?) =>
+  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execAsync: (_cmd, ~options as _=?) =>
     switch execAsyncResult {
     | Ok(result) => Promise.resolve(result)
     | Error(message) => rejectError(message)
     },
-  execFileAsync: (_cmd, ~args=?, ~options=?) =>
+  execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
 }
 
@@ -19,10 +19,10 @@ let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shel
 // structured-args tests can prove that shell metacharacters in args do NOT
 // get rewritten (no shell interpretation).
 let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
-  execAsync: (_cmd, ~options=?) =>
+  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
-  execFileAsync: (cmd, ~args=?, ~options=?) => {
+  execFileAsync: (cmd, ~args=?, ~options as _=?) => {
     let recordedArgs: array<string> = switch args {
     | Some(a) => a
     | None => []
@@ -264,7 +264,7 @@ suite("HookSecurity", () => {
             assert_eq(args[1]->Option.getOr(""), "value with space")
             assert_eq(args[2]->Option.getOr(""), "; rm -rf /tmp")
           }
-        | Error(msg) => assert_true(false) // surface msg in failure trace
+        | Error(_msg) => assert_true(false) // surface msg in failure trace
         }
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
@@ -335,9 +335,9 @@ suite("HookSecurity", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell={
-        execShellCommand: (~command as _, ~cwd=?) => Promise.resolve(Ok("")),
-        execAsync: (_cmd, ~options=?) => Promise.reject(Exn.raiseError("shell.execAsync MUST NOT be called for a Rejected tool")),
-        execFileAsync: (_cmd, ~args=?, ~options=?) => Promise.reject(Exn.raiseError("shell.execFileAsync MUST NOT be called for a Rejected tool")),
+        execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+        execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
+        execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },
     )
     ->Promise.then(result => {

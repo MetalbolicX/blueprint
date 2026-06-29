@@ -22,7 +22,7 @@ let makeTrackingFs = (~readdirCalls: ref<int>): Ports.fileSystem => {
 let makeDeps = (
   ~cwd: string,
   ~exitCodes: ref<array<int>>,
-  ~loggedMessages: ref<array<string>>,
+  ~_loggedMessages: ref<array<string>>,
 ): Ports.deps => {
   let fs = NodeJsFileSystem.make()
   let path = NodeJsPath.make()
@@ -45,7 +45,7 @@ let makeDeps = (
     shell: NodeJsShell.make(),
     interactiveIO: {
       ask: _ => Promise.resolve(""),
-      askConfirm: (~question as _, ~defaultYes=?) => Promise.resolve(false),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(false),
       close: () => (),
     },
     argParser: {
@@ -63,7 +63,7 @@ suite("Commands", () => {
   // Store reference so the raw JS can push to it
   let _ = %raw("globalThis.__testMessages = []")
   let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
@@ -110,7 +110,7 @@ suite("Commands", () => {
   // Store reference so the raw JS can push to it
   let _ = %raw("globalThis.__testMessages = []")
   let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~loggedMessages)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
