@@ -38,17 +38,7 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
       })
 
       // Add h helper functions (pascalCase, kebabCase, etc.)
-      let helpers = makeHelpers()
-      let hObj = Dict.make()
-      Dict.set(hObj, "pascalCase", helpers.pascalCase->Obj.magic)
-      Dict.set(hObj, "camelCase", helpers.camelCase->Obj.magic)
-      Dict.set(hObj, "kebabCase", helpers.kebabCase->Obj.magic)
-      Dict.set(hObj, "snakeCase", helpers.snakeCase->Obj.magic)
-      Dict.set(hObj, "upper", helpers.upper->Obj.magic)
-      Dict.set(hObj, "lower", helpers.lower->Obj.magic)
-      Dict.set(hObj, "trim", helpers.trim->Obj.magic)
-      Dict.set(hObj, "title", helpers.title->Obj.magic)
-      Dict.set(data, "h", hObj->Obj.magic)
+      Dict.set(data, "h", FuncMap.makeHelpersDict()->Obj.magic)
 
       try {
         let rendered = Bindings.Ejs.render(path, data)

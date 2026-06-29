@@ -1,5 +1,6 @@
 type parseArgOption = {
   @as("type") kind: string,
+  short?: string,
 }
 
 type parseArgsOptions = {
@@ -24,9 +25,9 @@ let make: unit => Ports.argParser = () => {
         let result = parseArgsRaw({
           options: {
             let opts = Dict.make()
-            Dict.set(opts, "name", {kind: "string"})
-            Dict.set(opts, "output", {kind: "string"})
-            Dict.set(opts, "force", {kind: "boolean"})
+            Dict.set(opts, "name", {kind: "string", short: "n"})
+            Dict.set(opts, "output", {kind: "string", short: "o"})
+            Dict.set(opts, "force", {kind: "boolean", short: "f"})
             opts
           },
           args,

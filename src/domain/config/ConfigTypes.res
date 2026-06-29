@@ -38,6 +38,7 @@ type shellConfig = {
 type config = {
   hooks?: hooksConfig,
   output?: string,
+  dryRun?: bool,
   shell?: shellConfig,
 }
 

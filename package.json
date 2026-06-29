@@ -12,6 +12,8 @@
     "res:clean": "rescript clean",
     "res:dev": "rescript watch",
     "res:test": "retest ./test/*.res.mjs",
+    "res:test:coverage": "c8 pnpm res:test",
+    "res:test:coverage:check": "c8 --check-coverage --lines 50 --functions 50 --branches 40 pnpm res:test",
     "bundle": "rolldown -c"
   },
   "dependencies": {
@@ -21,6 +23,7 @@
     "yaml": "^2.5.0"
   },
   "devDependencies": {
+    "c8": "^11.0.0",
     "rescript-test": "^8.0.1",
     "rolldown": "^1.0.1",
     "rollup-plugin-esbuild": "^6.2.1"

@@ -30,8 +30,8 @@ React component generator with TypeScript. Creates a component file and an accom
 - `path` — Output directory (default: src/components)
 
 **Files:**
-- `Component.tsx.ejs.ts` — React component with props interface
-- `Component.test.tsx.ejs.ts` — Vitest test file with basic rendering test
+- `Component.tsx.ejs.t` — React component with props interface
+- `Component.test.tsx.ejs.t` — Vitest test file with basic rendering test
 
 **Run:**
 ```bash

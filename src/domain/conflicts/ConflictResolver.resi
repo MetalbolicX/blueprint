@@ -1,5 +1,6 @@
 type resolution =
   | YesAll
+  | Yes
   | NoAll
   | Select
   | Abort

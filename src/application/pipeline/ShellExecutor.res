@@ -62,14 +62,15 @@ let executeShellCommands: (
               switch result {
               | Ok(content) => {
                   let fetchFileName = {
-                    let hash = url->String.split("")->Array.reduce(0, (acc, c) => {
+                    let hashVal = url->String.split("")->Array.reduce(0, (acc, c) => {
                       let code = switch String.charCodeAt(c, 0) {
                       | Some(n) => n
                       | None => 0
                       }
-                      acc + code
+                      Js_math.imul(acc, 31) + code
                     })
-                    "fetch-" ++ Int.toString(hash) ++ ".tmp"
+                    let hash = hashVal < 0 ? Int.toString(-hashVal) : Int.toString(hashVal)
+                    "fetch-" ++ hash ++ ".tmp"
                   }
                   let fetchPath = path.join(cwd, fetchFileName)
                   fs.writeFile(fetchPath, content)->Promise.then(_ => {

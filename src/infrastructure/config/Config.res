@@ -4,7 +4,6 @@
 // Functions re-exported from ConfigYaml (parsing) and ConfigStore (I/O)
 
 module ConfigTypes = ConfigTypes
-module ConfigParser = ConfigParser
 module ConfigStore = ConfigStore
 
 // Type re-exports (from ConfigTypes — using type aliases, NOT module re-exports)

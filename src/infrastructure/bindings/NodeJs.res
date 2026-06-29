@@ -464,6 +464,20 @@ module Util = {
   }
 }
 
+module Crypto = {
+  @send
+  external hashUpdate: ({..}, string) => {..} = "update"
+
+  @send
+  external hashDigest: ({..}, string) => string = "digest"
+
+  let sha256Hex: string => string = input => {
+    let hash: {..} = %raw("require('node:crypto').createHash('sha256')")
+    let _ = hash->hashUpdate(input)
+    hashDigest(hash, "hex")
+  }
+}
+
 module NodeProcess = {
   @module("node:process") external argv: array<string> = "argv"
   @module("node:process") external env: dict<string> = "env"

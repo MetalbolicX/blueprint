@@ -12,9 +12,13 @@ suite("ConflictResolver", () => {
     assert_true(true) // Just verify variants exist
   })
 
-  test("parseChoice: y/yes/all", () => {
-    assert_eq(ConflictResolver.parseChoice("y"), Some(ConflictResolver.YesAll))
-    assert_eq(ConflictResolver.parseChoice("yes"), Some(ConflictResolver.YesAll))
+  test("parseChoice: y/yes", () => {
+    assert_eq(ConflictResolver.parseChoice("y"), Some(ConflictResolver.Yes))
+    assert_eq(ConflictResolver.parseChoice("yes"), Some(ConflictResolver.Yes))
+  })
+
+  test("parseChoice: a/all", () => {
+    assert_eq(ConflictResolver.parseChoice("a"), Some(ConflictResolver.YesAll))
     assert_eq(ConflictResolver.parseChoice("all"), Some(ConflictResolver.YesAll))
   })
 

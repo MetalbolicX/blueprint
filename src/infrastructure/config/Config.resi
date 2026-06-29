@@ -2,7 +2,6 @@
 // Split from Config.res as part of T2 refactor
 
 module ConfigTypes = ConfigTypes
-module ConfigParser = ConfigParser
 module ConfigStore = ConfigStore
 
 // Type re-exports (from ConfigTypes)

@@ -50,8 +50,6 @@ script:  <name>               # run a configured script
 ## Context keys
 
 ```
-cwd          string     Current working directory
-actionfolder string     Manifest directory
 name         string     Lowercase component name
 Name         string     PascalCase component name
 names        string     name + "s"
@@ -131,7 +129,6 @@ hooks:
 
 \`\`\`yaml
 templates: [<path>]
-allow_dangerous_commands: true|false   # default false
 force_overwrite: true|false            # default false
 dry_run: true|false                    # default false
 timeout: <int>                         # default 5

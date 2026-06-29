@@ -3,6 +3,7 @@
 
 type resolution =
   | YesAll // overwrite all
+  | Yes // overwrite this file
   | NoAll // skip all
   | Select // choose per file
   | Abort // abort entire operation
@@ -23,7 +24,8 @@ type conflictDecision = {
 let parseChoice: string => option<resolution> = input => {
   let trimmed = String.trim(input)->String.toLowerCase
   switch trimmed {
-  | "y" | "yes" | "a" | "all" => Some(YesAll)
+  | "y" | "yes" => Some(Yes)
+  | "a" | "all" => Some(YesAll)
   | "n" | "no" | "q" => Some(NoAll)
   | "s" | "select" => Some(Select)
   | "abort" => Some(Abort)
@@ -70,7 +72,7 @@ let resolveConflicts: (
   } else {
     promptBulkResolution(~io, ~count=Array.length(conflicts))->Promise.then(resolution => {
       switch resolution {
-      | YesAll =>
+      | YesAll | Yes =>
         let decisions = conflicts->Array.map(c => {
           {sourcePath: c.sourcePath, targetPath: c.targetPath, overwrite: true}
         })
@@ -97,8 +99,8 @@ let resolveConflicts: (
                 "Overwrite " ++ c.targetPath ++ "? [y]es / [n]o: ",
               )->Promise.then(answer => {
                 let overwrite = switch parseChoice(answer) {
-                | Some(YesAll) | Some(NoAll) | None => false
-                | _ => true
+                | Some(Yes) => true
+                | _ => false
                 }
                 let _ = decisions->Array.push({
                   sourcePath: c.sourcePath,

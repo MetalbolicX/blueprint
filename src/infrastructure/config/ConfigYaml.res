@@ -433,10 +433,14 @@ let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConf
   | Some(p) => p.shell
   | None => None
   }
+  let effectiveDryRun = switch project {
+  | Some(p) => p.dryRun
+  | None => None
+  }
   {
     templates: global.templates,
     forceOverwrite: global.forceOverwrite,
-    dryRun: global.dryRun,
+    dryRun: effectiveDryRun->Option.getOr(global.dryRun),
     timeout: effectiveTimeout,
     defaultAttributes: global.defaultAttributes,
     shell: ?effectiveShell,
@@ -479,12 +483,21 @@ let parseConfig: string => result<config, string> = yamlContent => {
         | None => None
         }
 
+        let dryRun = switch Dict.get(dict, "dry_run") {
+        | Some(v) =>
+          switch v {
+          | JSON.Boolean(b) => Some(b)
+          | _ => None
+          }
+        | None => None
+        }
+
         let shell = switch Dict.get(dict, "shell") {
         | Some(v) => parseShellConfig(v)
         | None => None
         }
 
-        Ok({hooks: ?hooks, output: ?output, shell: ?shell})
+        Ok({hooks: ?hooks, output: ?output, dryRun: ?dryRun, shell: ?shell})
       }
     | _ => Ok({})
     }

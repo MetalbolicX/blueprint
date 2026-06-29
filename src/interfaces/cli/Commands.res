@@ -201,6 +201,7 @@ let runGenerate: (
           // Keep project hooks as-is but use merged timeout
           let effectiveConfig: Config.config = {
             output: ?projectConfig->Option.flatMap(c => c.output),
+            dryRun: ?Some(mergedConfig.dryRun),
             hooks: ?Some({
               preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
               postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),

@@ -14,7 +14,7 @@ type parseError = {
   line?: int,
 }
 
-let frontmatterRegex: RegExp.t = /^---\n([\s\S]*?)\n---\n/
+let frontmatterRegex: RegExp.t = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 

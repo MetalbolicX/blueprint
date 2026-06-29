@@ -60,7 +60,7 @@ let loadGlobal: (
   } else {
     try {
       let content = await fs.readFile(configPath, ~options={encoding: "utf8"})
-      let result = ConfigParser.parseGlobal(content)
+      let result = ConfigYaml.parseGlobal(content)
       switch result {
       | Ok(cfg) => Ok(Some(cfg))
       | Error(e) => Error(e)
@@ -90,7 +90,7 @@ let loadFrom: (
   } else {
     try {
       let content = await fs.readFile(configPath, ~options={encoding: "utf8"})
-      let result = ConfigParser.parse(content)
+      let result = ConfigYaml.parseConfig(content)
       switch result {
       | Ok(cfg) => Ok(Some(cfg))
       | Error(e) => Error(e)

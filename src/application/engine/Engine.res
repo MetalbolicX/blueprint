@@ -307,17 +307,31 @@ let run: (
           | Ok(p1) => {
               let stagingDirRef = ref(Some(p1.stagingDir))
               registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
-              let phase2Result = await Phase2.run(
-                ~stagingDir=p1.stagingDir,
-                ~outputDir,
-                ~renderedFiles=p1.renderedFiles,
-                ~shellCommands=p1.shellCommands,
-                ~shellConfig=shellConfig,
-                ~fs,
-                ~path,
-                ~process=proc,
-                ~shell,
-              )
+              let isDryRun = config->Option.flatMap(c => c.dryRun)->Option.getOr(false)
+              if isDryRun {
+                stagingDirRef.contents = None
+                proc.removeSignalListeners()
+                Console.log("Dry run — would generate " ++ Int.toString(p1.renderedFiles->Array.length) ++ " file(s)")
+                let _ = await Commit.rollback(p1.stagingDir, ~fs)
+                let result: generateResult = {
+                  filesCreated: p1.renderedFiles->Array.length,
+                  filesInjected: 0,
+                  commandsExecuted: 0,
+                  classification: generator.name,
+                }
+                Ok(result)
+              } else {
+                let phase2Result = await Phase2.run(
+                  ~stagingDir=p1.stagingDir,
+                  ~outputDir,
+                  ~renderedFiles=p1.renderedFiles,
+                  ~shellCommands=p1.shellCommands,
+                  ~shellConfig=shellConfig,
+                  ~fs,
+                  ~path,
+                  ~process=proc,
+                  ~shell,
+                )
 
               stagingDirRef.contents = None
               proc.removeSignalListeners()
@@ -340,6 +354,7 @@ let run: (
                   io.close()
                   finalResult
                 }
+              }
               }
             }
           }

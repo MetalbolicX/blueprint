@@ -202,6 +202,10 @@ module Util: {
 
 module ParseArgs = Util
 
+module Crypto: {
+  let sha256Hex: string => string
+}
+
 module NodeProcess: {
   let argv: array<string>
   let env: dict<string>

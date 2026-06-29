@@ -25,7 +25,7 @@ _templates/
     └── new/
         ├── manifest.yaml
         └── files/
-            └── Component.tsx.ejs.ts
+            └── Component.tsx.ejs.t
 ```
 
 ```yaml
@@ -44,7 +44,7 @@ prompts:
 ```
 
 ```yaml
-# files/Component.tsx.ejs.ts
+# files/Component.tsx.ejs.t
 ---
 to: <%= path %>/<%= name %>.tsx
 ---
@@ -245,8 +245,6 @@ Available inside every template via EJS:
 | `<%= Name %>` | Component name (PascalCase) |
 | `<%= names %>` | Pluralized lowercase |
 | `<%= Names %>` | Pluralized PascalCase |
-| `<%= cwd %>` | Current working directory |
-| `<%= actionfolder %>` | Generator action folder path |
 | `<%= path %>` | User-provided `path` attribute |
 | `<%= package %>` | User-provided `package` attribute |
 | Any prompt answer | Available by its name |
