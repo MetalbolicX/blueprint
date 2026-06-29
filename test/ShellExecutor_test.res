@@ -189,6 +189,7 @@ let runShellCommands = (
   ShellExecutor.executeShellCommands(
     ~commands,
     ~cwd="/workspace/project",
+    ~stagingDir="/workspace/project",
     ~shellConfig,
     ~fs,
     ~path=NodeJsPath.make(),
@@ -571,7 +572,7 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
     ->ignore
   })
 
-  testAsync("successful execution calls execAsync with resolved path and increments count", resolve => {
+  testAsync("successful execution calls execFileAsync with resolved path and increments count", resolve => {
     let tracking = makeTrackingShell()
     let commands: array<Template.shellCommand> = [
       {
@@ -583,10 +584,10 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
     let fs = makeFs(~fileExistsResult=true)
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell, ~fs)
     ->Promise.then(result => {
-      assert_eq(tracking.execAsyncCalls->Array.length, 1)
+      assert_eq(tracking.execFileAsyncCalls->Array.length, 1)
       assert_eq(
-        tracking.execAsyncCalls[0]->Option.getOr(""),
-        "/workspace/project/scripts/setup.sh",
+        tracking.execFileAsyncCalls[0]->Option.getOr(""),
+        "/workspace/project/scripts/setup.sh|",
       )
       switch result {
       | Ok((count, _logs)) => assert_eq(count, 1)
@@ -607,7 +608,7 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
     ]
     let shellConfig: option<Config.shellConfig> = None
     let fs = makeFs(~fileExistsResult=true)
-    let shell = makeShell(~execAsyncKilled=true)
+    let shell = makeShell(~execFileAsyncKilled=true)
     runShellCommands(~commands, ~shellConfig, ~fs, ~shell)
     ->Promise.then(result => {
       switch result {

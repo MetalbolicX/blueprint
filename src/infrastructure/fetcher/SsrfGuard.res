@@ -91,7 +91,7 @@ let isIpAllowed: string => bool = ip => {
         true
       }
     }
-  | "v6" => {
+| "v6" => {
       // Loopback ::1, link-local fe80::/10, unique-local fc00::/7,
       // unspecified ::, multicast ff00::/8.
       let normalized = ip->String.toLowerCase
@@ -108,7 +108,22 @@ let isIpAllowed: string => bool = ip => {
       let isUniqueLocal =
         _ipv6StartsWith(normalized, "fc") || _ipv6StartsWith(normalized, "fd")
       let isMulticast = _ipv6StartsWith(normalized, "ff")
-      if isLoopback || isUnspecified || isLinkLocal || isUniqueLocal || isMulticast {
+      // IPv4-mapped IPv6: ::ffff:x.x.x.x — treat the trailing part as IPv4.
+      let isIpv4Mapped = String.startsWith(normalized, "::ffff:")
+      let ipv4Part = if isIpv4Mapped {
+        String.slice(normalized, ~start=7, ~end=String.length(normalized))
+      } else {
+        ""
+      }
+      let isMappedLoopback = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 127, 127, 0, 255, 0, 255, 0, 255)
+      let isMappedPrivate10 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 10, 10, 0, 255, 0, 255, 0, 255)
+      let isMappedPrivate172 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 172, 172, 16, 31, 0, 255, 0, 255)
+      let isMappedPrivate192 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 192, 192, 168, 168, 0, 255, 0, 255)
+      let isMappedLinkLocal = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 169, 169, 254, 254, 0, 255, 0, 255)
+      let isMappedZero = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 0, 0, 0, 255, 0, 255, 0, 255)
+      if isLoopback || isUnspecified || isLinkLocal || isUniqueLocal || isMulticast ||
+        isMappedLoopback || isMappedPrivate10 || isMappedPrivate172 ||
+        isMappedPrivate192 || isMappedLinkLocal || isMappedZero {
         false
       } else {
         true

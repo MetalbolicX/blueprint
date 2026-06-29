@@ -41,6 +41,22 @@ let makeProcess = (): Ports.process => {
   removeSignalListeners: () => (),
 }
 
+// Captures the env Dict that execAsync receives in its options, so a test
+// can assert that filtered safeEnv (not raw process.env) is what reaches
+// the child process. Used by the WS3 env-leak guard test below.
+let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.shell => {
+  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execAsync: (_cmd, ~options=?) => {
+    let _ = capturedEnv.contents = switch options {
+    | Some(o) => o.env
+    | None => None
+    }
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))
+  },
+  execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+}
+
 suite("HookSecurity", () => {
   testAsync("executeHook: script outside project tree is blocked", resolve => {
     let hook: Config.hookCommand = {command: "/etc/malicious.sh"}
@@ -228,6 +244,57 @@ suite("HookSecurity", () => {
     assert_eq(ExecPolicy.defaultTimeout, 30000)
   })
 
+  // WS3: non-path hook without args receives filtered safeEnv (not raw
+  // process.env). Asserts that sensitive keys set in process.env do NOT
+  // appear in the env passed to execAsync.
+  testAsync("WS3: non-path hook without args receives filtered env", resolve => {
+    let capturedEnv: ref<option<Dict.t<string>>> = ref(None)
+    let sensitiveEnv = Dict.make()
+    Dict.set(sensitiveEnv, "PATH", "/usr/bin")
+    Dict.set(sensitiveEnv, "HOME", "/root")
+    Dict.set(sensitiveEnv, "AWS_SECRET_ACCESS_KEY", "should-not-leak")
+    Dict.set(sensitiveEnv, "API_TOKEN", "should-not-leak")
+
+    let sensitiveProcess: Ports.process = {
+      ...makeProcess(),
+      env: () => sensitiveEnv,
+    }
+
+    // Non-path hook ("echo", no slash) with no args — this is the code
+    // path that previously dropped safeEnv by passing no env at all.
+    let hook: Config.hookCommand = {command: "echo"}
+    Hooks.executeHook(
+      ~hook,
+      ~cwd="/tmp",
+      ~timeout=5000,
+      ~hookType=Hooks.PreGenerate,
+      ~shellEnv=None,
+      ~shell=makeEnvCapturingShell(capturedEnv),
+      ~process=sensitiveProcess,
+      ~path=NodeJsPath.make(),
+      ~fs=NodeJsFileSystem.make(),
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => {
+          // The captured env should be the filtered safeEnv.
+          // Sensitive keys from process.env MUST NOT leak.
+          switch capturedEnv.contents {
+          | Some(env) => {
+              assert_false(Dict.has(env, "AWS_SECRET_ACCESS_KEY"))
+              assert_false(Dict.has(env, "API_TOKEN"))
+            }
+          | None => assert_true(false) // execAsync wasn't called with options
+          }
+        }
+      | Error(_msg) => assert_true(false)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("WS2: path-based hook with args invokes execFileAsync with the args verbatim", resolve => {
     // Create a real script the hook will resolve inside the project tree.
     let tmpDir = NodeJs.Os.makeStagingDir()
@@ -330,6 +397,7 @@ suite("HookSecurity", () => {
     ShellExecutor.executeShellCommands(
       ~commands=[cmd],
       ~cwd="/tmp/ws2-reject",
+      ~stagingDir="/tmp/ws2-reject",
       ~shellConfig=Some({enabled: true}),
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),

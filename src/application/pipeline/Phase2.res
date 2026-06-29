@@ -83,6 +83,7 @@ let run: (
       let shellResult = await ShellExecutor.executeShellCommands(
         ~commands=shellCommands,
         ~cwd=outputDir,
+        ~stagingDir,
         ~shellConfig,
         ~fs,
         ~path,

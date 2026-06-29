@@ -404,6 +404,7 @@ suite("Phase2", () => {
     Phase2.executeShellCommands(
       ~commands,
       ~cwd=tmpDir,
+      ~stagingDir=tmpDir,
       ~shellConfig,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
@@ -437,6 +438,7 @@ suite("Phase2", () => {
       Phase2.executeShellCommands(
         ~commands,
         ~cwd=tmpDir,
+        ~stagingDir=tmpDir,
         ~shellConfig=None,
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
@@ -467,6 +469,7 @@ suite("Phase2", () => {
     Phase2.executeShellCommands(
       ~commands,
       ~cwd=tmpDir,
+      ~stagingDir=tmpDir,
       ~shellConfig=None,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
@@ -497,6 +500,7 @@ suite("Phase2", () => {
     Phase2.executeShellCommands(
       ~commands,
       ~cwd=tmpDir,
+      ~stagingDir=tmpDir,
       ~shellConfig=None,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
@@ -927,6 +931,7 @@ suite("Phase2", () => {
     Phase2.executeShellCommands(
       ~commands,
       ~cwd=tmpDir,
+      ~stagingDir=tmpDir,
       ~shellConfig=None,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
@@ -981,6 +986,7 @@ suite("Phase2", () => {
     Phase2.executeShellCommands(
       ~commands,
       ~cwd=tmpDir,
+      ~stagingDir=tmpDir,
       ~shellConfig,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),

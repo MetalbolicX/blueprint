@@ -25,6 +25,7 @@ let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = e => {
 let executeShellCommands: (
   ~commands: array<shellCommand>,
   ~cwd: string,
+  ~stagingDir: string,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
@@ -33,6 +34,7 @@ let executeShellCommands: (
 ) => promise<result<(int, array<string>), string>> = (
   ~commands,
   ~cwd,
+  ~stagingDir,
   ~shellConfig,
   ~fs,
   ~path,
@@ -72,7 +74,7 @@ let executeShellCommands: (
                     let hash = hashVal < 0 ? Int.toString(-hashVal) : Int.toString(hashVal)
                     "fetch-" ++ hash ++ ".tmp"
                   }
-                  let fetchPath = path.join(cwd, fetchFileName)
+                  let fetchPath = path.join(stagingDir, fetchFileName)
                   fs.writeFile(fetchPath, content)->Promise.then(_ => {
                     let _ = tmpFiles->Array.push(fetchPath)
                     count.contents = count.contents + 1
@@ -200,14 +202,13 @@ let executeShellCommands: (
                   if !exists {
                     Promise.resolve(Error("Script file not found: " ++ cmdPath))
                   } else {
-                    let execOpts: Ports.shellOptions = {
+                    let execFileOpts: Ports.shellOptions = {
                       cwd: cwd,
                       env: safeEnv,
-                      shell: true,
                       encoding: "utf8",
                       timeout: ExecPolicy.defaultTimeout,
                     }
-                    shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
+                    shell.execFileAsync(resolvedPath, ~options=execFileOpts)->Promise.then(result => {
                       if result.killed {
                         Promise.resolve(Error("Script timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms: " ++ cmdPath))
                       } else {

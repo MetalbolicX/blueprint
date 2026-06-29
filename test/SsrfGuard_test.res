@@ -114,6 +114,31 @@ suite("SsrfGuard.isIpAllowed", () => {
   test("172.15.255.255 (just before RFC1918 172.16/12) → true", () => {
     assert_true(SsrfGuard.isIpAllowed("172.15.255.255"))
   })
+
+  // IPv4-mapped IPv6 bypass — these should be BLOCKED.
+  test("::ffff:127.0.0.1 (IPv4-mapped IPv6 loopback) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:127.0.0.1"))
+  })
+
+  test("::ffff:169.254.169.254 (IPv4-mapped IPv6 cloud metadata) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:169.254.169.254"))
+  })
+
+  test("::ffff:10.0.0.1 (IPv4-mapped IPv6 private 10/8) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:10.0.0.1"))
+  })
+
+  test("::ffff:172.16.0.1 (IPv4-mapped IPv6 private 172.16/12) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:172.16.0.1"))
+  })
+
+  test("::ffff:192.168.1.1 (IPv4-mapped IPv6 private 192.168/16) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:192.168.1.1"))
+  })
+
+  test("::ffff:8.8.8.8 (IPv4-mapped IPv6 public IP) → true", () => {
+    assert_true(SsrfGuard.isIpAllowed("::ffff:8.8.8.8"))
+  })
 })
 
 suite("SsrfGuard.checkIps", () => {

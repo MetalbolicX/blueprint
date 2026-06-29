@@ -20,6 +20,7 @@ type phase2Error = {
 let executeShellCommands: (
   ~commands: array<Template.shellCommand>,
   ~cwd: string,
+  ~stagingDir: string,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,

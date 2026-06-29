@@ -71,9 +71,16 @@ let executeHook: (
   }
 
   // Use shell port for proper timeout handling
-  let execWithTimeout: (string, int) => promise<result<Ports.execResult, string>> = async (cmd, timeoutMs) => {
+  let execWithTimeout: (string, int, Dict.t<string>) => promise<result<Ports.execResult, string>> = async (
+    cmd,
+    timeoutMs,
+    envDict,
+  ) => {
     try {
-      let options: Ports.shellOptions = {timeout: timeoutMs}
+      let options: Ports.shellOptions = {
+        timeout: timeoutMs,
+        env: envDict,
+      }
       let result = await shell.execAsync(cmd, ~options)
       Ok(result)
     } catch {
@@ -135,7 +142,7 @@ let executeHook: (
         }
       }
     | None => {
-        let r = await execWithTimeout(hook.command, timeout)
+        let r = await execWithTimeout(hook.command, timeout, safeEnv)
         switch r {
         | Ok(r2) => Ok(execResultToHookResult(r2))
         | Error(e) => Error(e)
