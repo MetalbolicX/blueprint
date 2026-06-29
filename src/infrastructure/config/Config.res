@@ -1,7 +1,7 @@
 // Config — Re-export facade for backwards compatibility
 // Split from Config.res as part of T2 refactor
 // Types re-exported from ConfigTypes
-// Functions re-exported from ConfigParser and ConfigStore
+// Functions re-exported from ConfigYaml (parsing) and ConfigStore (I/O)
 
 module ConfigTypes = ConfigTypes
 module ConfigParser = ConfigParser
@@ -22,16 +22,16 @@ type mergedConfig = ConfigTypes.mergedConfig
 // Default global config
 let defaultGlobalConfig: globalConfig = ConfigTypes.defaultGlobalConfig
 
-// Function re-exports (from ConfigParser)
-let parse: string => result<config, string> = ConfigParser.parse
-let parseGlobal: string => result<globalConfig, string> = ConfigParser.parseGlobal
-let parseHookCommand: JSON.t => option<hookCommand> = ConfigParser.parseHookCommand
-let parseHooks: JSON.t => option<hooksConfig> = ConfigParser.parseHooks
-let parseShellConfig: JSON.t => option<shellConfig> = ConfigParser.parseShellConfig
-let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig = ConfigParser.mergeConfig
-let validateMergedConfig: mergedConfig => result<unit, string> = ConfigParser.validateMergedConfig
-let defaultOutputDir: string = ConfigParser.defaultOutputDir
-let defaultTimeout: int = ConfigParser.defaultTimeout
+// Function re-exports (from ConfigYaml — WS4 consolidation)
+let parse: string => result<config, string> = ConfigYaml.parseConfig
+let parseGlobal: string => result<globalConfig, string> = ConfigYaml.parseGlobal
+let parseHookCommand: JSON.t => option<hookCommand> = ConfigYaml.parseHookCommand
+let parseHooks: JSON.t => option<hooksConfig> = ConfigYaml.parseHooks
+let parseShellConfig: JSON.t => option<shellConfig> = ConfigYaml.parseShellConfig
+let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig = ConfigYaml.mergeConfig
+let validateMergedConfig: mergedConfig => result<unit, string> = ConfigYaml.validateMergedConfig
+let defaultOutputDir: string = ConfigYaml.defaultOutputDir
+let defaultTimeout: int = ConfigYaml.defaultTimeout
 
 // Function re-exports (from ConfigStore)
 let loadFrom: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<result<option<config>, string>> = ConfigStore.loadFrom
