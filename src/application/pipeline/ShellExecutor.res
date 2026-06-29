@@ -87,29 +87,66 @@ let executeShellCommands: (
             })
           }
         | ToolCall({name, toolDef}) => {
-            let execOpts: Ports.shellOptions = {
-              cwd: cwd,
-              env: safeEnv,
-              shell: true,
-              encoding: "utf8",
-            }
-            let fullCommand = switch toolDef.args {
-            | Some(args) => toolDef.command ++ " " ++ args->Array.join(" ")
-            | None => toolDef.command
-            }
-            shell.execAsync(fullCommand, ~options=execOpts)->Promise.then(result => {
-              switch result.status {
-              | Some(0) => {
-                  count.contents = count.contents + 1
-                  Promise.resolve(Ok())
+            // WS2: route through ExecPolicy — args[] → ExecFile (no shell);
+            // no-args + tools allowlist match → ShellExact; otherwise Reject.
+            let toolsAllowlist: array<string> = shellConfig
+              ->Option.flatMap(cfg => cfg.tools)
+              ->Option.getOr([])
+              ->Array.map(tool => tool.command)
+            switch ExecPolicy.decide(~command=toolDef.command, ~args=toolDef.args, ~allowlist=toolsAllowlist) {
+            | Reject(reason) => Promise.resolve(Error(reason))
+            | ExecFile(command, args) => {
+                let execFileOpts: Ports.shellOptions = {
+                  cwd: cwd,
+                  env: safeEnv,
+                  encoding: "utf8",
+                  timeout: ExecPolicy.defaultTimeout,
                 }
-              | status => {
-                  Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
-                }
+                shell.execFileAsync(command, ~args, ~options=execFileOpts)->Promise.then(result => {
+                  if result.killed {
+                    Promise.resolve(Error("Tool '" ++ name ++ "' timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms"))
+                  } else {
+                    switch result.status {
+                    | Some(0) => {
+                        count.contents = count.contents + 1
+                        Promise.resolve(Ok())
+                      }
+                    | status => {
+                        Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+                      }
+                    }
+                  }
+                })->Promise.catch(_ => {
+                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
+                })
               }
-            })->Promise.catch(_ => {
-              Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
-            })
+            | ShellExact(command) => {
+                let shellOpts: Ports.shellOptions = {
+                  cwd: cwd,
+                  env: safeEnv,
+                  shell: true,
+                  encoding: "utf8",
+                  timeout: ExecPolicy.defaultTimeout,
+                }
+                shell.execAsync(command, ~options=shellOpts)->Promise.then(result => {
+                  if result.killed {
+                    Promise.resolve(Error("Tool '" ++ name ++ "' timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms"))
+                  } else {
+                    switch result.status {
+                    | Some(0) => {
+                        count.contents = count.contents + 1
+                        Promise.resolve(Ok())
+                      }
+                    | status => {
+                        Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+                      }
+                    }
+                  }
+                })->Promise.catch(_ => {
+                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
+                })
+              }
+            }
           }
         | InlineCommand(command) => {
             let shellEnabled = switch shellConfig {
@@ -167,10 +204,11 @@ let executeShellCommands: (
                       env: safeEnv,
                       shell: true,
                       encoding: "utf8",
+                      timeout: ExecPolicy.defaultTimeout,
                     }
                     shell.execAsync(resolvedPath, ~options=execOpts)->Promise.then(result => {
                       if result.killed {
-                        Promise.resolve(Error("Script timed out and was killed: " ++ cmdPath))
+                        Promise.resolve(Error("Script timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms: " ++ cmdPath))
                       } else {
                         switch result.status {
                         | Some(0) => {

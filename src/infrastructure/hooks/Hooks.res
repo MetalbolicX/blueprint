@@ -61,10 +61,13 @@ let executeHook: (
   let isPath = _isPath(hook.command)
 
   // Helper to build execFile options
+  // WS2: bind timeout so path-based hooks can't run unbounded. Non-path
+  // hooks without args still use execWithTimeout below for the same reason.
   let execFileOpts: Ports.shellOptions = {
     cwd: cwd,
     env: safeEnv,
     encoding: "utf8",
+    timeout: ExecPolicy.defaultTimeout,
   }
 
   // Use shell port for proper timeout handling
