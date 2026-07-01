@@ -19,6 +19,14 @@ let _hasUnsafeEjsTags: string => bool = template => {
   RegExp.test(controlFlowPattern, template) || RegExp.test(unescapedPattern, template)
 }
 
+// EJS render wrapper: Ejs.render is typed as `dict<string>`, but our eval
+// context is a structured object ({context: dict<string>, answers: dict<string>}).
+// This helper localises the cast in one named place so the unsafe boundary is
+// explicit and reviewable.
+let _renderEval: (string, {..}) => string = (template, ctx) => {
+  Ejs.render(template, ctx->Obj.magic)
+}
+
 // Evaluate an EJS template string against evaluation context
 // Returns Error on unsafe tags or EJS evaluation failure
 let evalTemplate: (
@@ -35,7 +43,7 @@ let evalTemplate: (
     )
   } else {
     try {
-      let rendered = Ejs.render(template, ctx->Obj.magic)
+      let rendered = _renderEval(template, ctx)
       Ok(rendered)
     } catch {
     | JsExn(obj) =>

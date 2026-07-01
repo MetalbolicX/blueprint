@@ -223,6 +223,8 @@ let executeShellCommands: (
                         }
                       }
                     })->Promise.catch(e => {
+                      // Promise.catch handler receives `exn` (not JsExn.t);
+                      // Obj.magic bridges into JsExn.t for message extraction.
                       let msg = switch JsExn.message(e->Obj.magic) {
                       | Some(m) => m
                       | None => "unknown"

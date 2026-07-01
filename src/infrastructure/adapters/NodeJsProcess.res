@@ -4,8 +4,14 @@
 
 open NodeJs
 
-let onSignal: (string, unit => unit) => unit = %raw(`(signal, callback) => process.on(signal, callback)`)
-let removeSignalListeners: unit => unit = %raw(`() => { process.removeAllListeners("SIGINT"); process.removeAllListeners("SIGTERM"); }`)
+@val @scope("process") external processOn: (string, unit => unit) => unit = "on"
+@val @scope("process") external processRemoveAllListeners: string => unit = "removeAllListeners"
+
+let onSignal: (string, unit => unit) => unit = processOn
+let removeSignalListeners: unit => unit = () => {
+  processRemoveAllListeners("SIGINT")
+  processRemoveAllListeners("SIGTERM")
+}
 
 let make: unit => Ports.process = () => {
   cwd: NodeProcess.cwd,

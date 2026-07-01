@@ -85,7 +85,7 @@ let executeHook: (
       Ok(result)
     } catch {
     | JsExn(e) =>
-      let msg = switch JsExn.message(e->Obj.magic) {
+      let msg = switch JsExn.message(e) {
       | Some(m) => m
       | None => "unknown error"
       }
@@ -118,7 +118,7 @@ let executeHook: (
             let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
             Ok(execResultToHookResult(r))
           } catch {
-          | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+          | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
           }
         }
       | None => {
@@ -126,7 +126,7 @@ let executeHook: (
             let r = await shell.execFileAsync(hook.command, ~options=execFileOpts)
             Ok(execResultToHookResult(r))
           } catch {
-          | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+          | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
           }
         }
       }
@@ -138,7 +138,7 @@ let executeHook: (
           let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
           Ok(execResultToHookResult(r))
         } catch {
-        | JsExn(e) => Error(JsExn.message(e->Obj.magic)->Option.getOr("unknown error"))
+        | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
         }
       }
     | None => {

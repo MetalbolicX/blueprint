@@ -24,4 +24,4 @@ type helpers = {
 
 let makeHelpers: unit => helpers
 
-let makeHelpersDict: unit => dict<'a>
+let makeHelpersDict: unit => dict<string => string>

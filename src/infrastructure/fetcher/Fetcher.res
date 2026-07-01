@@ -33,9 +33,10 @@ module Impl = {
   @val
   external _nativeFetch: (string, 'options) => promise<'response> = "fetch"
 
-  let sleepMs: int => promise<unit> = %raw(`
-    ms => new Promise(resolve => setTimeout(resolve, ms))
-  `)
+  @val external setTimeout: (unit => unit, int) => int = "setTimeout"
+  let sleepMs: int => promise<unit> = ms => Promise.make((resolve, _reject) => {
+    let _ = setTimeout(() => resolve(. ()), ms)
+  })
 
   let isRetryableError: string => bool = message => {
     let normalized = String.toLowerCase(message)

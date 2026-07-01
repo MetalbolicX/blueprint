@@ -94,16 +94,16 @@ let makeHelpers: unit => helpers = () => {
   }
 }
 
-let makeHelpersDict: unit => dict<'a> = () => {
+let makeHelpersDict: unit => dict<string => string> = () => {
   let helpers = makeHelpers()
-  let hObj = Dict.make()
-  Dict.set(hObj, "pascalCase", helpers.pascalCase->Obj.magic)
-  Dict.set(hObj, "camelCase", helpers.camelCase->Obj.magic)
-  Dict.set(hObj, "kebabCase", helpers.kebabCase->Obj.magic)
-  Dict.set(hObj, "snakeCase", helpers.snakeCase->Obj.magic)
-  Dict.set(hObj, "upper", helpers.upper->Obj.magic)
-  Dict.set(hObj, "lower", helpers.lower->Obj.magic)
-  Dict.set(hObj, "trim", helpers.trim->Obj.magic)
-  Dict.set(hObj, "title", helpers.title->Obj.magic)
-  hObj
+  Dict.fromArray([
+    ("pascalCase", helpers.pascalCase),
+    ("camelCase", helpers.camelCase),
+    ("kebabCase", helpers.kebabCase),
+    ("snakeCase", helpers.snakeCase),
+    ("upper", helpers.upper),
+    ("lower", helpers.lower),
+    ("trim", helpers.trim),
+    ("title", helpers.title),
+  ])
 }

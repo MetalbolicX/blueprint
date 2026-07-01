@@ -211,20 +211,33 @@ module ChildProcess = {
     ~callback: execCallback,
   ) => childProcess = "exec"
 
-  // Extract Node.js error properties (signal, killed) from Js.Exn.t
-  // This is the ONLY %raw needed - for error property access ReScript can't express.
-  // Node.js child_process errors carry fields ReScript's Js.Exn.t doesn't expose:
+  // Typed view of Node.js child_process error fields.
+  // Node.js errors carry fields ReScript's JsExn.t doesn't expose:
   //   - signal: string | null (SIGTERM, SIGKILL, etc.)
   //   - killed: boolean (process was killed by timeout)
   //   - code: number (exit code, defaults to 1)
-  // Keeping as %raw avoids a dedicated error type for this internal-only utility.
-  // Returns tuple: (signalCode, killed)
-  let extractExecError: JsExn.t => (option<string>, bool) =
-    %raw("(e) => [e.signal || null, e.killed || false]")
+  // We type the view via a record with `Nullable.t` fields so reading the
+  // optional JS properties is explicit. The single cast from JsExn.t lives
+  // at the helper boundary below.
+  type execError = {
+    signal: Nullable.t<string>,
+    killed: Nullable.t<bool>,
+    code: Nullable.t<int>,
+  }
 
-  // Extract exit code from Node.js error, defaulting to 1
-  // Node.js error.code is the exit code; if missing/undefined, assume 1
-  let extractExitCode: JsExn.t => int = %raw("(e) => e && e.code != null ? e.code : 1")
+  // Extract Node.js error properties (signal, killed) from Js.Exn.t.
+  // Returns tuple: (signalCode, killed)
+  let extractExecError: JsExn.t => (option<string>, bool) = e => {
+    let err: execError = Obj.magic(e)
+    (Nullable.toOption(err.signal), Nullable.toOption(err.killed)->Option.getOr(false))
+  }
+
+  // Extract exit code from Node.js error, defaulting to 1.
+  // Node.js error.code is the exit code; if missing/undefined, assume 1.
+  let extractExitCode: JsExn.t => int = e => {
+    let err: execError = Obj.magic(e)
+    Nullable.toOption(err.code)->Option.getOr(1)
+  }
 
   // Properly typed async exec using callback API internally
   let execAsync: (
@@ -471,8 +484,13 @@ module Crypto = {
   @send
   external hashDigest: ({..}, string) => string = "digest"
 
+  // Typed binding for crypto.createHash. The `@module("node:crypto")` external
+  // compiles to a static ESM import at the top of the .mjs output, which is the
+  // ESM-safe equivalent of the previous `%raw("require(...)")` call.
+  @module("node:crypto") external createHash: string => {..} = "createHash"
+
   let sha256Hex: string => string = input => {
-    let hash: {..} = %raw("require('node:crypto').createHash('sha256')")
+    let hash = createHash("sha256")
     let _ = hash->hashUpdate(input)
     hashDigest(hash, "hex")
   }
@@ -483,8 +501,6 @@ module NodeProcess = {
   @module("node:process") external env: dict<string> = "env"
   @module("node:process") external exit: int => unit = "exit"
   @module("node:process") external cwd: unit => string = "cwd"
-  let _onSignal: (string, unit => unit) => unit = %raw(`(signal, callback) => process.on(signal, callback)`)
-  let _removeSignalListeners: unit => unit = %raw(`() => { process.removeAllListeners("SIGINT"); process.removeAllListeners("SIGTERM"); }`)
 }
 
 module ParseArgs = Util

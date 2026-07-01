@@ -63,7 +63,7 @@ let make: unit => Ports.argParser = () => {
         })
       } catch {
       | JsExn(e) => {
-          let msg = switch JsExn.message(e->Obj.magic) {
+          let msg = switch JsExn.message(e) {
           | Some(m) => m
           | None => "unknown error"
           }

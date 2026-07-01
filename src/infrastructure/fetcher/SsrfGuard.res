@@ -176,21 +176,31 @@ let _hostnameOf: string => option<string> = url => {
   }
 }
 
-// Default DNS lookup — Node's net-aware dns.lookup with verbatim: true so the
-// resolver returns the actual A/AAAA record (defeats DNS-rebinding middleware
-// that would otherwise return an internal IP for the second connection).
-// We use `await import('node:dns')` because the .mjs output is ESM where
-// `require` is not defined.
-let _defaultLookup: string => promise<array<string>> = %raw(`
-  async host => {
-    const dns = await import('node:dns');
-    return new Promise((resolve, reject) => {
-      dns.lookup(host, { all: true, verbatim: true }, (err, addresses) => {
-        if (err) reject(err); else resolve(addresses.map(a => a.address));
-      });
-    });
-  }
-`)
+// Typed binding for Node's dns.lookup. The `@module("node:dns")` external
+// compiles to a static ESM import at the top of the .mjs output, which is the
+// ESM-safe equivalent of the previous dynamic `await import('node:dns')`.
+// We use Node's net-aware dns.lookup with verbatim: true so the resolver
+// returns the actual A/AAAA record (defeats DNS-rebinding middleware that
+// would otherwise return an internal IP for the second connection).
+type lookupAddress = {address: string}
+type lookupOptions = {all: bool, verbatim: bool}
+
+@module("node:dns")
+external lookupImpl: (
+  string,
+  lookupOptions,
+  (Nullable.t<JsExn.t>, array<lookupAddress>) => unit,
+) => unit = "lookup"
+
+let _defaultLookup: string => promise<array<string>> = host =>
+  Promise.make((resolve, reject) => {
+    lookupImpl(host, {all: true, verbatim: true}, (err, addresses) =>
+      switch Nullable.toOption(err) {
+      | Some(e) => reject(e)
+      | None => resolve(addresses->Array.map(a => a.address))
+      }
+    )
+  })
 
 // Compose: parse URL → extract hostname → DNS-resolve → checkIps.
 // Accepts an optional ~lookup function for tests; default uses Node dns.
@@ -211,6 +221,8 @@ let isUrlAllowed: (
     } else {
       lk(hostname)
       ->Promise.then(ips => Promise.resolve(checkIps(hostname, ips)))
+      // Promise.catch handler receives `exn` (not JsExn.t); Obj.magic is
+      // required to bridge the untyped exception payload into JsExn.t.
       ->Promise.catch(e => {
         let msg = switch JsExn.message(e->Obj.magic) {
         | Some(m) => m
