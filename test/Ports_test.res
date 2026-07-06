@@ -32,6 +32,7 @@ suite("Ports", () => {
         callback()
       },
       removeSignalListeners: () => removedListeners := true,
+      homedir: () => "/home/user",
     }
 
     proc.onSignal("SIGINT", () => handledSignals := Array.concat(handledSignals.contents, ["handled:SIGINT"]))
@@ -128,6 +129,7 @@ suite("Ports", () => {
         exit: _ => (),
         onSignal: (_signal, callback) => callback(),
         removeSignalListeners: () => (),
+        homedir: () => "/home/user",
       },
       shell: {
         execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),

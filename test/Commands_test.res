@@ -41,6 +41,7 @@ let makeDeps = (
       },
       onSignal: (_, _) => (),
       removeSignalListeners: () => (),
+      homedir: () => "/tmp/test-home",
     },
     shell: NodeJsShell.make(),
     interactiveIO: {

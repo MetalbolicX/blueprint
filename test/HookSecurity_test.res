@@ -39,6 +39,7 @@ let makeProcess = (): Ports.process => {
   exit: _ => (),
   onSignal: (_, _) => (),
   removeSignalListeners: () => (),
+  homedir: () => "/home/test",
 }
 
 // Captures the env Dict that execAsync receives in its options, so a test

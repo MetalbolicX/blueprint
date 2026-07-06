@@ -4,8 +4,8 @@
 open ConfigTypes
 
 // Resolve XDG-style global config path: ~/.config/blueprint/config.yaml
-let _globalConfigPath: string => string = homeDir => {
-  Bindings.NodeJs.Path.join(Bindings.NodeJs.Path.join(Bindings.NodeJs.Path.join(homeDir, ".config"), "blueprint"), "config.yaml")
+let _globalConfigPath: (string, Ports.path) => string = (homeDir, path) => {
+  path.join(path.join(path.join(homeDir, ".config"), "blueprint"), "config.yaml")
 }
 
 let saveGlobalAtPath: (
@@ -44,15 +44,20 @@ let saveGlobal: (
   ~homeDir: string,
   globalConfig,
 ) => promise<result<unit, string>> = async (~fs, ~path, ~homeDir, cfg) => {
-  let configPath = _globalConfigPath(homeDir)
+  let configPath = _globalConfigPath(homeDir, path)
   await saveGlobalAtPath(~fs, ~path, ~configPath, cfg)
 }
 
 let loadGlobal: (
   ~fs: Ports.fileSystem,
+  ~path: Ports.path,
   ~homeDir: string,
-) => promise<result<option<globalConfig>, string>> = async (~fs, ~homeDir) => {
-  let configPath = _globalConfigPath(homeDir)
+) => promise<result<option<globalConfig>, string>> = async (
+  ~fs,
+  ~path,
+  ~homeDir,
+) => {
+  let configPath = _globalConfigPath(homeDir, path)
 
   let exists = await fs.fileExists(configPath)
   if !exists {

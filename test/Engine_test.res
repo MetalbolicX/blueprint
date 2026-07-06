@@ -59,6 +59,7 @@ let makeSignalProcess = (
     }
   },
   removeSignalListeners: () => removedListeners.contents = removedListeners.contents + 1,
+  homedir: () => "/home/test",
 }
 
 let invokeHandler = (handlerRef: ref<option<unit => unit>>) => {

@@ -37,6 +37,7 @@ type process = {
   exit: int => unit,
   onSignal: (string, unit => unit) => unit,
   removeSignalListeners: unit => unit,
+  homedir: unit => string,
 }
 
 type execResult = {

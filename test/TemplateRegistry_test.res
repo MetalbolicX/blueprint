@@ -109,7 +109,7 @@ suite("TemplateRegistry", () => {
             switch updated.registry[0] {
             | Some(entry) => {
                 assert_eq(entry.path, installedGeneratorDir)
-                assert_true(Bindings.NodeJs.Path.isAbsolute(entry.source))
+                assert_true(NodeJsPath.make().isAbsolute(entry.source))
               }
             | None => assert_false(true)
             }

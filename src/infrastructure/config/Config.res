@@ -34,6 +34,6 @@ let defaultTimeout: int = ConfigYaml.defaultTimeout
 
 // Function re-exports (from ConfigStore)
 let loadFrom: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<result<option<config>, string>> = ConfigStore.loadFrom
-let loadGlobal: (~fs: Ports.fileSystem, ~homeDir: string) => promise<result<option<globalConfig>, string>> = ConfigStore.loadGlobal
+let loadGlobal: (~fs: Ports.fileSystem, ~path: Ports.path, ~homeDir: string) => promise<result<option<globalConfig>, string>> = ConfigStore.loadGlobal
 let saveGlobalAtPath: (~fs: Ports.fileSystem, ~path: Ports.path, ~configPath: string, globalConfig) => promise<result<unit, string>> = ConfigStore.saveGlobalAtPath
 let saveGlobal: (~fs: Ports.fileSystem, ~path: Ports.path, ~homeDir: string, globalConfig) => promise<result<unit, string>> = ConfigStore.saveGlobal

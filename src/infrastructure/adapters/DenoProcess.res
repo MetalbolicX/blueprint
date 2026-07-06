@@ -11,6 +11,21 @@ open Deno
 
 let env: unit => dict<string> = () => Fs.envToObject()
 
+// Deno doesn't expose os.homedir() directly; resolve from the HOME env var.
+// Falls back to USERPROFILE for Windows hosts and the placeholder /tmp for
+// environments where neither is set (e.g. minimal sandboxes).
+let homedir: unit => string = () => {
+  let envObj = Fs.envToObject()
+  switch Dict.get(envObj, "HOME") {
+  | Some(h) if String.length(h) > 0 => h
+  | _ =>
+    switch Dict.get(envObj, "USERPROFILE") {
+    | Some(h) if String.length(h) > 0 => h
+    | _ => "/tmp"
+    }
+  }
+}
+
 let make: unit => Ports.process = () => {
   let listeners: ref<array<(string, unit => unit)>> = ref([])
   let onSignal = (signal, callback) => {
@@ -31,5 +46,6 @@ let make: unit => Ports.process = () => {
     exit: exit,
     onSignal: onSignal,
     removeSignalListeners: removeSignalListeners,
+    homedir: homedir,
   }
 }

@@ -20,4 +20,5 @@ let make: unit => Ports.process = () => {
   exit: NodeProcess.exit,
   onSignal,
   removeSignalListeners,
+  homedir: NodeJs.Os.homedir,
 }

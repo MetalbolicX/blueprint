@@ -19,6 +19,7 @@ let makeDeps = (~cwd: string, ~exitCodes: ref<array<int>>): Ports.deps => {
       },
       onSignal: (_, _) => (),
       removeSignalListeners: () => (),
+      homedir: () => "/tmp/test-home",
     },
     shell: NodeJsShell.make(),
     interactiveIO: {

@@ -29,6 +29,7 @@ let makeProbeDeps = (~exitCodes: ref<array<int>>): Ports.deps => {
     exit: code => exitCodes.contents = Array.concat(exitCodes.contents, [code]),
     onSignal: (_, _) => (),
     removeSignalListeners: () => (),
+    homedir: () => "/tmp/test-home",
   },
   shell: NodeJsShell.make(),
   interactiveIO: {

@@ -1,10 +1,10 @@
 let globalTemplateRegistryRoot: (~deps: Ports.deps) => string = (~deps) => {
-  let homeDir = Bindings.NodeJs.Os.homedir()
+  let homeDir = deps.process.homedir()
   deps.path.join(deps.path.join(deps.path.join(homeDir, ".config"), "blueprint"), "templates")
 }
 
 let globalConfigPath: (~deps: Ports.deps) => string = (~deps) => {
-  let homeDir = Bindings.NodeJs.Os.homedir()
+  let homeDir = deps.process.homedir()
   deps.path.join(deps.path.join(deps.path.join(homeDir, ".config"), "blueprint"), "config.yaml")
 }
 

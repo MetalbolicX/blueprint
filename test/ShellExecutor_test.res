@@ -84,6 +84,7 @@ let makeProcess = (): Ports.process => {
   exit: _ => (),
   onSignal: (_, _) => (),
   removeSignalListeners: () => (),
+  homedir: () => "/home/test",
 }
 
 let path = NodeJsPath.make()

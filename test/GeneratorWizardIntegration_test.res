@@ -17,6 +17,7 @@ let makeProcessHarness = (~cwd: string): processHarness => {
     },
     onSignal: (_, _) => (),
     removeSignalListeners: () => (),
+    homedir: () => "/tmp/test-home",
   }
   {process, getExitCode: () => exitCode.contents}
 }

@@ -41,23 +41,23 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Infrastructure Layer (Injection)
 
-- [ ] 3.1 Modify `src/infrastructure/config/Config.res` to accept `~fs`, `~path` in `loadFrom` and `saveGlobalAtPath`.
-- [ ] 3.2 Modify `src/infrastructure/discovery/Discovery.res` to accept `~fs`, `~path` in `discover` and `discoverIn`.
+- [x] 3.1 Modify `src/infrastructure/config/Config.res` to accept `~fs`, `~path` in `loadFrom` and `saveGlobalAtPath`.
+- [x] 3.2 Modify `src/infrastructure/discovery/Discovery.res` to accept `~fs`, `~path` in `discover` and `discoverIn`.
 - [x] 3.3 Modify `src/infrastructure/hooks/Hooks.res` to accept `~shell`, `~process` in `run` and `executeHook`. Also updated `Hooks.resi`.
-- [ ] 3.4 Modify `src/infrastructure/path/PathSecurity.res` to accept `~path: Ports.path` instead of importing `Bindings.NodeJs.Path`.
+- [x] 3.4 Modify `src/infrastructure/path/PathSecurity.res` to accept `~path: Ports.path` instead of importing `Bindings.NodeJs.Path`.
 
 ## Phase 4: Composition Root (Interfaces)
 
-- [ ] 4.1 Modify `src/interfaces/cli/Cli.res` to instantiate adapters (`NodeJsFileSystem.make()`, etc.).
-- [ ] 4.2 Modify `src/interfaces/cli/Cli.res` to bundle adapters into a `Ports.deps` record.
-- [ ] 4.3 Update `Cli.res` commands (`runGenerate`, `runInit`, etc.) to pass ports to `Engine`, `Config`, and `Discovery`. Replace direct `NodeJs.NodeProcess` calls.
+- [x] 4.1 Modify `src/interfaces/cli/Cli.res` to instantiate adapters (`NodeJsFileSystem.make()`, etc.).
+- [x] 4.2 Modify `src/interfaces/cli/Cli.res` to bundle adapters into a `Ports.deps` record.
+- [x] 4.3 Update `Cli.res` commands (`runGenerate`, `runInit`, etc.) to pass ports to `Engine`, `Config`, and `Discovery`. Replace direct `NodeJs.NodeProcess` calls.
 
 ## Phase 5: Test Updates
 
-- [ ] 5.1 Update `test/Phase0_test.res` to construct and pass Node.js adapters.
-- [ ] 5.2 Update `test/Phase1_test.res` to construct and pass Node.js adapters.
-- [ ] 5.3 Update `test/Phase2_test.res` to construct and pass Node.js adapters.
-- [ ] 5.4 Update `test/Config_test.res` to construct and pass Node.js adapters.
-- [ ] 5.5 Update `test/Discovery_test.res` to construct and pass Node.js adapters.
-- [ ] 5.6 Update `test/TemplateRegistry_test.res` to construct and pass Node.js adapters.
-- [ ] 5.7 Update `test/Integration_test.res` to construct and pass Node.js adapters.
+- [x] 5.1 Update `test/Phase0_test.res` to construct and pass Node.js adapters.
+- [x] 5.2 Update `test/Phase1_test.res` to construct and pass Node.js adapters.
+- [x] 5.3 Update `test/Phase2_test.res` to construct and pass Node.js adapters.
+- [x] 5.4 Update `test/Config_test.res` to construct and pass Node.js adapters.
+- [x] 5.5 Update `test/Discovery_test.res` to construct and pass Node.js adapters.
+- [x] 5.6 Update `test/TemplateRegistry_test.res` to construct and pass Node.js adapters.
+- [x] 5.7 Update `test/Integration_test.res` to construct and pass Node.js adapters.

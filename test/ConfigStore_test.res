@@ -40,8 +40,9 @@ suite("ConfigStore", () => {
   testAsync("loadGlobal: returns None when file does not exist", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
     let nonExistentPath = NodeJs.Path.join(tmpDir, "nonexistent")
-    loadGlobal(~fs, ~homeDir=nonExistentPath)
+    loadGlobal(~fs, ~path=pathAdapter, ~homeDir=nonExistentPath)
     ->Promise.then(result => {
       switch result {
       | Ok(None) => assert_true(true)
@@ -69,7 +70,7 @@ suite("ConfigStore", () => {
     saveGlobal(~fs, ~path=pathAdapter, ~homeDir=tmpDir, cfg)
     ->Promise.then(writeResult => {
       switch writeResult {
-      | Ok(()) => loadGlobal(~fs, ~homeDir=tmpDir)
+      | Ok(()) => loadGlobal(~fs, ~path=pathAdapter, ~homeDir=tmpDir)
       | Error(_e) => {
           assert_false(true)
           Promise.resolve(Error("write failed"))

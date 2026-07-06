@@ -1,5 +1,5 @@
 let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
-  let homeDir = Bindings.NodeJs.Os.homedir()
+  let homeDir = deps.process.homedir()
   let configDir = deps.path.join(deps.path.join(homeDir, ".config"), "blueprint")
   let configPath = deps.path.join(configDir, "config.yaml")
 
@@ -29,8 +29,8 @@ let runTemplateCopy: (
   ~name: string,
   ~force: bool,
 ) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
-  let homeDir = Bindings.NodeJs.Os.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let homeDir = deps.process.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
   | Ok(Some(cfg)) => cfg
   | Ok(None) => Config.defaultGlobalConfig
@@ -86,10 +86,9 @@ let runTemplateList: (
   ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<unit> = async (~deps, ~fs, ~path as _) => {
-  let _ = deps
-  let homeDir = Bindings.NodeJs.Os.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+) => promise<unit> = async (~deps, ~fs, ~path) => {
+  let homeDir = deps.process.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
   | Ok(Some(cfg)) => cfg
   | Ok(None) => Config.defaultGlobalConfig
@@ -110,8 +109,8 @@ let runTemplateRemove: (
   ~path: Ports.path,
   ~name: string,
 ) => promise<unit> = async (~deps, ~fs, ~path, ~name) => {
-  let homeDir = Bindings.NodeJs.Os.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let homeDir = deps.process.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
   | Ok(Some(cfg)) => cfg
   | Ok(None) => Config.defaultGlobalConfig
@@ -154,8 +153,8 @@ let runGenerate: (
   ~cliAttributes: dict<Context.attrValue>,
 ) => promise<unit> = async (~fs, ~path, ~deps, ~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
   // Load global config (from ~/.config/blueprint/config.yaml)
-  let homeDir = Bindings.NodeJs.Os.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~homeDir)
+  let homeDir = deps.process.homedir()
+  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
   let globalConfig = switch globalConfigResult {
   | Ok(Some(cfg)) => cfg
   | Ok(None) => Config.defaultGlobalConfig

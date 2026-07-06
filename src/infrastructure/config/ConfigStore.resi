@@ -19,6 +19,7 @@ let saveGlobal: (
 
 let loadGlobal: (
   ~fs: Ports.fileSystem,
+  ~path: Ports.path,
   ~homeDir: string,
 ) => promise<result<option<globalConfig>, string>>
 
