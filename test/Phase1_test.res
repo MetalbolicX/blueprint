@@ -757,4 +757,294 @@ suite("Phase1", () => {
     })
     ->ignore
   })
+
+  // --- Deterministic ordering tests (deterministic-pipeline-ordering change) ---
+
+  // Test 3.1: renderedFiles must match input template order regardless of which
+  // parallel render branch's I/O finishes first.
+  testAsync("run: order-preserved-under-racing-io", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDirA = NodeJs.Path.join(tmpDir, "_templates/component/a")
+    let templateDirB = NodeJs.Path.join(tmpDir, "_templates/component/b")
+    let templateDirC = NodeJs.Path.join(tmpDir, "_templates/component/c")
+    let sourceA = NodeJs.Path.join(templateDirA, "Alpha.tsx.ejs.t")
+    let sourceB = NodeJs.Path.join(templateDirB, "Beta.tsx.ejs.t")
+    let sourceC = NodeJs.Path.join(templateDirC, "Gamma.tsx.ejs.t")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDirA, ~name="X", ())
+
+    // Deliberately varied body sizes so completion order across the parallel
+    // branches is unlikely to equal source order. The post-collection pass must
+    // restore source order regardless.
+    let largeBody = String.repeat("x", 50_000)
+    let smallBody = "tiny"
+
+    let templateA: Template.template = {
+      sourcePath: sourceA,
+      directives: [Template.To("src/Alpha.tsx")],
+      body: largeBody ++ " A=<%= Name %>",
+    }
+    let templateB: Template.template = {
+      sourcePath: sourceB,
+      directives: [Template.To("src/Beta.tsx")],
+      body: smallBody,
+    }
+    let templateC: Template.template = {
+      sourcePath: sourceC,
+      directives: [Template.To("src/Gamma.tsx")],
+      body: largeBody ++ largeBody ++ " C=<%= Name %>",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    NodeJs.Fs.mkdir(templateDirA, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(templateDirB, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.mkdir(templateDirC, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[templateA, templateB, templateC],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.renderedFiles), 3)
+
+          // Assert exact source→target mapping in input order.
+          switch phase1.renderedFiles[0] {
+          | Some((src, tgt)) => {
+              assert_eq(src, sourceA)
+              assert_eq(tgt, "src/Alpha.tsx")
+            }
+          | None => assert_false(true)
+          }
+          switch phase1.renderedFiles[1] {
+          | Some((src, tgt)) => {
+              assert_eq(src, sourceB)
+              assert_eq(tgt, "src/Beta.tsx")
+            }
+          | None => assert_false(true)
+          }
+          switch phase1.renderedFiles[2] {
+          | Some((src, tgt)) => {
+              assert_eq(src, sourceC)
+              assert_eq(tgt, "src/Gamma.tsx")
+            }
+          | None => assert_false(true)
+          }
+
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+        }
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  // Test 3.2: shellCommands must group by template position and preserve
+  // directive declaration order inside each template.
+  testAsync("run: shell-commands-follow-template-and-directive-order", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDirA = NodeJs.Path.join(tmpDir, "_templates/component/a")
+    let templateDirB = NodeJs.Path.join(tmpDir, "_templates/component/b")
+    let sourceA = NodeJs.Path.join(templateDirA, "First.tsx.ejs.t")
+    let sourceB = NodeJs.Path.join(templateDirB, "Second.tsx.ejs.t")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDirA, ~name="X", ())
+
+    // Fetch directives need no shellConfig and emit one shellCommand each.
+    // Order within each template: url-a, url-b, url-c.
+    // Order across templates: all of templateA first, then all of templateB.
+    let templateA: Template.template = {
+      sourcePath: sourceA,
+      directives: [
+        Template.To("src/First.tsx"),
+        Template.Fetch("https://example.com/a-first.ejs"),
+        Template.Fetch("https://example.com/a-second.ejs"),
+        Template.Fetch("https://example.com/a-third.ejs"),
+      ],
+      body: "first body",
+    }
+    let templateB: Template.template = {
+      sourcePath: sourceB,
+      directives: [
+        Template.To("src/Second.tsx"),
+        Template.Fetch("https://example.com/b-first.ejs"),
+        Template.Fetch("https://example.com/b-second.ejs"),
+      ],
+      body: "second body",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    NodeJs.Fs.mkdir(templateDirA, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(templateDirB, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[templateA, templateB],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(phase1) => {
+          // 3 from templateA + 2 from templateB = 5 total.
+          assert_eq(Array.length(phase1.shellCommands), 5)
+
+          // templateA commands first, in directive order.
+          switch phase1.shellCommands[0] {
+          | Some(c) =>
+            switch c.target {
+            | Template.Fetch(url) => assert_eq(url, "https://example.com/a-first.ejs")
+            | _ => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+          switch phase1.shellCommands[1] {
+          | Some(c) =>
+            switch c.target {
+            | Template.Fetch(url) => assert_eq(url, "https://example.com/a-second.ejs")
+            | _ => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+          switch phase1.shellCommands[2] {
+          | Some(c) =>
+            switch c.target {
+            | Template.Fetch(url) => assert_eq(url, "https://example.com/a-third.ejs")
+            | _ => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+
+          // templateB commands second, in directive order.
+          switch phase1.shellCommands[3] {
+          | Some(c) =>
+            switch c.target {
+            | Template.Fetch(url) => assert_eq(url, "https://example.com/b-first.ejs")
+            | _ => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+          switch phase1.shellCommands[4] {
+          | Some(c) =>
+            switch c.target {
+            | Template.Fetch(url) => assert_eq(url, "https://example.com/b-second.ejs")
+            | _ => assert_false(true)
+            }
+          | None => assert_false(true)
+          }
+
+          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+        }
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  // Test 3.3: when one template fails, the run must surface an error AND
+  // remove the staging directory.
+  testAsync("run: error-aborts-and-cleans-staging", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDirA = NodeJs.Path.join(tmpDir, "_templates/component/a")
+    let templateDirB = NodeJs.Path.join(tmpDir, "_templates/component/b")
+    let sourceA = NodeJs.Path.join(templateDirA, "Good.tsx.ejs.t")
+    let sourceB = NodeJs.Path.join(templateDirB, "Bad.tsx.ejs.t")
+    let outputDir = NodeJs.Path.join(tmpDir, "out")
+
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDirA, ~name="X", ())
+
+    // templateA: succeeds.
+    let templateA: Template.template = {
+      sourcePath: sourceA,
+      directives: [Template.To("src/Good.tsx")],
+      body: "good body",
+    }
+    // templateB: legacy `sh:` directive in frontmatter is rejected upstream
+    // (already covered by existing tests) — using it here guarantees an Error.
+    let templateB: Template.template = {
+      sourcePath: sourceB,
+      directives: [],
+      body: "---\nsh: npm run lint\n---\nexport const x = 1\n",
+    }
+
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let processAdapter = NodeJsProcess.make()
+
+    // Run the pipeline; we assert the error shape and capture the stagingDir.
+    NodeJs.Fs.mkdir(templateDirA, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(templateDirB, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      Phase1.run(
+        ~templates=[templateA, templateB],
+        ~context,
+        ~outputDir,
+        ~conflictDecisions=None,
+        ~shellConfig=None,
+        ~fs,
+        ~path=pathAdapter,
+        ~process=processAdapter,
+      )
+    )
+    ->Promise.then(result =>
+      switch result {
+      | Error(err) => {
+          // Error message is non-empty and references the failing source path.
+          assert_true(String.length(err.message) > 0)
+          assert_true(String.includes(err.message, sourceB))
+          Promise.resolve(err.stagingDir)
+        }
+      | Ok(_) => {
+          assert_false(true)
+          Promise.resolve("")
+        }
+      }
+    )
+    ->Promise.then(stagingDir => {
+      // Probe whether the staging dir still exists. After cleanup it MUST be gone.
+      NodeJs.Fs.fileExists(stagingDir)
+    })
+    ->Promise.then(stillExists => {
+      assert_eq(stillExists, false)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })
