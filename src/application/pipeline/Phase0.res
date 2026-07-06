@@ -14,22 +14,6 @@ type phase0Result = {
 }
 
 // Check if a file exists at target path
-let _checkFileConflict: (
-  ~sourcePath: string,
-  ~targetPath: string,
-  ~outputDir: string,
-  ~fs: Ports.fileSystem,
-  ~path: Ports.path,
-) => promise<option<conflictFile>> = async (~sourcePath, ~targetPath, ~outputDir, ~fs, ~path) => {
-  let fullTargetPath = path.join(outputDir, targetPath)
-  let exists = await fs.fileExists(fullTargetPath)
-
-  if exists {
-    Some({sourcePath, targetPath: fullTargetPath})
-  } else {
-    None
-  }
-}
 
 // Detect conflicts for all templates with "to" directive
 let detectConflicts: (

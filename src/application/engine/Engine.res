@@ -363,19 +363,3 @@ let run: (
     }
   }
 }
-
-let runWithConfig: (
-  ~generator: generator,
-  ~name: string,
-  ~cliAttributes: dict<Context.attrValue>,
-  ~force: bool,
-  ~deps: Ports.deps,
-) => promise<result<generateResult, string>> = async (
-  ~generator,
-  ~name,
-  ~cliAttributes,
-  ~force,
-  ~deps,
-) => {
-  await run(~generator, ~name, ~cliAttributes, ~outputDir=Config.defaultOutputDir, ~force, ~deps)
-}

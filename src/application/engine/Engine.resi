@@ -29,10 +29,3 @@ let run: (
   ~deps: Ports.deps,
 ) => promise<result<generateResult, string>>
 
-let runWithConfig: (
-  ~generator: Discovery.generator,
-  ~name: string,
-  ~cliAttributes: dict<Context.attrValue>,
-  ~force: bool,
-  ~deps: Ports.deps,
-) => promise<result<generateResult, string>>
