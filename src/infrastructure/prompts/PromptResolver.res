@@ -166,6 +166,59 @@ let _evaluateOptions: (
   }
 }
 
+// --- Pure validation helpers (no I/O) ---
+
+// Validate a raw answer against a numbered Select option list.
+// Returns Ok(value) on a valid numeric selection, Ok(default) on empty
+// input (so the caller can preserve default behavior without re-prompting),
+// or Error(msg) on non-numeric / out-of-range input.
+let _validateSelectInput: (
+  ~answer: string,
+  ~opts: array<Manifest.promptOption>,
+  ~default: string,
+) => result<string, string> = (~answer, ~opts, ~default) => {
+  let trimmed = String.trim(answer)
+  if trimmed == "" {
+    Ok(default)
+  } else {
+    switch Int.fromString(trimmed) {
+    | None => Error("Please enter a number")
+    | Some(n) =>
+      switch opts[n - 1] {
+      | Some(opt) => Ok(opt.value)
+      | None => {
+          let max = Int.toString(Array.length(opts))
+          Error("Please enter a number between 1 and " ++ max)
+        }
+      }
+    }
+  }
+}
+
+// Split a comma-separated answer into (validValues, invalidTokens).
+// Valid values are the option values whose numeric index is in range;
+// invalid tokens are the original trimmed strings that did not resolve.
+let _tokenizeMultiSelect: (
+  ~answer: string,
+  ~opts: array<Manifest.promptOption>,
+) => (array<string>, array<string>) = (~answer, ~opts) => {
+  let initial: (array<string>, array<string>) = ([], [])
+  String.split(answer, ",")
+  ->Array.map(s => String.trim(s))
+  ->Array.filter(s => s != "")
+  ->Array.reduce(initial, (acc, token) => {
+    let (valid, invalid) = acc
+    switch Int.fromString(token) {
+    | Some(n) =>
+      switch opts[n - 1] {
+      | Some(opt) => (Array.concat(valid, [opt.value]), invalid)
+      | None => (valid, Array.concat(invalid, [token]))
+      }
+    | None => (valid, Array.concat(invalid, [token]))
+    }
+  })
+}
+
 // --- Validation ---
 
 // Compile a regex pattern string, returning error on invalid syntax
@@ -227,19 +280,18 @@ let askPrompt: (
           ->Array.join("\n")
 
         let fullQuestion = optionsText ++ "\n" ++ questionText
+        let defaultVal = evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
 
-        io.ask(fullQuestion)->Promise.then(answer => {
-          let trimmedAnswer = String.trim(answer)
-          let idx = switch Int.fromString(trimmedAnswer) {
-          | Some(n) => n - 1
-          | None => 0
-          }
-          let selected = switch opts[idx] {
-          | Some(s) => s.value
-          | None => ""
-          }
-          Promise.resolve(selected)
-        })
+        let rec selectLoop = () =>
+          io.ask(fullQuestion)->Promise.then(answer => {
+            switch _validateSelectInput(~answer, ~opts, ~default=defaultVal) {
+            | Ok(value) => Promise.resolve(value)
+            | Error(msg) =>
+              Console.log("Error: " ++ msg)
+              selectLoop()
+            }
+          })
+        selectLoop()
       }
     | _ => io.ask(questionText)
     }
@@ -263,36 +315,26 @@ let askPrompt: (
 
         let fullQuestion = optionsText ++ "\nEnter numbers separated by commas (e.g. 1,3,5): "
 
-        io.ask(fullQuestion)->Promise.then(answer => {
-          let trimmed = String.trim(answer)
-          if trimmed == "" {
-            Promise.resolve("")
-          } else {
-            let parts = String.split(trimmed, ",")
-            let selected =
-              parts
-              ->Array.map(s => String.trim(s))
-              ->Array.map(s =>
-                switch Int.fromString(s) {
-                | Some(n) => {
-                    let idx = n - 1
-                    if idx >= 0 && idx < Array.length(opts) {
-                      switch opts[idx] {
-                      | Some(opt) => opt.value
-                      | None => ""
-                      }
-                    } else {
-                      ""
-                    }
-                  }
-                | None => ""
+        let rec multiLoop = () =>
+          io.ask(fullQuestion)->Promise.then(answer => {
+            let trimmed = String.trim(answer)
+            if trimmed == "" {
+              Promise.resolve("")
+            } else {
+              let (valid, invalid) = _tokenizeMultiSelect(~answer=trimmed, ~opts)
+              if Array.length(valid) == 0 {
+                Console.log("Error: No valid selections; enter numbers from the list")
+                multiLoop()
+              } else {
+                if Array.length(invalid) > 0 {
+                  let joinedInvalid = invalid->Array.join(", ")
+                  Console.log("Warning: ignoring invalid entries: " ++ joinedInvalid)
                 }
-              )
-              ->Array.filter(v => v != "")
-              ->Array.join(",")
-            Promise.resolve(selected)
-          }
-        })
+                Promise.resolve(valid->Array.join(","))
+              }
+            }
+          })
+        multiLoop()
       }
     | _ => io.ask(questionText)
     }

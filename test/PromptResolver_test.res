@@ -2,6 +2,65 @@
 
 open TestHelpers
 
+// --- Console spy for testing interactive error/warning output ---
+
+let installConsoleLogSpy: unit => unit = %raw(`
+  function() {
+    globalThis.__testMessages = [];
+    globalThis.__originalConsoleLog = console.log;
+    console.log = function(msg) { globalThis.__testMessages.push(msg); };
+  }
+`)
+
+let restoreConsoleLog: unit => unit = %raw(`
+  function() {
+    if (globalThis.__originalConsoleLog) {
+      console.log = globalThis.__originalConsoleLog;
+      delete globalThis.__originalConsoleLog;
+    }
+  }
+`)
+
+let resetTestMessages: unit => unit = %raw(`
+  function() { globalThis.__testMessages = []; }
+`)
+
+let getTestMessages: unit => array<string> = %raw(`
+  function() { return globalThis.__testMessages || []; }
+`)
+
+// Convenience: build a mock interactiveIO that returns the next scripted answer
+// on each `ask` call. Confirm answers default to true.
+let makeScriptedIo = (answers: array<string>): Ports.interactiveIO => {
+  let idx = ref(0)
+  {
+    ask: _ => {
+      let i = idx.contents
+      idx.contents = i + 1
+      switch answers[i] {
+      | Some(a) => Promise.resolve(a)
+      | None => Promise.resolve("")
+      }
+    },
+    askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+    close: () => (),
+  }
+}
+
+let makeCountingIo = (answers: array<string>): (Ports.interactiveIO, ref<int>) => {
+  let callCount = ref(0)
+  let io = makeScriptedIo(answers)
+  let wrappedIo: Ports.interactiveIO = {
+    ask: q => {
+      callCount.contents = callCount.contents + 1
+      io.ask(q)
+    },
+    askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+    close: () => (),
+  }
+  (wrappedIo, callCount)
+}
+
 suite("PromptResolver", () => {
   // --- evalTemplate tests ---
 
@@ -637,6 +696,231 @@ suite("PromptResolver", () => {
       | Error(_) => assert_false(true)
       }
       mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  // --- _validateSelectInput pure helper tests (3.1) ---
+
+  let colorOptions: array<Manifest.promptOption> = [
+    {label: "Red", value: "red"},
+    {label: "Green", value: "green"},
+    {label: "Blue", value: "blue"},
+  ]
+
+  test("_validateSelectInput: valid number resolves to option value", () => {
+    let result = PromptResolver._validateSelectInput(~answer="2", ~opts=colorOptions, ~default="red")
+    switch result {
+    | Ok(v) => assert_eq(v, "green")
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("_validateSelectInput: non-numeric returns Please-enter-a-number error", () => {
+    let result = PromptResolver._validateSelectInput(~answer="abc", ~opts=colorOptions, ~default="red")
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_eq(msg, "Please enter a number")
+    }
+  })
+
+  test("_validateSelectInput: out-of-range returns between-1-and-N error", () => {
+    let result = PromptResolver._validateSelectInput(~answer="9", ~opts=colorOptions, ~default="red")
+    switch result {
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_eq(msg, "Please enter a number between 1 and 3")
+    }
+  })
+
+  test("_validateSelectInput: empty input resolves to default without error", () => {
+    let result = PromptResolver._validateSelectInput(~answer="", ~opts=colorOptions, ~default="red")
+    switch result {
+    | Ok(v) => assert_eq(v, "red")
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("_validateSelectInput: whitespace-only input resolves to default", () => {
+    let result = PromptResolver._validateSelectInput(~answer="   ", ~opts=colorOptions, ~default="blue")
+    switch result {
+    | Ok(v) => assert_eq(v, "blue")
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  // --- _tokenizeMultiSelect pure helper tests (3.2) ---
+
+  test("_tokenizeMultiSelect: all-valid tokens return all values, no invalid", () => {
+    let (valid, invalid) = PromptResolver._tokenizeMultiSelect(~answer="1,3", ~opts=colorOptions)
+    assert_eq(valid, ["red", "blue"])
+    assert_eq(invalid, [])
+  })
+
+  test("_tokenizeMultiSelect: mixed valid/invalid splits correctly", () => {
+    let (valid, invalid) = PromptResolver._tokenizeMultiSelect(~answer="2, x", ~opts=colorOptions)
+    assert_eq(valid, ["green"])
+    assert_eq(invalid, ["x"])
+  })
+
+  test("_tokenizeMultiSelect: zero-valid tokens returns empty valid and all invalid", () => {
+    let (valid, invalid) = PromptResolver._tokenizeMultiSelect(~answer="x, y", ~opts=colorOptions)
+    assert_eq(valid, [])
+    assert_eq(invalid, ["x", "y"])
+  })
+
+  test("_tokenizeMultiSelect: out-of-range numeric is treated as invalid", () => {
+    let (valid, invalid) = PromptResolver._tokenizeMultiSelect(~answer="9", ~opts=colorOptions)
+    assert_eq(valid, [])
+    assert_eq(invalid, ["9"])
+  })
+
+  test("_tokenizeMultiSelect: ignores empty tokens between commas", () => {
+    let (valid, invalid) = PromptResolver._tokenizeMultiSelect(~answer="1,,3", ~opts=colorOptions)
+    assert_eq(valid, ["red", "blue"])
+    assert_eq(invalid, [])
+  })
+
+  // --- Select retry behavior with mocked interactiveIO (3.3) ---
+
+  testAsync("resolve: Select re-prompts on non-numeric and out-of-range", resolve => {
+    installConsoleLogSpy()
+    resetTestMessages()
+    let (mockIo, callCount) = makeCountingIo(["abc", "9", "2"])
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "color",
+        promptType: Manifest.Select,
+        description: "Pick a color",
+        options: colorOptions,
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      // Capture and restore BEFORE assertions so PASS/FAIL output prints
+      let msgs = getTestMessages()
+      let capturedAnswers = switch result {
+      | Ok(answers) => Some(Dict.get(answers, "color"))
+      | Error(_) => None
+      }
+      let capturedCalls = callCount.contents
+      mockIo.close()
+      restoreConsoleLog()
+
+      switch capturedAnswers {
+      | Some(color) => {
+          assert_eq(capturedCalls, 3)
+          assert_eq(color, Some("green"))
+          assert_eq(Array.length(msgs), 2)
+          switch msgs[0] {
+          | Some(m) => assert_eq(m, "Error: Please enter a number")
+          | None => assert_false(true)
+          }
+          switch msgs[1] {
+          | Some(m) => assert_eq(m, "Error: Please enter a number between 1 and 3")
+          | None => assert_false(true)
+          }
+        }
+      | None => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  // --- Empty Select resolves to default without re-prompt (3.5) ---
+
+  testAsync("resolve: empty Select answer resolves to default on first ask", resolve => {
+    installConsoleLogSpy()
+    resetTestMessages()
+    let (mockIo, callCount) = makeCountingIo([""])
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "color",
+        promptType: Manifest.Select,
+        description: "Pick a color",
+        default: "blue",
+        options: colorOptions,
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      let msgs = getTestMessages()
+      let capturedAnswers = switch result {
+      | Ok(answers) => Some(Dict.get(answers, "color"))
+      | Error(_) => None
+      }
+      let capturedCalls = callCount.contents
+      mockIo.close()
+      restoreConsoleLog()
+
+      switch capturedAnswers {
+      | Some(color) => {
+          assert_eq(capturedCalls, 1)
+          assert_eq(color, Some("blue"))
+          assert_eq(Array.length(msgs), 0)
+        }
+      | None => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  // --- MultiSelect retry on zero-valid + warning on partial-invalid (3.4) ---
+
+  testAsync("resolve: MultiSelect re-prompts on zero-valid and warns on partial-invalid", resolve => {
+    installConsoleLogSpy()
+    resetTestMessages()
+    let (mockIo, callCount) = makeCountingIo(["x, y", "1, x"])
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "colors",
+        promptType: Manifest.MultiSelect,
+        description: "Select colors",
+        options: [
+          {label: "Red", value: "red"},
+          {label: "Green", value: "green"},
+          {label: "Blue", value: "blue"},
+        ],
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      let msgs = getTestMessages()
+      let capturedAnswers = switch result {
+      | Ok(answers) => Some(Dict.get(answers, "colors"))
+      | Error(_) => None
+      }
+      let capturedCalls = callCount.contents
+      mockIo.close()
+      restoreConsoleLog()
+
+      switch capturedAnswers {
+      | Some(colors) => {
+          assert_eq(capturedCalls, 2)
+          assert_eq(colors, Some("red"))
+          assert_eq(Array.length(msgs), 2)
+          switch msgs[0] {
+          | Some(m) => assert_eq(m, "Error: No valid selections; enter numbers from the list")
+          | None => assert_false(true)
+          }
+          switch msgs[1] {
+          | Some(m) => assert_eq(m, "Warning: ignoring invalid entries: x")
+          | None => assert_false(true)
+          }
+        }
+      | None => assert_false(true)
+      }
       resolve()
       Promise.resolve()
     })
