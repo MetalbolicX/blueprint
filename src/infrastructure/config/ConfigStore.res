@@ -81,6 +81,21 @@ let loadGlobal: (
   }
 }
 
+let loadMergedGlobalConfig: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~homeDir: string,
+) => promise<globalConfig> = async (~fs, ~path, ~homeDir) => {
+  let globalConfigResult = await loadGlobal(~fs, ~path, ~homeDir)
+  switch globalConfigResult {
+  | Ok(Some(cfg)) => cfg
+  | Ok(None) => defaultGlobalConfig
+  | Error(e) =>
+    Console.warn("Warning: could not load global config, using default. Reason: " ++ e)
+    defaultGlobalConfig
+  }
+}
+
 // Load .blueprint.yaml from a given directory
 let loadFrom: (
   ~fs: Ports.fileSystem,

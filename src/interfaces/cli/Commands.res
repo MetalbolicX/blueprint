@@ -30,12 +30,7 @@ let runTemplateCopy: (
   ~force: bool,
 ) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
   let homeDir = deps.process.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
-  let globalConfig = switch globalConfigResult {
-  | Ok(Some(cfg)) => cfg
-  | Ok(None) => Config.defaultGlobalConfig
-  | Error(_) => Config.defaultGlobalConfig
-  }
+  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
 
   let cwd = deps.process.cwd()
   let configResult = await Config.loadFrom(~fs, ~path, cwd)
@@ -88,12 +83,7 @@ let runTemplateList: (
   ~path: Ports.path,
 ) => promise<unit> = async (~deps, ~fs, ~path) => {
   let homeDir = deps.process.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
-  let globalConfig = switch globalConfigResult {
-  | Ok(Some(cfg)) => cfg
-  | Ok(None) => Config.defaultGlobalConfig
-  | Error(_) => Config.defaultGlobalConfig
-  }
+  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
 
   if Array.length(globalConfig.registry) == 0 {
     Console.log("No templates installed in registry.")
@@ -110,12 +100,7 @@ let runTemplateRemove: (
   ~name: string,
 ) => promise<unit> = async (~deps, ~fs, ~path, ~name) => {
   let homeDir = deps.process.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
-  let globalConfig = switch globalConfigResult {
-  | Ok(Some(cfg)) => cfg
-  | Ok(None) => Config.defaultGlobalConfig
-  | Error(_) => Config.defaultGlobalConfig
-  }
+  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
   let configPath = Utils.globalConfigPath(~deps)
   let result = await TemplateRegistry.removeTemplateFromRegistry(~deps, ~fs, ~path, ~name, ~configPath, ~globalConfig)
   switch result {
@@ -154,12 +139,7 @@ let runGenerate: (
 ) => promise<unit> = async (~fs, ~path, ~deps, ~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
   // Load global config (from ~/.config/blueprint/config.yaml)
   let homeDir = deps.process.homedir()
-  let globalConfigResult = await Config.loadGlobal(~fs, ~path, ~homeDir)
-  let globalConfig = switch globalConfigResult {
-  | Ok(Some(cfg)) => cfg
-  | Ok(None) => Config.defaultGlobalConfig
-  | Error(_) => Config.defaultGlobalConfig
-  }
+  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
 
   let cwd = deps.process.cwd()
   let configResult = await Config.loadFrom(~fs, ~path, cwd)

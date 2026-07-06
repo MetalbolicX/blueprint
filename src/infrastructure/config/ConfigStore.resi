@@ -23,6 +23,13 @@ let loadGlobal: (
   ~homeDir: string,
 ) => promise<result<option<globalConfig>, string>>
 
+let loadMergedGlobalConfig: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~homeDir: string,
+) => promise<globalConfig>
+
+
 let loadFrom: (
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
