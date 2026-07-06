@@ -474,4 +474,172 @@ suite("PromptResolver", () => {
     })
     ->ignore
   })
+
+  // --- Fail-fast: select without options ---
+
+  testAsync("resolve: interactive Select with options=None returns MissingOptionsError", resolve => {
+    let askCalled = ref(false)
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => {
+        askCalled.contents = true
+        Promise.resolve("anything")
+      },
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "type",
+        promptType: Manifest.Select,
+        description: "Pick a type",
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+          assert_eq(prompt, "type")
+          assert_true(String.includes(message, "select prompt requires options"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      assert_false(askCalled.contents)
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("resolve: interactive MultiSelect with options=None returns MissingOptionsError", resolve => {
+    let askCalled = ref(false)
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => {
+        askCalled.contents = true
+        Promise.resolve("1")
+      },
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "colors",
+        promptType: Manifest.MultiSelect,
+        description: "Pick colors",
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+          assert_eq(prompt, "colors")
+          assert_true(String.includes(message, "select prompt requires options"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      assert_false(askCalled.contents)
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("resolve: force-mode Select with options=None returns MissingOptionsError", resolve => {
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "type",
+        promptType: Manifest.Select,
+        description: "Pick a type",
+        default: "anything",
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+          assert_eq(prompt, "type")
+          assert_true(String.includes(message, "select prompt requires options"))
+        }
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("resolve: force-mode MultiSelect with options=None returns MissingOptionsError", resolve => {
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve(""),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "colors",
+        promptType: Manifest.MultiSelect,
+        description: "Pick colors",
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(PromptResolver.MissingOptionsError({prompt, message: _message})) => {
+          assert_eq(prompt, "colors")
+        }
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("resolve: Input prompt without options is allowed (no MissingOptionsError)", resolve => {
+    let mockIo: Ports.interactiveIO = {
+      ask: _ => Promise.resolve("answer"),
+      askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(true),
+      close: () => ()
+    }
+    let prompts: array<Manifest.prompt> = [
+      {
+        name: "name",
+        promptType: Manifest.Input,
+        description: "Your name",
+      },
+    ]
+    let baseContext: dict<string> = Dict.make()
+
+    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(answers) => assert_eq(Dict.get(answers, "name"), Some("answer"))
+      | Error(_) => assert_false(true)
+      }
+      mockIo.close()
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

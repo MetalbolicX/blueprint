@@ -140,5 +140,7 @@ let run: (
     )
   | Error(PromptResolver.ValidationConfigError({prompt, message})) =>
     Error("Prompt validation config error [" ++ prompt ++ "]: " ++ message)
+  | Error(PromptResolver.MissingOptionsError({prompt, message})) =>
+    Error("Prompt configuration error [" ++ prompt ++ "]: " ++ message)
   }
 }

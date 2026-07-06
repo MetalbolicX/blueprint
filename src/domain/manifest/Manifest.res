@@ -338,3 +338,11 @@ let validate: manifest => result<unit, array<validationError>> = manifest => {
     Error(errors)
   }
 }
+
+// Format an array of validation errors as `field: message; field: message`.
+// Used by callers that surface multiple manifest errors together.
+let validationErrorsToString: array<validationError> => string = errors => {
+  errors
+  ->Array.map(e => e.field ++ ": " ++ e.message)
+  ->Array.join("; ")
+}

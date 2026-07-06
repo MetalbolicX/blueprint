@@ -6,6 +6,28 @@
 type resolveError =
   | EvaluationError({prompt: string, field: string, message: string})
   | ValidationConfigError({prompt: string, message: string})
+  | MissingOptionsError({prompt: string, message: string})
+
+// Select/MultiSelect prompts must have options configured before they can be
+// asked or have a default applied. Returning Error here means we fail closed
+// instead of degrading to a free-text fallback path that would be meaningless
+// for a select-style prompt.
+let _requireOptions: Manifest.prompt => result<unit, resolveError> = prompt => {
+  switch prompt.promptType {
+  | Manifest.Select | Manifest.MultiSelect =>
+    switch prompt.options {
+    | Some(opts) if Array.length(opts) > 0 => Ok()
+    | _ =>
+      Error(
+        MissingOptionsError({
+          prompt: prompt.name,
+          message: "select prompt requires options",
+        }),
+      )
+    }
+  | _ => Ok()
+  }
+}
 
 // --- EJS expression safety guard ---
 
@@ -310,18 +332,24 @@ let resolve: (
       }
     }
     and assignForceDefault = (prompt, prompts, idx) => {
-      switch prompt.default {
-      | Some(defaultExpr) =>
-        switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-        | Ok(d) => {
-            Dict.set(answers, prompt.name, d)
+      // Fail closed: Select/MultiSelect prompts without options can't be
+      // answered by force-defaulting — that's the whole point of select.
+      switch _requireOptions(prompt) {
+      | Error(e) => Promise.resolve(Error(e))
+      | Ok() =>
+        switch prompt.default {
+        | Some(defaultExpr) =>
+          switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+          | Ok(d) => {
+              Dict.set(answers, prompt.name, d)
+              forceLoop(idx + 1, prompts)
+            }
+          | Error(e) => Promise.resolve(Error(e))
+          }
+        | None => {
+            Dict.set(answers, prompt.name, "")
             forceLoop(idx + 1, prompts)
           }
-        | Error(e) => Promise.resolve(Error(e))
-        }
-      | None => {
-          Dict.set(answers, prompt.name, "")
-          forceLoop(idx + 1, prompts)
         }
       }
     }
@@ -350,57 +378,63 @@ let resolve: (
       }
     }
     and handleInteractivePrompt = (prompt, prompts, idx) => {
-      // Evaluate default
-      let defaultResult = switch prompt.default {
-      | Some(defaultExpr) =>
-        switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-        | Ok(d) => Ok(Some(d))
-        | Error(e) => Error(e)
-        }
-      | None => Ok(None)
-      }
-
-      switch defaultResult {
+      // Fail closed: Select/MultiSelect prompts without options can't be
+      // answered interactively — never fall through to a free-text path.
+      switch _requireOptions(prompt) {
       | Error(e) => Promise.resolve(Error(e))
-      | Ok(evaluatedDefault) =>
-        // Evaluate options for select prompts
-        let optionsResult = switch prompt.options {
-        | Some(opts) =>
-          switch _evaluateOptions(~opts, ~promptName=prompt.name, ~baseContext, ~answers) {
-          | Ok(eo) => Ok(Some(eo))
+      | Ok() =>
+        // Evaluate default
+        let defaultResult = switch prompt.default {
+        | Some(defaultExpr) =>
+          switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+          | Ok(d) => Ok(Some(d))
           | Error(e) => Error(e)
           }
         | None => Ok(None)
         }
 
-        switch optionsResult {
+        switch defaultResult {
         | Error(e) => Promise.resolve(Error(e))
-        | Ok(evaluatedOptions) =>
-          // Compile validation pattern once (if present)
-          let patternResult = switch prompt.validate {
-          | Some(v) =>
-            switch _compilePattern(~pattern=v.pattern, ~promptName=prompt.name) {
-            | Ok(re) => Ok(Some((re, v.message)))
+        | Ok(evaluatedDefault) =>
+          // Evaluate options for select prompts
+          let optionsResult = switch prompt.options {
+          | Some(opts) =>
+            switch _evaluateOptions(~opts, ~promptName=prompt.name, ~baseContext, ~answers) {
+            | Ok(eo) => Ok(Some(eo))
             | Error(e) => Error(e)
             }
           | None => Ok(None)
           }
 
-          switch patternResult {
+          switch optionsResult {
           | Error(e) => Promise.resolve(Error(e))
-          | Ok(compiledPattern) =>
-            // Ask and validate with retry loop
-            promptWithRetry(
-              ~io,
-              ~prompt,
-              ~evaluatedDefault,
-              ~evaluatedOptions,
-              ~compiledPattern,
-              ~prompts,
-              ~idx,
-            )
+          | Ok(evaluatedOptions) =>
+            // Compile validation pattern once (if present)
+            let patternResult = switch prompt.validate {
+            | Some(v) =>
+              switch _compilePattern(~pattern=v.pattern, ~promptName=prompt.name) {
+              | Ok(re) => Ok(Some((re, v.message)))
+              | Error(e) => Error(e)
+              }
+            | None => Ok(None)
+            }
+
+            switch patternResult {
+            | Error(e) => Promise.resolve(Error(e))
+            | Ok(compiledPattern) =>
+              // Ask and validate with retry loop
+              promptWithRetry(
+                ~io,
+                ~prompt,
+                ~evaluatedDefault,
+                ~evaluatedOptions,
+                ~compiledPattern,
+                ~prompts,
+                ~idx,
+              )
           }
         }
+      }
       }
     }
     and promptWithRetry = (

@@ -409,4 +409,67 @@ suite("Manifest", () => {
     | Error(msg) => assert_true(String.length(msg) > 0)
     }
   })
+
+  // --- validate: error collection (fail-fast contract) ---
+
+  test("validate: collects multiple errors together (missing classification + select-no-options)", () => {
+    let manifest: Manifest.manifest = {
+      name: "test",
+      classification: "",
+      prompts: [
+        {
+          name: "type",
+          promptType: Manifest.Select,
+          description: "Pick a type",
+        },
+      ],
+    }
+    switch Manifest.validate(manifest) {
+    | Error(errors) => {
+        // Both errors should be reported together, not collapsed into one
+        assert_true(Array.length(errors) >= 2)
+        let fields = errors->Array.map(e => e.field)
+        let hasClassification = fields->Array.some(f => f == "classification")
+        let hasOptions = fields->Array.some(f => f == "prompts.options")
+        assert_true(hasClassification)
+        assert_true(hasOptions)
+      }
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("validate: error message says select prompt requires options", () => {
+    let manifest: Manifest.manifest = {
+      name: "test",
+      classification: "test",
+      prompts: [
+        {
+          name: "type",
+          promptType: Manifest.Select,
+          description: "Pick a type",
+        },
+      ],
+    }
+    switch Manifest.validate(manifest) {
+    | Error(errors) => {
+        let messages = errors->Array.map(e => e.message)
+        let hasSelectMsg = messages->Array.some(m =>
+          String.includes(m, "select prompt requires options")
+        )
+        assert_true(hasSelectMsg)
+      }
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("validationErrorsToString: formats multiple errors joined by semicolon", () => {
+    let errors: array<Manifest.validationError> = [
+      {field: "classification", message: "classification is required"},
+      {field: "prompts.options", message: "select prompt requires options"},
+    ]
+    let formatted = Manifest.validationErrorsToString(errors)
+    assert_true(String.includes(formatted, "classification: classification is required"))
+    assert_true(String.includes(formatted, "prompts.options: select prompt requires options"))
+    assert_true(String.includes(formatted, "; "))
+  })
 })

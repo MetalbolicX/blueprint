@@ -59,26 +59,41 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
   }
 }
 
-// Load manifest.yaml from a generator directory if present
-let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<option<Manifest.manifest>> = async (
-  ~fs,
-  ~path,
-  generatorPath,
-) => {
+// Load manifest.yaml from a generator directory if present.
+// Fail-fast contract:
+//   Ok(None)  — no manifest.yaml present (allowed)
+//   Ok(Some)  — manifest present AND valid
+//   Error(s)  — manifest present but failed to parse OR failed validation;
+//                s is `manifest at <path> invalid: <details>`
+let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<
+  result<option<Manifest.manifest>, string>,
+> = async (~fs, ~path, generatorPath) => {
   let manifestPath = path.join(generatorPath, "manifest.yaml")
 
   let exists = await fs.fileExists(manifestPath)
   if !exists {
-    None
+    Ok(None)
   } else {
     try {
       let content = await fs.readFile(manifestPath, ~options={encoding: "utf8"})
       switch Manifest.parse(content) {
-      | Ok(m) => Some(m)
-      | Error(_) => None
+      | Ok(m) =>
+        switch Manifest.validate(m) {
+        | Ok() => Ok(Some(m))
+        | Error(errors) => {
+            let details = Manifest.validationErrorsToString(errors)
+            Error("manifest at " ++ manifestPath ++ " invalid: " ++ details)
+          }
+        }
+      | Error(parseErr) => Error("manifest at " ++ manifestPath ++ " parse error: " ++ parseErr)
       }
     } catch {
-    | _ => None
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
+      | Some(m) => m
+      | None => "Failed to read manifest " ++ manifestPath
+      }
+      Error("manifest at " ++ manifestPath ++ " read error: " ++ msg)
     }
   }
 }
@@ -149,15 +164,24 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<ar
           let templates = allActionTemplates->Array.reduce([], (acc, t) =>
             acc->Array.concat(t)
           )
-          let manifest = await _loadManifest(~fs, ~path, genPath)
 
-          Some({
-            name: entry,
-            path: genPath,
-            templates,
-            manifest: ?manifest,
-          })
-        }
+          // Fail-fast: if the manifest fails to parse or validate, skip this
+          // generator entirely (with a visible warning) instead of silently
+          // returning it with a malformed/missing manifest attached.
+          switch await _loadManifest(~fs, ~path, genPath) {
+          | Ok(maybeM) =>
+            Some({
+              name: entry,
+              path: genPath,
+              templates,
+              manifest: ?maybeM,
+            })
+          | Error(reason) => {
+              Console.warn("Skipping generator " ++ entry ++ ": " ++ reason)
+              None
+            }
+          }
+          }
         | _ => None
         }
       })
