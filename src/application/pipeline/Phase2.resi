@@ -1,20 +1,8 @@
-type backupEntry = {
-  outputPath: string,
-  backupPath: string,
-}
-
 type phase2Result = {
   filesCreated: int,
   filesInjected: int,
   commandsExecuted: int,
   shellErrors?: array<string>,
-}
-
-type phase2Error = {
-  message: string,
-  partialCommit?: array<string>,
-  catastrophic?: bool,
-  failedRollbackFiles?: array<string>,
 }
 
 let executeShellCommands: (
@@ -38,12 +26,4 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
-) => promise<result<phase2Result, phase2Error>>
-
-let rollbackOutput: (
-  ~committedFiles: array<string>,
-  ~backups: array<backupEntry>,
-  ~fs: Ports.fileSystem,
-) => promise<result<unit, array<string>>>
-
-let rollback: (string, ~fs: Ports.fileSystem) => promise<result<unit, string>>
+) => promise<result<phase2Result, Commit.phase2Error>>

@@ -1,7 +1,7 @@
 // Hooks — pre/post generate lifecycle hook execution
 // Mirrors Go version's hooks/hooks.go
 
-open EnvFilter
+
 
 type hookType = PreGenerate | PostGenerate
 
@@ -40,21 +40,7 @@ let executeHook: (
   ~path,
   ~fs,
 ) => {
-  // Build safe env for child process
-  let buildEnvEntry: (string, string) => EnvFilter.shellEnvEntry = (k, v) => {
-    {key: k, value: v}
-  }
-  let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = s => {
-    let entries: array<EnvFilter.shellEnvEntry> = s.vars->Dict.toArray->Array.map(((k, v)) => {
-      buildEnvEntry(k, v)
-    })
-    {vars: entries}
-  }
-  // Handle null/undefined/None gracefully - all mean no shell env config
-  let envFilterConfig: option<EnvFilter.shellEnvConfig> = switch shellEnv {
-  | Some(s) => Some(buildEnvFilterConfig(s))
-  | None => None
-  }
+    let envFilterConfig = shellEnv->Option.map(ShellBuilder.buildEnvFilterConfig)
   let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
 
   // Check for path restriction on any command that looks like a path

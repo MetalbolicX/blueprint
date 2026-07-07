@@ -148,14 +148,14 @@ suite("ShellExecutor.cleanupFetchTmpFiles", () => {
 
 // ---------- buildEnvFilterConfig ----------
 
-suite("ShellExecutor.buildEnvFilterConfig", () => {
+suite("ShellBuilder.buildEnvFilterConfig", () => {
   test("empty vars yields empty entries array", () => {
-    let cfg: EnvFilter.shellEnvConfig = ShellExecutor.buildEnvFilterConfig({vars: Dict.make()})
+    let cfg: EnvFilter.shellEnvConfig = ShellBuilder.buildEnvFilterConfig({vars: Dict.make()})
     assert_eq(cfg.vars->Array.length, 0)
   })
 
   test("vars dict maps into entries array", () => {
-    let cfg: EnvFilter.shellEnvConfig = ShellExecutor.buildEnvFilterConfig({
+    let cfg: EnvFilter.shellEnvConfig = ShellBuilder.buildEnvFilterConfig({
       vars: Dict.fromArray([("FOO", "bar")]),
     })
     assert_eq(cfg.vars->Array.length, 1)
@@ -164,7 +164,7 @@ suite("ShellExecutor.buildEnvFilterConfig", () => {
   })
 
   test("multiple vars produce multiple entries (length matches input dict)", () => {
-    let cfg: EnvFilter.shellEnvConfig = ShellExecutor.buildEnvFilterConfig({
+    let cfg: EnvFilter.shellEnvConfig = ShellBuilder.buildEnvFilterConfig({
       vars: Dict.fromArray([("A", "1"), ("B", "2"), ("C", "3")]),
     })
     assert_eq(cfg.vars->Array.length, 3)

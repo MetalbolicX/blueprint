@@ -1,6 +1,7 @@
 // Phase2_test — commit and rollback tests
 
 open TestHelpers
+open Commit
 
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
@@ -143,8 +144,8 @@ suite("Phase2", () => {
   })
 
   test("phase2Error: structure", () => {
-    let err = {
-      Phase2.message: "Commit failed",
+    let err: phase2Error = {
+      message: "Commit failed",
       partialCommit: ["file1.txt", "file2.txt"],
     }
 
@@ -156,8 +157,8 @@ suite("Phase2", () => {
   })
 
   test("phase2Error: no partial commit", () => {
-    let err = {
-      Phase2.message: "Early failure",
+    let err: phase2Error = {
+      message: "Early failure",
     }
 
     switch err.partialCommit {
@@ -257,7 +258,7 @@ suite("Phase2", () => {
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(exists => {
       assert_true(exists)
-      Phase2.rollback(tmpDir, ~fs=NodeJsFileSystem.make())
+      rollback(tmpDir, ~fs=NodeJsFileSystem.make())
     })
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(existsAfter => {
@@ -276,12 +277,12 @@ suite("Phase2", () => {
       ~cpFailure=(fromPath, _toPath) => fromPath == "/backups/fail.txt" ? Some("restore failed") : None,
     )
     let committedFiles = ["/output/ok.txt", "/output/fail.txt"]
-    let backups: array<Phase2.backupEntry> = [
+    let backups: array<backupEntry> = [
       {outputPath: "/output/ok.txt", backupPath: "/backups/ok.txt"},
       {outputPath: "/output/fail.txt", backupPath: "/backups/fail.txt"},
     ]
 
-    Phase2.rollbackOutput(~committedFiles, ~backups, ~fs)
+    rollbackOutput(~committedFiles, ~backups, ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -313,7 +314,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == outputNew ? Some("cannot delete") : None,
     )
 
-    Phase2.rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~fs)
+    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -338,7 +339,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == "/tmp/locked-staging" ? Some("permission denied") : None,
     )
 
-    Phase2.rollback("/tmp/locked-staging", ~fs)
+    rollback("/tmp/locked-staging", ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)

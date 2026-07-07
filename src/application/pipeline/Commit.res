@@ -128,8 +128,11 @@ let rollbackOutput: (
   ~backups: array<backupEntry>,
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, array<string>>> = async (~committedFiles, ~backups, ~fs) => {
+  let backupByOutput: dict<backupEntry> = Dict.make()
+  backups->Array.forEach(backup => backupByOutput->Dict.set(backup.outputPath, backup))
+
   let workItems = committedFiles->Array.map(outputPath => async () => {
-    switch backups->Array.find(b => b.outputPath == outputPath) {
+    switch backupByOutput->Dict.get(outputPath) {
     | Some(backup) => {
         try {
           await fs.cp(backup.backupPath, outputPath, ~options={recursive: false})

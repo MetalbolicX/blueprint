@@ -1,6 +1,7 @@
 // Phase1_test — staging and rendering tests
 
 open TestHelpers
+open Commit
 
 suite("Phase1", () => {
   test("phase1Result: structure", () => {
@@ -123,7 +124,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -185,7 +186,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -332,7 +333,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.shellCommands), 2)
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       resolve()
@@ -402,7 +403,7 @@ suite("Phase1", () => {
             }
           | None => assert_false(true)
           }
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -454,7 +455,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.renderedFiles), 1)
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -555,7 +556,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.renderedFiles), 1)
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -607,7 +608,7 @@ suite("Phase1", () => {
       | Error(_) => assert_false(true)
       | Ok(phase1) => {
           assert_eq(Array.length(phase1.renderedFiles), 0)
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -845,7 +846,7 @@ suite("Phase1", () => {
           | None => assert_false(true)
           }
 
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
@@ -960,7 +961,7 @@ suite("Phase1", () => {
           | None => assert_false(true)
           }
 
-          Phase2.rollback(phase1.stagingDir, ~fs)->ignore
+          rollback(phase1.stagingDir, ~fs)->ignore
         }
       }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore

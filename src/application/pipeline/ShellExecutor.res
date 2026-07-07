@@ -13,14 +13,6 @@ let cleanupFetchTmpFiles: (array<string>, ~fs: Ports.fileSystem) => promise<unit
   })
 }
 
-let buildEnvFilterConfig: Config.shellEnv => EnvFilter.shellEnvConfig = e => {
-  let entries: array<EnvFilter.shellEnvEntry> = e.vars->Dict.toArray->Array.map(((k, v)) => {
-    let entry: EnvFilter.shellEnvEntry = {key: k, value: v}
-    entry
-  })
-  {vars: entries}
-}
-
 // Execute all queued shell commands
 let executeShellCommands: (
   ~commands: array<shellCommand>,
@@ -45,12 +37,7 @@ let executeShellCommands: (
   let tmpFiles: array<string> = []
 
   // Build safe env for child process execution
-  let envFilterConfig: option<EnvFilter.shellEnvConfig> = shellConfig->Option.flatMap(s => {
-    switch s.env {
-    | Some(e) => Some(buildEnvFilterConfig(e))
-    | None => None
-    }
-  })
+  let envFilterConfig = shellConfig->Option.flatMap(s => s.env->Option.map(ShellBuilder.buildEnvFilterConfig))
   let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
 
   let promise = commands->Array.reduce(Promise.resolve(Ok()), (acc, cmd) => {
