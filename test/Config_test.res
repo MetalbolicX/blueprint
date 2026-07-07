@@ -19,8 +19,7 @@ suite("Config", () => {
     | Ok(cfg) =>
       switch cfg.hooks {
       | Some(h) =>
-        assert_eq(h.preGenerate, Some({command: "echo start"}))
-        assert_true(true)
+        assert_eq(h.preGenerate->Option.map(c => c.command), Some("echo start"))
       | None => assert_false(true)
       }
     | Error(_) => assert_false(true)
@@ -34,8 +33,8 @@ suite("Config", () => {
     | Ok(cfg) =>
       switch cfg.hooks {
       | Some(h) => {
-          assert_eq(h.preGenerate, Some({command: "echo start"}))
-          assert_eq(h.postGenerate, Some({command: "echo end"}))
+          assert_eq(h.preGenerate->Option.map(c => c.command), Some("echo start"))
+          assert_eq(h.postGenerate->Option.map(c => c.command), Some("echo end"))
           assert_eq(h.timeout, Some(10))
         }
       | None => assert_false(true)
@@ -94,7 +93,7 @@ suite("Config", () => {
         switch opt {
         | Some(cfg) =>
           switch cfg.hooks {
-          | Some(h) => assert_eq(h.preGenerate, Some({command: "echo hello"}))
+          | Some(h) => assert_eq(h.preGenerate->Option.map(c => c.command), Some("echo hello"))
           | None => assert_false(true)
           }
         | None => assert_false(true)
@@ -178,7 +177,7 @@ suite("Config", () => {
     let project: Config.config = {
       output: "dist",
       hooks: {
-        preGenerate: {command: "echo hi"},
+        preGenerate: {command: "echo hi", args: []},
         timeout: 10,
       },
     }
@@ -202,7 +201,7 @@ suite("Config", () => {
     let project: Config.config = {
       output: "dist",
       hooks: {
-        preGenerate: {command: "echo hi"},
+        preGenerate: {command: "echo hi", args: []},
       },
     }
 
@@ -464,7 +463,7 @@ suite("Config", () => {
     switch result {
     | Ok(cfg) =>
       switch cfg.hooks {
-      | Some(h) => assert_eq(h.preGenerate, Some({command: "echo start"}))
+      | Some(h) => assert_eq(h.preGenerate->Option.map(c => c.command), Some("echo start"))
       | None => assert_false(true)
       }
     | Error(_) => assert_false(true)

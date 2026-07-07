@@ -110,7 +110,7 @@ let loadFrom: (
   } else {
     try {
       let content = await fs.readFile(configPath, ~options={encoding: "utf8"})
-      let result = ConfigYaml.parseConfig(content)
+      let result = ConfigYaml.parse(content)
       switch result {
       | Ok(cfg) => Ok(Some(cfg))
       | Error(e) => Error(e)

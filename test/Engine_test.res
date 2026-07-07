@@ -1,6 +1,8 @@
 // Engine_test — full pipeline e2e tests
 
 open TestHelpers
+open EngineResult
+open EngineLifecycle
 
 let deps: Ports.deps = {
   fs: NodeJsFileSystem.make(),
@@ -71,8 +73,8 @@ let invokeHandler = (handlerRef: ref<option<unit => unit>>) => {
 
 suite("Engine", () => {
   test("generateResult: structure", () => {
-    let result = {
-      Engine.filesCreated: 3,
+    let result: generateResult = {
+      filesCreated: 3,
       filesInjected: 1,
       commandsExecuted: 2,
       classification: "component",
@@ -85,8 +87,8 @@ suite("Engine", () => {
   })
 
   test("generateResult: zero values", () => {
-    let result = {
-      Engine.filesCreated: 0,
+    let result: generateResult = {
+      filesCreated: 0,
       filesInjected: 0,
       commandsExecuted: 0,
       classification: "empty",
@@ -381,7 +383,7 @@ suite("Engine", () => {
     let fs = makeCleanupFs(~tmpRoot="/tmp/engine-signal-cleanup", ~tmpEntries=[], ~removed)
     let stagingDirRef = ref(Some("/tmp/blueprint-signal-int"))
 
-    Engine.registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
+    registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
     invokeHandler(sigintHandler)
 
     Promise.resolve()
@@ -418,7 +420,7 @@ suite("Engine", () => {
     let fs = makeCleanupFs(~tmpRoot="/tmp/engine-signal-no-staging", ~tmpEntries=[], ~removed)
     let stagingDirRef = ref(None)
 
-    Engine.registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
+    registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
     invokeHandler(sigintHandler)
 
     Promise.resolve()
@@ -441,7 +443,7 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[staleDirName], ~directoryPaths=[staleDirPath], ~removed)
 
-    Engine.cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
     ->Promise.then(_ => {
       assert_eq(Array.get(removed.contents, 0), Some(staleDirPath))
       resolve()
@@ -458,7 +460,7 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[freshDirName], ~directoryPaths=[freshDirPath], ~removed)
 
-    Engine.cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
     ->Promise.then(_ => {
       assert_eq(Array.length(removed.contents), 0)
       resolve()
@@ -474,7 +476,7 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[], ~existingPaths=[backupDir], ~removed)
 
-    Engine.cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
+    cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
     ->Promise.then(_ => {
       assert_eq(Array.get(removed.contents, 0), Some(backupDir))
       resolve()
@@ -491,7 +493,7 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[freshDirName], ~directoryPaths=[freshDirPath], ~removed)
 
-    Engine.cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
     ->Promise.then(_ => {
       assert_eq(Array.length(removed.contents), 0)
       resolve()
@@ -506,7 +508,7 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[], ~removed)
 
-    Engine.cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
+    cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
     ->Promise.then(_ => {
       assert_eq(Array.length(removed.contents), 0)
       resolve()

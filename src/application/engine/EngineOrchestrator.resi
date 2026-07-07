@@ -1,8 +1,9 @@
-// Engine.resi
+// EngineOrchestrator.resi
+open Discovery
 open EngineResult
 
 let run: (
-  ~generator: Discovery.generator,
+  ~generator: generator,
   ~name: string,
   ~cliAttributes: dict<Context.attrValue>,
   ~outputDir: string,
