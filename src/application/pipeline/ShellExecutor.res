@@ -66,8 +66,12 @@ let executeShellCommands: (
                     let _ = tmpFiles->Array.push(fetchPath)
                     count.contents = count.contents + 1
                     Promise.resolve(Ok())
-                  })->Promise.catch(_ => {
-                    Promise.resolve(Error("Failed to write fetched content: " ++ url))
+                  })->Promise.catch(e => {
+                    let msg = switch JsExn.message(e->Obj.magic) {
+                    | Some(m) => m
+                    | None => "unknown error"
+                    }
+                    Promise.resolve(Error("Failed to write fetched content: " ++ url ++ " — " ++ msg))
                   })
                 }
               | Error(msg) => {
@@ -106,8 +110,12 @@ let executeShellCommands: (
                       }
                     }
                   }
-                })->Promise.catch(_ => {
-                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
+                })->Promise.catch(e => {
+                  let msg = switch JsExn.message(e->Obj.magic) {
+                  | Some(m) => m
+                  | None => "unknown error"
+                  }
+                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
                 })
               }
             | ShellExact(command) => {
@@ -131,8 +139,12 @@ let executeShellCommands: (
                       }
                     }
                   }
-                })->Promise.catch(_ => {
-                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed"))
+                })->Promise.catch(e => {
+                  let msg = switch JsExn.message(e->Obj.magic) {
+                  | Some(m) => m
+                  | None => "unknown error"
+                  }
+                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
                 })
               }
             }

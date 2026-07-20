@@ -395,6 +395,44 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
   })
 })
 
+// ---------- executeShellCommands — error message surfacing ----------
+
+suite("ShellExecutor.executeShellCommands — error message surfacing", () => {
+  testAsync("ExecFile rejection surfaces 'execution failed' in error message", resolve => {
+    let rejectMsg: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
+    let shell: Ports.shell = {
+      ...makeShell(),
+      execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => rejectMsg("spawn ENOENT"),
+    }
+    let commands: array<Template.shellCommand> = [
+      {
+        target: ToolCall({
+          name: "missing",
+          toolDef: {
+            name: "missing",
+            command: "missing-binary",
+            args: ["foo"],
+          },
+          sourcePath: "/src/t.ejs.t",
+        }),
+        sourcePath: "/src/t.ejs.t",
+      },
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true})
+    runShellCommands(~commands, ~shellConfig, ~shell)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) =>
+        assert_true(String.includes(msg, "execution failed"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+})
+
 // ---------- executeShellCommands — InlineCommand ----------
 
 suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
