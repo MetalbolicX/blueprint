@@ -9,4 +9,4 @@ let run: (
   ~force: bool,
   ~config: Config.config=?,
   ~deps: Ports.deps,
-) => promise<result<generateResult, string>>
+) => promise<result<generateResult, Commit.phase2Error>>

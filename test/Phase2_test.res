@@ -284,9 +284,12 @@ suite("Phase2", () => {
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
-      | Error(paths) => {
-          assert_eq(Array.length(paths), 1)
-          assert_eq(Array.get(paths, 0), Some("/output/fail.txt"))
+      | Error(failures) => {
+          assert_eq(Array.length(failures), 1)
+          switch Array.get(failures, 0) {
+          | Some(f) => assert_eq(f.path, "/output/fail.txt")
+          | None => assert_false(true)
+          }
         }
       }
 
@@ -316,9 +319,12 @@ suite("Phase2", () => {
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
-      | Error(paths) => {
-          assert_eq(Array.length(paths), 1)
-          assert_eq(Array.get(paths, 0), Some(outputNew))
+      | Error(failures) => {
+          assert_eq(Array.length(failures), 1)
+          switch Array.get(failures, 0) {
+          | Some(f) => assert_eq(f.path, outputNew)
+          | None => assert_false(true)
+          }
         }
       }
 

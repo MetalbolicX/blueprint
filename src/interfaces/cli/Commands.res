@@ -201,7 +201,22 @@ let runGenerate: (
 
           switch result {
           | Error(e) => {
-              Console.error("Error: " ++ e)
+              Console.error("Error: " ++ e.message)
+              switch e.partialCommit {
+              | Some(files) if files->Array.length > 0 =>
+                Console.error("Partially committed files: " ++ files->Array.join(", "))
+              | _ => ()
+              }
+              switch e.catastrophic {
+              | Some(true) =>
+                switch e.failedRollbackFiles {
+                | Some(failed) if failed->Array.length > 0 =>
+                  Console.error("WARNING: Could not rollback these files: " ++ failed->Array.join(", "))
+                | _ => ()
+                }
+                Console.error("Catastrophic failure — output directory may be in an inconsistent state")
+              | _ => ()
+              }
               deps.process.exit(1)
             }
           | Ok(r) => {

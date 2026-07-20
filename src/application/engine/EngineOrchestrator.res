@@ -10,7 +10,7 @@ let run: (
   ~force: bool,
   ~config: Config.config=?,
   ~deps: Ports.deps,
-) => promise<result<generateResult, string>> = async (
+) => promise<result<generateResult, Commit.phase2Error>> = async (
   ~generator,
   ~name,
   ~cliAttributes,
@@ -34,10 +34,10 @@ let run: (
   switch await EngineHooks.runPreHook(~config, ~projectRoot=context.cwd, ~shell, ~process=proc, ~path, ~fs) {
   | Error(e) =>
     io.close()
-    Error(e)
+    Error({Commit.message: e})
   | Ok() =>
     switch await EnginePhases.runPhase0(~io, ~generator, ~context, ~outputDir, ~force, ~fs, ~path) {
-    | Error(e) => Error(e)
+    | Error(e) => Error({Commit.message: e})
     | Ok((p0, decisions)) =>
       io.close()
 
@@ -61,7 +61,7 @@ let run: (
         ~path,
         ~process=proc,
       ) {
-      | Error(e) => Error(e)
+      | Error(e) => Error({Commit.message: e})
       | Ok(p1) =>
         let stagingDirRef = ref(Some(p1.stagingDir))
         EngineLifecycle.registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
@@ -100,7 +100,7 @@ let run: (
           switch phase2Result {
           | Error(e) =>
             io.close()
-            Error(e.message)
+            Error(e)
           | Ok(p2) =>
             let result: generateResult = {
               filesCreated: p2.filesCreated,
@@ -119,7 +119,10 @@ let run: (
               ~fs,
             )
             io.close()
-            finalResult
+            switch finalResult {
+            | Ok(r) => Ok(r)
+            | Error(e) => Error({Commit.message: e})
+            }
           }
         }
       }

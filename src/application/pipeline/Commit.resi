@@ -3,6 +3,11 @@ type backupEntry = {
   backupPath: string,
 }
 
+type rollbackFailure = {
+  path: string,
+  reason: string,
+}
+
 type phase2Error = {
   message: string,
   partialCommit?: array<string>,
@@ -22,6 +27,6 @@ let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
   ~fs: Ports.fileSystem,
-) => promise<result<unit, array<string>>>
+) => promise<result<unit, array<rollbackFailure>>>
 
 let rollback: (string, ~fs: Ports.fileSystem) => promise<result<unit, string>>

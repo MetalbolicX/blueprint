@@ -8,6 +8,11 @@ type backupEntry = {
   backupPath: string,
 }
 
+type rollbackFailure = {
+  path: string,
+  reason: string,
+}
+
 type phase2Error = {
   message: string,
   partialCommit?: array<string>,
@@ -127,7 +132,11 @@ let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
   ~fs: Ports.fileSystem,
-) => promise<result<unit, array<string>>> = async (~committedFiles, ~backups, ~fs) => {
+) => promise<result<unit, array<rollbackFailure>>> = async (
+  ~committedFiles,
+  ~backups,
+  ~fs,
+) => {
   let backupByOutput: dict<backupEntry> = Dict.make()
   backups->Array.forEach(backup => backupByOutput->Dict.set(backup.outputPath, backup))
 
@@ -138,7 +147,13 @@ let rollbackOutput: (
           await fs.cp(backup.backupPath, outputPath, ~options={recursive: false})
           Ok()
         } catch {
-        | _ => Error(outputPath)
+        | JsExn(obj) =>
+          let msg = switch JsExn.message(obj) {
+          | Some(m) => m
+          | None => "unknown error"
+          }
+          Error({path: outputPath, reason: msg})
+        | _ => Error({path: outputPath, reason: "unknown error"})
         }
       }
     | None => {
@@ -146,18 +161,29 @@ let rollbackOutput: (
           await fs.rm(outputPath, ~options={recursive: false})
           Ok()
         } catch {
-        | _ => Error(outputPath)
+        | JsExn(obj) =>
+          let msg = switch JsExn.message(obj) {
+          | Some(m) => m
+          | None => "unknown error"
+          }
+          Error({path: outputPath, reason: msg})
+        | _ => Error({path: outputPath, reason: "unknown error"})
         }
       }
     }
   })
 
   let results = await Promise.all(workItems->Array.map(fn => fn()))
-  let failedPaths = results->Array.filterMap(r => switch r { | Error(p) => Some(p) | Ok(_) => None })
+  let failures = results->Array.filterMap(r =>
+    switch r {
+    | Error(f) => Some(f)
+    | Ok(_) => None
+    }
+  )
 
-  switch failedPaths->Array.length {
+  switch failures->Array.length {
   | 0 => Ok()
-  | _ => Error(failedPaths)
+  | _ => Error(failures)
   }
 }
 

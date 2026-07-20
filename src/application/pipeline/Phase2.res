@@ -91,11 +91,12 @@ let run: (
               Error(err)
             }
           | Error(failedRollbackFiles) => {
+              let failedPaths = failedRollbackFiles->Array.map(f => f.path)
               let catastrophicError: phase2Error = {
                 message,
                 partialCommit: committedFiles,
                 catastrophic: true,
-                failedRollbackFiles,
+                failedRollbackFiles: failedPaths,
               }
 
               switch await Commit.rollback(stagingDir, ~fs) {

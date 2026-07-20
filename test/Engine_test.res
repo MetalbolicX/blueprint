@@ -175,7 +175,7 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(msg) => assert_true(String.includes(msg, "pre_generate hook failed"))
+      | Error(e) => assert_true(String.includes(e.message, "pre_generate hook failed"))
       }
       resolve()
       Promise.resolve()
@@ -209,7 +209,7 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(msg) => assert_true(String.includes(msg, "post_generate hook failed"))
+      | Error(e) => assert_true(String.includes(e.message, "post_generate hook failed"))
       }
       resolve()
       Promise.resolve()
@@ -313,7 +313,7 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(msg) => assert_true(String.includes(msg, "pre_generate hook failed"))
+      | Error(e) => assert_true(String.includes(e.message, "pre_generate hook failed"))
       }
       // Test passes if we get here without hanging (readline was closed)
       resolve()
