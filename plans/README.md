@@ -26,7 +26,7 @@ Planned-at commit: `64a81fa`
 | 014 | Pass safeEnv to non-path hooks without args | P1 | S | — | DONE |
 | 015 | Fix ScriptFile to use execFileAsync (no shell) | P2 | S | — | DONE |
 | 016 | Write fetch temp files to staging directory | P2 | S | — | DONE |
-| 017 | Preserve Phase2/rollback error detail through the engine boundary | P1 | M | — | TODO |
+| 017 | Preserve Phase2/rollback error detail through the engine boundary | P1 | M | — | DONE |
 | 018 | Surface real render/injection errors in TemplateRenderer | P1 | S | — | DONE |
 | 019 | Stop discarding error context at CLI and shell boundaries | P1 | S | — | TODO |
 | 020 | Purge dead bindings and helpers (~120 lines) | P2 | S | — | DONE |
