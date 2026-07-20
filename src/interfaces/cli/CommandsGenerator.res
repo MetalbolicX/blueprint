@@ -250,6 +250,184 @@ let runAddPrompt: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = 
   }
 }
 
+type directiveValues = {
+  toPath: string,
+  from: string,
+  inject: string,
+  after: string,
+  before: string,
+  atLine: string,
+  skipIf: string,
+  prepend: bool,
+  append: bool,
+  eofLast: bool,
+  force: bool,
+  unlessExists: bool,
+  tool: string,
+  fetch: string,
+  script: string,
+  body: string,
+}
+
+let buildFrontmatter: directiveValues => string = vals => {
+  let frontmatterLines = ["---", "to: " ++ vals.toPath]
+
+  if vals.from->String.trim != "" {
+    Js.Array.push("from: " ++ vals.from->String.trim, frontmatterLines)->ignore
+  }
+  if vals.inject->String.trim != "" {
+    Js.Array.push("inject: " ++ vals.inject->String.trim, frontmatterLines)->ignore
+  }
+  if vals.after->String.trim != "" {
+    Js.Array.push("after: " ++ vals.after->String.trim, frontmatterLines)->ignore
+  }
+  if vals.before->String.trim != "" {
+    Js.Array.push("before: " ++ vals.before->String.trim, frontmatterLines)->ignore
+  }
+  if vals.atLine->String.trim != "" {
+    Js.Array.push("at_line: " ++ vals.atLine->String.trim, frontmatterLines)->ignore
+  }
+  if vals.skipIf->String.trim != "" {
+    Js.Array.push("skip_if: " ++ vals.skipIf->String.trim, frontmatterLines)->ignore
+  }
+  if vals.prepend {
+    Js.Array.push("prepend: true", frontmatterLines)->ignore
+  }
+  if vals.append {
+    Js.Array.push("append: true", frontmatterLines)->ignore
+  }
+  if vals.eofLast {
+    Js.Array.push("eof_last: true", frontmatterLines)->ignore
+  }
+  if vals.force {
+    Js.Array.push("force: true", frontmatterLines)->ignore
+  }
+  if vals.unlessExists {
+    Js.Array.push("unless_exists: true", frontmatterLines)->ignore
+  }
+  if vals.tool->String.trim != "" {
+    Js.Array.push("tool: " ++ vals.tool->String.trim, frontmatterLines)->ignore
+  }
+  if vals.fetch->String.trim != "" {
+    Js.Array.push("fetch: " ++ vals.fetch->String.trim, frontmatterLines)->ignore
+  }
+  if vals.script->String.trim != "" {
+    Js.Array.push("script: " ++ vals.script->String.trim, frontmatterLines)->ignore
+  }
+
+  Js.Array.push("---", frontmatterLines)->ignore
+  frontmatterLines->Array.concat([vals.body])->Array.join("\n") ++ "\n"
+}
+
+let promptForDirectives: (
+  ~io: Ports.interactiveIO,
+  ~toPath: string,
+) => promise<directiveValues> = async (~io, ~toPath) => {
+  let directiveSelection =
+    await io.ask(
+      "Additional directives (comma-separated; e.g. inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,tool,fetch,script): ",
+    )
+  let selected = parseDirectiveSelection(directiveSelection)
+
+  let fromValue =
+    if hasDirective(~selected, ~key="from") {
+      await io.ask("from path: ")
+    } else {
+      ""
+    }
+  let injectValue =
+    if hasDirective(~selected, ~key="inject") {
+      await io.ask("inject regex: ")
+    } else {
+      ""
+    }
+  let afterValue =
+    if hasDirective(~selected, ~key="after") {
+      await io.ask("after regex: ")
+    } else {
+      ""
+    }
+  let beforeValue =
+    if hasDirective(~selected, ~key="before") {
+      await io.ask("before regex: ")
+    } else {
+      ""
+    }
+  let atLineValue =
+    if hasDirective(~selected, ~key="at_line") {
+      await io.ask("at_line number: ")
+    } else {
+      ""
+    }
+  let skipIfValue =
+    if hasDirective(~selected, ~key="skip_if") {
+      await io.ask("skip_if regex: ")
+    } else {
+      ""
+    }
+
+  let prependEnabled =
+    hasDirective(~selected, ~key="prepend")
+      ? await io.askConfirm(~question="Enable prepend: true?", ~defaultYes=true)
+      : false
+  let appendEnabled =
+    hasDirective(~selected, ~key="append")
+      ? await io.askConfirm(~question="Enable append: true?", ~defaultYes=true)
+      : false
+  let eofLastEnabled =
+    hasDirective(~selected, ~key="eof_last")
+      ? await io.askConfirm(~question="Enable eof_last: true?", ~defaultYes=true)
+      : false
+  let forceEnabled =
+    hasDirective(~selected, ~key="force")
+      ? await io.askConfirm(~question="Enable force: true?", ~defaultYes=true)
+      : false
+  let unlessExistsEnabled =
+    hasDirective(~selected, ~key="unless_exists")
+      ? await io.askConfirm(~question="Enable unless_exists: true?", ~defaultYes=true)
+      : false
+
+  let toolValue =
+    if hasDirective(~selected, ~key="tool") {
+      await io.ask("tool name: ")
+    } else {
+      ""
+    }
+  let fetchValue =
+    if hasDirective(~selected, ~key="fetch") {
+      await io.ask("fetch URL: ")
+    } else {
+      ""
+    }
+  let scriptValue =
+    if hasDirective(~selected, ~key="script") {
+      await io.ask("script name (resolved from shell.scripts): ")
+    } else {
+      ""
+    }
+
+  let body = await io.ask("Template body (single-line; optional): ")
+
+  {
+    toPath,
+    from: fromValue,
+    inject: injectValue,
+    after: afterValue,
+    before: beforeValue,
+    atLine: atLineValue,
+    skipIf: skipIfValue,
+    prepend: prependEnabled,
+    append: appendEnabled,
+    eofLast: eofLastEnabled,
+    force: forceEnabled,
+    unlessExists: unlessExistsEnabled,
+    tool: toolValue,
+    fetch: fetchValue,
+    script: scriptValue,
+    body,
+  }
+}
+
 let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = async (~deps, ~name) => {
   switch requireGeneratorName(~deps, ~name) {
   | None => ()
@@ -270,142 +448,12 @@ let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = as
           let filename = normalizeTemplateFilename(filenameRaw->String.trim)
           let toPath = (await deps.interactiveIO.ask("to path (required): "))->String.trim
 
-          let directiveSelection =
-            await deps.interactiveIO.ask(
-              "Additional directives (comma-separated; e.g. inject,after,before,atLine,skipIf,prepend,append,eofLast,force,unlessExists,tool,fetch,script): ",
-            )
-          let selected = parseDirectiveSelection(directiveSelection)
-
           if filename == ".ejs.t" || toPath == "" {
             Console.error("Error: template file name and 'to' are required")
             deps.process.exit(1)
           } else {
-            let fromValue =
-              if hasDirective(~selected, ~key="from") {
-                await deps.interactiveIO.ask("from path: ")
-              } else {
-                ""
-              }
-            let injectValue =
-              if hasDirective(~selected, ~key="inject") {
-                await deps.interactiveIO.ask("inject regex: ")
-              } else {
-                ""
-              }
-            let afterValue =
-              if hasDirective(~selected, ~key="after") {
-                await deps.interactiveIO.ask("after regex: ")
-              } else {
-                ""
-              }
-            let beforeValue =
-              if hasDirective(~selected, ~key="before") {
-                await deps.interactiveIO.ask("before regex: ")
-              } else {
-                ""
-              }
-            let atLineValue =
-              if hasDirective(~selected, ~key="at_line") {
-                await deps.interactiveIO.ask("at_line number: ")
-              } else {
-                ""
-              }
-            let skipIfValue =
-              if hasDirective(~selected, ~key="skip_if") {
-                await deps.interactiveIO.ask("skip_if regex: ")
-              } else {
-                ""
-              }
-
-            let prependEnabled =
-              hasDirective(~selected, ~key="prepend")
-                ? await deps.interactiveIO.askConfirm(~question="Enable prepend: true?", ~defaultYes=true)
-                : false
-            let appendEnabled =
-              hasDirective(~selected, ~key="append")
-                ? await deps.interactiveIO.askConfirm(~question="Enable append: true?", ~defaultYes=true)
-                : false
-            let eofLastEnabled =
-              hasDirective(~selected, ~key="eof_last")
-                ? await deps.interactiveIO.askConfirm(~question="Enable eof_last: true?", ~defaultYes=true)
-                : false
-            let forceEnabled =
-              hasDirective(~selected, ~key="force")
-                ? await deps.interactiveIO.askConfirm(~question="Enable force: true?", ~defaultYes=true)
-                : false
-            let unlessExistsEnabled =
-              hasDirective(~selected, ~key="unless_exists")
-                ? await deps.interactiveIO.askConfirm(~question="Enable unless_exists: true?", ~defaultYes=true)
-                : false
-
-            let toolValue =
-              if hasDirective(~selected, ~key="tool") {
-                await deps.interactiveIO.ask("tool name: ")
-              } else {
-                ""
-              }
-            let fetchValue =
-              if hasDirective(~selected, ~key="fetch") {
-                await deps.interactiveIO.ask("fetch URL: ")
-              } else {
-                ""
-              }
-            let scriptValue =
-              if hasDirective(~selected, ~key="script") {
-                await deps.interactiveIO.ask("script name (resolved from shell.scripts): ")
-              } else {
-                ""
-              }
-
-            let body = await deps.interactiveIO.ask("Template body (single-line; optional): ")
-
-            let frontmatterLines = ["---", "to: " ++ toPath]
-
-            if fromValue->String.trim != "" {
-              Js.Array.push("from: " ++ fromValue->String.trim, frontmatterLines)->ignore
-            }
-            if injectValue->String.trim != "" {
-              Js.Array.push("inject: " ++ injectValue->String.trim, frontmatterLines)->ignore
-            }
-            if afterValue->String.trim != "" {
-              Js.Array.push("after: " ++ afterValue->String.trim, frontmatterLines)->ignore
-            }
-            if beforeValue->String.trim != "" {
-              Js.Array.push("before: " ++ beforeValue->String.trim, frontmatterLines)->ignore
-            }
-            if atLineValue->String.trim != "" {
-              Js.Array.push("at_line: " ++ atLineValue->String.trim, frontmatterLines)->ignore
-            }
-            if skipIfValue->String.trim != "" {
-              Js.Array.push("skip_if: " ++ skipIfValue->String.trim, frontmatterLines)->ignore
-            }
-            if prependEnabled {
-              Js.Array.push("prepend: true", frontmatterLines)->ignore
-            }
-            if appendEnabled {
-              Js.Array.push("append: true", frontmatterLines)->ignore
-            }
-            if eofLastEnabled {
-              Js.Array.push("eof_last: true", frontmatterLines)->ignore
-            }
-            if forceEnabled {
-              Js.Array.push("force: true", frontmatterLines)->ignore
-            }
-            if unlessExistsEnabled {
-              Js.Array.push("unless_exists: true", frontmatterLines)->ignore
-            }
-            if toolValue->String.trim != "" {
-              Js.Array.push("tool: " ++ toolValue->String.trim, frontmatterLines)->ignore
-            }
-            if fetchValue->String.trim != "" {
-              Js.Array.push("fetch: " ++ fetchValue->String.trim, frontmatterLines)->ignore
-            }
-            if scriptValue->String.trim != "" {
-              Js.Array.push("script: " ++ scriptValue->String.trim, frontmatterLines)->ignore
-            }
-
-            Js.Array.push("---", frontmatterLines)->ignore
-            let templateContent = frontmatterLines->Array.concat([body])->Array.join("\n") ++ "\n"
+            let directives = await promptForDirectives(~io=deps.interactiveIO, ~toPath)
+            let templateContent = buildFrontmatter(directives)
 
             let actionDir = deps.path.join(generatorDir, actionFolder)
             let targetPath = deps.path.join(actionDir, filename)

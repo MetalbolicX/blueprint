@@ -162,4 +162,125 @@ suite("CommandsGenerator", () => {
     })
     ->ignore
   })
+
+  test("buildFrontmatter: to only", () => {
+    let vals: CommandsGenerator.directiveValues = {
+      toPath: "src/App.tsx",
+      from: "",
+      inject: "",
+      after: "",
+      before: "",
+      atLine: "",
+      skipIf: "",
+      prepend: false,
+      append: false,
+      eofLast: false,
+      force: false,
+      unlessExists: false,
+      tool: "",
+      fetch: "",
+      script: "",
+      body: "",
+    }
+    let result = CommandsGenerator.buildFrontmatter(vals)
+    assert_true(String.includes(result, "---"))
+    assert_true(String.includes(result, "to: src/App.tsx"))
+    assert_false(String.includes(result, "inject:"))
+  })
+
+  test("buildFrontmatter: to + inject + after", () => {
+    let vals: CommandsGenerator.directiveValues = {
+      toPath: "src/App.tsx",
+      from: "",
+      inject: "export default",
+      after: "import React",
+      before: "",
+      atLine: "",
+      skipIf: "",
+      prepend: false,
+      append: false,
+      eofLast: false,
+      force: false,
+      unlessExists: false,
+      tool: "",
+      fetch: "",
+      script: "",
+      body: "const x = 1",
+    }
+    let result = CommandsGenerator.buildFrontmatter(vals)
+    assert_true(String.includes(result, "inject: export default"))
+    assert_true(String.includes(result, "after: import React"))
+    assert_true(String.includes(result, "const x = 1"))
+  })
+
+  test("buildFrontmatter: prepend + append", () => {
+    let vals: CommandsGenerator.directiveValues = {
+      toPath: "config.json",
+      from: "",
+      inject: "",
+      after: "",
+      before: "",
+      atLine: "",
+      skipIf: "",
+      prepend: true,
+      append: true,
+      eofLast: false,
+      force: false,
+      unlessExists: false,
+      tool: "",
+      fetch: "",
+      script: "",
+      body: "{}",
+    }
+    let result = CommandsGenerator.buildFrontmatter(vals)
+    assert_true(String.includes(result, "prepend: true"))
+    assert_true(String.includes(result, "append: true"))
+  })
+
+  test("buildFrontmatter: force flag", () => {
+    let vals: CommandsGenerator.directiveValues = {
+      toPath: "output.txt",
+      from: "",
+      inject: "",
+      after: "",
+      before: "",
+      atLine: "",
+      skipIf: "",
+      prepend: false,
+      append: false,
+      eofLast: false,
+      force: true,
+      unlessExists: false,
+      tool: "",
+      fetch: "",
+      script: "",
+      body: "hello",
+    }
+    let result = CommandsGenerator.buildFrontmatter(vals)
+    assert_true(String.includes(result, "force: true"))
+  })
+
+  test("buildFrontmatter: script directive", () => {
+    let vals: CommandsGenerator.directiveValues = {
+      toPath: "script.sh",
+      from: "",
+      inject: "",
+      after: "",
+      before: "",
+      atLine: "",
+      skipIf: "",
+      prepend: false,
+      append: false,
+      eofLast: false,
+      force: false,
+      unlessExists: false,
+      tool: "",
+      fetch: "",
+      script: "build",
+      body: "#!/bin/bash",
+    }
+    let result = CommandsGenerator.buildFrontmatter(vals)
+    assert_true(String.includes(result, "script: build"))
+    assert_true(String.includes(result, "#!/bin/bash"))
+  })
 })
