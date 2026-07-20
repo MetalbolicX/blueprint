@@ -524,12 +524,3 @@ let resolve: (
     interactiveLoop(0, prompts)
   }
 }
-
-// Readline interface lifecycle
-let _createReadline: unit => NodeJs.Readline.readlineInterface = () => {
-  NodeJs.Readline.createInterface(~input=NodeJs.Readline.stdin, ~output=NodeJs.Readline.stdout, ())
-}
-
-let _closeReadline: NodeJs.Readline.readlineInterface => unit = rl => {
-  rl.close()
-}

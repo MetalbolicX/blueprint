@@ -64,13 +64,7 @@ module Path = {
   external join: (string, string) => string = "join"
 
   @module("node:path")
-  external join3: (string, string, string) => string = "join"
-
-  @module("node:path")
   external resolve: (string, string) => string = "resolve"
-
-  @module("node:path")
-  external relative: (string, string) => string = "relative"
 
   @module("node:path")
   external dirname: string => string = "dirname"
@@ -79,19 +73,7 @@ module Path = {
   external basename: (string, ~ext: string=?) => string = "basename"
 
   @module("node:path")
-  external extname: string => string = "extname"
-
-  @module("node:path")
   external isAbsolute: string => bool = "isAbsolute"
-
-  @module("node:path")
-  external normalize: string => string = "normalize"
-
-  @module("node:path")
-  external sep: string = "sep"
-
-  @module("node:path")
-  external delimiter: string = "delimiter"
 }
 
 module Os = {
@@ -100,54 +82,6 @@ module Os = {
 
   @module("node:os")
   external homedir: unit => string = "homedir"
-
-  @module("node:os")
-  external hostname: unit => string = "hostname"
-
-  @module("node:os")
-  external platform: unit => string = "platform"
-
-  @module("node:os")
-  external arch: unit => string = "arch"
-
-  type cpusTimes = {user: int, nice: int, sys: int, idle: int, irq: int}
-  type cpusInfo = {
-    model: string,
-    speed: int,
-    times: cpusTimes,
-  }
-
-  @module("node:os")
-  external cpus: unit => array<cpusInfo> = "cpus"
-
-  @module("node:os")
-  external totalmem: unit => int = "totalmem"
-
-  @module("node:os")
-  external freemem: unit => int = "freemem"
-
-  @module("node:os")
-  external loadavg: unit => array<float> = "loadavg"
-
-  @module("node:os")
-  external uptime: unit => int = "uptime"
-
-  type networkInterfaceInfo = {
-    address: string,
-    family: string,
-    netmask: string,
-    mac: string,
-    internal: bool,
-  }
-
-  @module("node:os")
-  external networkInterfaces: unit => dict<array<networkInterfaceInfo>> = "networkInterfaces"
-
-  type userInfoOptions = {encoding: string}
-  type userInfoResult = {username: string, uid: int, gid: int, shell: string, homedir: string}
-
-  @module("node:os")
-  external userInfo: (~options: userInfoOptions=?) => userInfoResult = "userInfo"
 
   let makeStagingDir: unit => string = () => {
     let ts = Date.now()->Float.toInt->Int.toString
@@ -167,14 +101,6 @@ module Os = {
 }
 
 module ChildProcess = {
-  type spawnOptions = {
-    cwd?: string,
-    env?: dict<string>,
-    shell?: bool,
-    timeout?: int,
-    stdio?: array<string>,
-  }
-
   type childProcess = {
     pid: int,
     stdout: unit,
@@ -182,10 +108,6 @@ module ChildProcess = {
     status?: int,
     signal?: string,
   }
-
-  @module("node:child_process")
-  external spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess =
-    "spawn"
 
   type execResult = {stdout: string, stderr: string, status: option<int>, signalCode: option<string>, killed: bool}
 
@@ -196,9 +118,6 @@ module ChildProcess = {
     encoding?: string,
     timeout?: int,
   }
-
-  @module("node:child_process")
-  external exec: (string, ~options: execOptions=?) => childProcess = "exec"
 
   // Callback-based exec for proper async handling
   // The callback receives (error, stdout, stderr)
@@ -273,23 +192,6 @@ module ChildProcess = {
       })
     })
   }
-
-  @module("node:child_process")
-  external execSync: (string, ~options: spawnOptions=?) => string = "execSync"
-
-  type execSyncOptions = {
-    cwd?: string,
-    env?: dict<string>,
-    shell?: bool,
-    input?: string,
-    encoding?: string,
-    timeout?: int,
-    maxBuffer?: int,
-  }
-
-  @module("node:child_process")
-  external execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string =
-    "execFileSync"
 
   @module("node:child_process")
   external execFileWithCallback: (
@@ -394,15 +296,6 @@ module Readline = {
     ~output: streamWritable=?,
     unit,
   ) => readlineInterface = "createInterface"
-
-  @module("node:readline")
-  external moveCursor: (streamReadable, int, int) => unit = "moveCursor"
-
-  @module("node:readline")
-  external clearLine: (streamReadable, int) => unit = "clearLine"
-
-  @module("node:readline")
-  external cursorTo: (streamReadable, int, ~y: int=?, unit) => unit = "cursorTo"
 }
 
 module Util = {
@@ -474,25 +367,6 @@ module Util = {
     | "verbose" => values.verbose->Option.getOr(false)
     | _ => false
     }
-  }
-}
-
-module Crypto = {
-  @send
-  external hashUpdate: ({..}, string) => {..} = "update"
-
-  @send
-  external hashDigest: ({..}, string) => string = "digest"
-
-  // Typed binding for crypto.createHash. The `@module("node:crypto")` external
-  // compiles to a static ESM import at the top of the .mjs output, which is the
-  // ESM-safe equivalent of the previous `%raw("require(...)")` call.
-  @module("node:crypto") external createHash: string => {..} = "createHash"
-
-  let sha256Hex: string => string = input => {
-    let hash = createHash("sha256")
-    let _ = hash->hashUpdate(input)
-    hashDigest(hash, "hex")
   }
 }
 

@@ -30,70 +30,20 @@ module Fs: {
 
 module Path: {
   let join: (string, string) => string
-  let join3: (string, string, string) => string
   let resolve: (string, string) => string
-  let relative: (string, string) => string
   let dirname: string => string
   let basename: (string, ~ext: string=?) => string
-  let extname: string => string
   let isAbsolute: string => bool
-  let normalize: string => string
-  let sep: string
-  let delimiter: string
 }
 
 module Os: {
-  type cpusTimes = {user: int, nice: int, sys: int, idle: int, irq: int}
-
-  type cpusInfo = {
-    model: string,
-    speed: int,
-    times: cpusTimes,
-  }
-
-  type networkInterfaceInfo = {
-    address: string,
-    family: string,
-    netmask: string,
-    mac: string,
-    internal: bool,
-  }
-
-  type userInfoOptions = {encoding: string}
-
-  type userInfoResult = {
-    username: string,
-    uid: int,
-    gid: int,
-    shell: string,
-    homedir: string,
-  }
-
   let tmpdir: unit => string
   let homedir: unit => string
-  let hostname: unit => string
-  let platform: unit => string
-  let arch: unit => string
-  let cpus: unit => array<cpusInfo>
-  let totalmem: unit => int
-  let freemem: unit => int
-  let loadavg: unit => array<float>
-  let uptime: unit => int
-  let networkInterfaces: unit => dict<array<networkInterfaceInfo>>
-  let userInfo: (~options: userInfoOptions=?) => userInfoResult
 
   let makeStagingDir: unit => string
 }
 
 module ChildProcess: {
-  type spawnOptions = {
-    cwd?: string,
-    env?: dict<string>,
-    shell?: bool,
-    timeout?: int,
-    stdio?: array<string>,
-  }
-
   type childProcess = {
     pid: int,
     stdout: unit,
@@ -112,22 +62,8 @@ module ChildProcess: {
     timeout?: int,
   }
 
-  type execSyncOptions = {
-    cwd?: string,
-    env?: dict<string>,
-    shell?: bool,
-    input?: string,
-    encoding?: string,
-    timeout?: int,
-    maxBuffer?: int,
-  }
-
-  let spawn: (~command: string, ~args: array<string>, ~options: spawnOptions=?) => childProcess
-  let exec: (string, ~options: execOptions=?) => childProcess
   let execWithCallback: (string, ~options: execOptions=?, ~callback: (Nullable.t<JsExn.t>, string, string) => unit) => childProcess
   let execAsync: (string, ~options: execOptions=?) => promise<execResult>
-  let execSync: (string, ~options: spawnOptions=?) => string
-  let execFileSync: (string, ~args: array<string>=?, ~options: execSyncOptions=?) => string
   let execFileAsync: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult>
   let execShellCommand: (~command: string, ~cwd: string=?) => promise<result<string, string>>
 }
@@ -152,9 +88,6 @@ module Readline: {
   let stdout: streamWritable
 
   let createInterface: (~input: streamReadable, ~output: streamWritable=?, unit) => readlineInterface
-  let moveCursor: (streamReadable, int, int) => unit
-  let clearLine: (streamReadable, int) => unit
-  let cursorTo: (streamReadable, int, ~y: int=?, unit) => unit
 }
 
 module Util: {
@@ -201,10 +134,6 @@ module Util: {
 }
 
 module ParseArgs = Util
-
-module Crypto: {
-  let sha256Hex: string => string
-}
 
 module NodeProcess: {
   let argv: array<string>

@@ -24,12 +24,6 @@ type manifest = {
   prompts?: array<prompt>,
 }
 
-@@warning("-34")
-type parseError = {
-  message: string,
-  line?: int,
-}
-
 type validationError = {
   field: string,
   message: string,
