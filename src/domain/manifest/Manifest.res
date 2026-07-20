@@ -49,6 +49,28 @@ let promptTypeToString: promptType => string = pt => {
   }
 }
 
+// Lenient parser for interactive CLI input: accepts aliases and defaults
+// unknown inputs to Input. The strict `parsePromptType` rejects unknown
+// strings — `parsePromptTypeFromInput` is for user-typed input where we
+// prefer to fall back gracefully.
+let parsePromptTypeFromInput: string => promptType = raw => {
+  switch raw->String.trim->String.toLowerCase {
+  | "" | "input" => Input
+  | "select" => Select
+  | "confirm" => Confirm
+  | "multi-select" | "multi_select" | "multiselect" => MultiSelect
+  | _ => Input
+  }
+}
+
+// Pure predicate: does this prompt type require non-empty options?
+let promptRequiresOptions: promptType => bool = pt => {
+  switch pt {
+  | Select | MultiSelect => true
+  | Input | Confirm => false
+  }
+}
+
 let promptOptionToJson: promptOption => JSON.t = option => {
   let dict = Dict.make()
   Dict.set(dict, "label", JSON.String(option.label))
@@ -300,7 +322,7 @@ let validate: manifest => result<unit, array<validationError>> = manifest => {
           errors,
         )->ignore
       }
-      if (p.promptType == Select || p.promptType == MultiSelect) && p.options == None {
+      if promptRequiresOptions(p.promptType) && p.options == None {
         Js.Array.push(
           {field: "prompts.options", message: "select prompt requires options"},
           errors,

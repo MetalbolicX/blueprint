@@ -34,16 +34,6 @@ let maybeString = (value: string): option<string> => {
   trimmed == "" ? None : Some(trimmed)
 }
 
-let parsePromptTypeFromInput = (raw: string): Manifest.promptType => {
-  switch raw->String.trim->String.toLowerCase {
-  | "" | "input" => Manifest.Input
-  | "select" => Manifest.Select
-  | "confirm" => Manifest.Confirm
-  | "multi-select" | "multi_select" | "multiselect" => Manifest.MultiSelect
-  | _ => Manifest.Input
-  }
-}
-
 let parsePromptOptions = (raw: string): option<array<Manifest.promptOption>> => {
   let entries =
     raw
@@ -203,7 +193,7 @@ let runAddPrompt: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = 
             let promptName = (await deps.interactiveIO.ask("Prompt variable name: "))->String.trim
             let description = (await deps.interactiveIO.ask("Prompt message: "))->String.trim
             let promptTypeInput = await deps.interactiveIO.ask("Prompt type [input/select/confirm/multi-select] (default: input): ")
-            let promptType = parsePromptTypeFromInput(promptTypeInput)
+            let promptType = Manifest.parsePromptTypeFromInput(promptTypeInput)
 
             let defaultValue = await deps.interactiveIO.ask("Default value (optional): ")
             let whenExpr = await deps.interactiveIO.ask("Show condition (optional EJS expression): ")

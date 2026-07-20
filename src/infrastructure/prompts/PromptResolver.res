@@ -13,8 +13,7 @@ type resolveError =
 // instead of degrading to a free-text fallback path that would be meaningless
 // for a select-style prompt.
 let _requireOptions: Manifest.prompt => result<unit, resolveError> = prompt => {
-  switch prompt.promptType {
-  | Manifest.Select | Manifest.MultiSelect =>
+  if Manifest.promptRequiresOptions(prompt.promptType) {
     switch prompt.options {
     | Some(opts) if Array.length(opts) > 0 => Ok()
     | _ =>
@@ -25,7 +24,8 @@ let _requireOptions: Manifest.prompt => result<unit, resolveError> = prompt => {
         }),
       )
     }
-  | _ => Ok()
+  } else {
+    Ok()
   }
 }
 
