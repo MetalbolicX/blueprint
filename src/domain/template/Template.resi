@@ -42,3 +42,5 @@ type shellCommand = {
   target: shellTarget,
   sourcePath: string,
 }
+
+let isTemplateFile: string => bool

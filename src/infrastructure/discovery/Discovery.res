@@ -10,10 +10,6 @@ type generator = {
   manifest?: Manifest.manifest, // manifest.yaml if present
 }
 
-let _isTemplateFile: string => bool = filename => {
-  String.endsWith(filename, ".ejs.t") || String.endsWith(filename, ".tmpl")
-}
-
 let isManifestFile: string => bool = filename => {
   filename == "manifest.yaml"
 }
@@ -145,7 +141,7 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<ar
               }
 
               let filePromises = files->Array.map(fname => {
-                if _isTemplateFile(fname) {
+                if isTemplateFile(fname) {
                   let fpath = path.join(actionPath, fname)
                   _loadTemplate(~fs, ~path, fpath)
                 } else {

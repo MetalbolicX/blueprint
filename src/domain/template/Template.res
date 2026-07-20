@@ -45,3 +45,7 @@ type shellCommand = {
   target: shellTarget,
   sourcePath: string, // source template that declared the directive
 }
+
+let isTemplateFile: string => bool = filename => {
+  String.endsWith(filename, ".ejs.t") || String.endsWith(filename, ".tmpl")
+}

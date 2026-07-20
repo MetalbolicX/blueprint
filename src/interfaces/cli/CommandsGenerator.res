@@ -8,10 +8,6 @@ let normalizeTemplateFilename = (filename: string) => {
   }
 }
 
-let isTemplateFile = (filename: string) => {
-  String.endsWith(filename, ".ejs.t") || String.endsWith(filename, ".tmpl")
-}
-
 let normalizeDirectiveKey = (raw: string) => {
   switch raw->String.trim->String.toLowerCase {
   | "atline" | "at_line" => "at_line"
@@ -154,7 +150,7 @@ let runList: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = async
               | _ => []
               }
               files
-              ->Array.filter(isTemplateFile)
+              ->Array.filter(Template.isTemplateFile)
               ->Array.map(filename => deps.path.join(actionDir, filename))
             }))
 

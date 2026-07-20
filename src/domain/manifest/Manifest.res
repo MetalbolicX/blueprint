@@ -154,14 +154,6 @@ let parse: string => result<manifest, string> = yamlContent => {
       }
     }
 
-    // Helper to get optional string
-    let getOptString = (obj, key) => {
-      switch getString(obj, key) {
-      | Some(s) => Some(s)
-      | None => None
-      }
-    }
-
     let getMetadata = (obj, key) => {
       switch obj {
       | JSON.Object(dict) =>
@@ -190,8 +182,8 @@ let parse: string => result<manifest, string> = yamlContent => {
               | JSON.Object(_promptDict) => {
                   let name = getString(promptJson, "name")
                   let desc = getString(promptJson, "description")->Option.getOr("")
-                  let defaultVal = getOptString(promptJson, "default")
-                  let whenVal = getOptString(promptJson, "when")
+                  let defaultVal = getString(promptJson, "default")
+                  let whenVal = getString(promptJson, "when")
                   let typeStr = getString(promptJson, "type")->Option.getOr("input")
                   let pt = parsePromptType(typeStr)->Option.getOr(Input)
 

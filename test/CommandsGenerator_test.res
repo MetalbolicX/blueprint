@@ -41,10 +41,10 @@ suite("CommandsGenerator", () => {
   })
 
   test("isTemplateFile: returns true for valid templates", () => {
-    assert_true(CommandsGenerator.isTemplateFile("test.ejs.t"))
-    assert_true(CommandsGenerator.isTemplateFile("test.tmpl"))
-    assert_false(CommandsGenerator.isTemplateFile("test.js"))
-    assert_false(CommandsGenerator.isTemplateFile("test"))
+    assert_true(Template.isTemplateFile("test.ejs.t"))
+    assert_true(Template.isTemplateFile("test.tmpl"))
+    assert_false(Template.isTemplateFile("test.js"))
+    assert_false(Template.isTemplateFile("test"))
   })
 
   testAsync("resolveGeneratorDir: finds generator in correct path", resolve => {
