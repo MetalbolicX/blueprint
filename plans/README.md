@@ -34,7 +34,7 @@ Planned-at commit: `64a81fa`
 | 022 | Consolidate prompt-type parsing and options validation into Manifest | P2 | M | 020, 021 | DONE |
 | 023 | Split ConflictResolver I/O out of domain; move makeStagingDir off the fileSystem port | P2 | S | — | DONE |
 | 024 | Close Deno adapter contract gaps (silently discarded options) | P2 | S | — | DONE |
-| 025 | Relocate PromptResolver from infrastructure to application layer | P3 | M | 020 | TODO |
+| 025 | Relocate PromptResolver from infrastructure to application layer | P3 | M | 020 | DONE |
 | 026 | Extract pure buildFrontmatter and promptForDirectives from runAddFile | P3 | M | 021, 022 | TODO |
 | 027 | Refactor EngineOrchestrator nested phase chain to pipeline accumulator | P3 | M | 017 | TODO |
 
