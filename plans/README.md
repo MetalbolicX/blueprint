@@ -31,7 +31,7 @@ Planned-at commit: `64a81fa`
 | 019 | Stop discarding error context at CLI and shell boundaries | P1 | S | — | DONE |
 | 020 | Purge dead bindings and helpers (~120 lines) | P2 | S | — | DONE |
 | 021 | Deduplicate isTemplateFile predicate and remove getOptString wrapper | P2 | S | — | DONE |
-| 022 | Consolidate prompt-type parsing and options validation into Manifest | P2 | M | 020, 021 | TODO |
+| 022 | Consolidate prompt-type parsing and options validation into Manifest | P2 | M | 020, 021 | DONE |
 | 023 | Split ConflictResolver I/O out of domain; move makeStagingDir off the fileSystem port | P2 | S | — | DONE |
 | 024 | Close Deno adapter contract gaps (silently discarded options) | P2 | S | — | DONE |
 | 025 | Relocate PromptResolver from infrastructure to application layer | P3 | M | 020 | TODO |
