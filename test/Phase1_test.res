@@ -36,12 +36,12 @@ suite("Phase1", () => {
 
     let result = Phase1.resolveTargetPath(Template.To("src/<%= Name %>.tsx"), ctx)
     switch result {
-    | Some(path) => assert_eq(path, "src/Hello.tsx")
-    | None => assert_false(true)
+    | Ok(path) => assert_eq(path, "src/Hello.tsx")
+    | Error(_) => assert_false(true)
     }
   })
 
-  test("resolveTargetPath: non-To directive returns None", () => {
+  test("resolveTargetPath: non-To directive returns Error", () => {
     let ctx = Context.build(
       ~cwd="/workspace",
       ~actionfolder="/workspace/_templates",
@@ -51,8 +51,8 @@ suite("Phase1", () => {
 
     let result = Phase1.resolveTargetPath(Template.Tool("npm install"), ctx)
     switch result {
-    | Some(_) => assert_false(true)
-    | None => assert_eq(result, None)
+    | Ok(_) => assert_false(true)
+    | Error(msg) => assert_true(String.includes(msg, "No 'to' directive"))
     }
   })
 
@@ -66,8 +66,8 @@ suite("Phase1", () => {
 
     let result = Phase1.resolveTargetPath(Template.To("src/<%= name %>.tsx"), ctx)
     switch result {
-    | Some(path) => assert_eq(path, "src/button.tsx")
-    | None => assert_false(true)
+    | Ok(path) => assert_eq(path, "src/button.tsx")
+    | Error(_) => assert_false(true)
     }
   })
 

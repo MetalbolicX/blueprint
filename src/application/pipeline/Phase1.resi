@@ -9,7 +9,7 @@ type phase1Error = {
   message: string,
 }
 
-let resolveTargetPath: (Template.directive, Context.context) => option<string>
+let resolveTargetPath: (Template.directive, Context.context) => result<string, string>
 
 let run: (
   ~templates: array<Template.template>,

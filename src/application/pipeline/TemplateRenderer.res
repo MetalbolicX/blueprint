@@ -9,7 +9,7 @@ type renderedOutput = {
   renderedBody: string,
 }
 
-let resolveTargetPath: (Template.directive, Context.context) => option<string> = (
+let resolveTargetPath: (Template.directive, Context.context) => result<string, string> = (
   directive,
   ctx,
 ) => {
@@ -41,12 +41,18 @@ let resolveTargetPath: (Template.directive, Context.context) => option<string> =
 
       try {
         let rendered = Bindings.Ejs.render(path, data)
-        Some(rendered)
+        Ok(rendered)
       } catch {
-      | _ => None
+      | JsExn(obj) =>
+        let msg = switch JsExn.message(obj) {
+        | Some(m) => m
+        | None => "EJS render error"
+        }
+        Error(msg)
+      | _ => Error("EJS render error in 'to' path")
       }
     }
-  | _ => None
+  | _ => Error("No 'to' directive")
   }
 }
 
@@ -85,25 +91,37 @@ let applyInjection: (
   switch injectionDirective {
   | None => Ok(renderedBody) // no injection needed
   | Some(directive) =>
-    // Read existing content from target file
-    let fileExists = ref(true)
-    let existingContent = try {
-      await fs.readFile(finalTargetPath, ~options={encoding: "utf8"})
+    // Read existing content; distinguish ENOENT (file truly missing) from real errors.
+    let readResult = try {
+      Ok(await fs.readFile(finalTargetPath, ~options={encoding: "utf8"}))
     } catch {
-    | _ =>
-      fileExists := false
-      ""
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
+      | Some(m) => m
+      | None => "unknown error"
+      }
+      let code = switch Obj.magic(obj)["code"] {
+      | Some(c) => c
+      | None => ""
+      }
+      if code == "ENOENT" {
+        Error("ENOENT")
+      } else {
+        Error("Read failed for " ++ finalTargetPath ++ ": " ++ msg)
+      }
+    | _ => Error("Read failed for " ++ finalTargetPath)
     }
 
-    // For inject/before/after/atLine/skipIf, file must exist
-    if !fileExists.contents {
+    switch readResult {
+    | Error("ENOENT") =>
+      // File truly doesn't exist — only certain directives can cope with that.
       switch directive {
       | Inject(_) | Before(_) | After(_) | AtLine(_) | SkipIf(_) =>
         Error("Target file not found: " ++ finalTargetPath)
-      | _ => Ok(existingContent) // prepend/append can work with empty content
+      | _ => Ok(renderedBody) // prepend/append can work with no existing content
       }
-    } else {
-      // Apply injection
+    | Error(msg) => Error(msg) // Real filesystem error — propagate verbatim.
+    | Ok(existingContent) =>
       switch Injection.apply(
         ~existingContent,
         ~renderedContent=renderedBody,
@@ -177,7 +195,7 @@ let render: (
   ~process as _,
 ) => {
   // Find "to" directive for target path
-  let targetPathOpt =
+  let targetPathResult =
     template.directives
     ->Array.find(d => {
       switch d {
@@ -185,11 +203,12 @@ let render: (
       | _ => false
       }
     })
-    ->Option.flatMap(d => resolveTargetPath(d, context))
+    ->Option.map(d => resolveTargetPath(d, context))
 
-  switch targetPathOpt {
+  switch targetPathResult {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
-  | Some(targetPath) => {
+  | Some(Error(e)) => Error("Failed to render 'to' path in template " ++ template.sourcePath ++ ": " ++ e)
+  | Some(Ok(targetPath)) => {
     let finalTargetPath = path.join(outputDir, targetPath)
 
     // WS1: reject any rendered `to:` that escapes the output tree.
