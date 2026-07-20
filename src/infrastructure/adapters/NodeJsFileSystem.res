@@ -55,6 +55,5 @@ let make: unit => Ports.fileSystem = () => {
     (s :> Ports.statResult)
   },
   fileExists: NodeJs.Fs.fileExists,
-  makeStagingDir: NodeJs.Os.makeStagingDir,
   realpath: realpath,
 }

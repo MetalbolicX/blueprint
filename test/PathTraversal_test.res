@@ -12,7 +12,6 @@ let makeMockFs = (): Ports.fileSystem => {
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
-  makeStagingDir: () => "/tmp/test",
   realpath: path => Promise.resolve(path),
 }
 
@@ -36,7 +35,6 @@ let makeRecordingFs = (~cpCalls: ref<int>): Ports.fileSystem => {
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
-  makeStagingDir: () => "/tmp/test",
   realpath: path => Promise.resolve(path),
 }
 

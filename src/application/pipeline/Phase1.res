@@ -100,7 +100,8 @@ let run: (
   ~path,
   ~process,
 ) => {
-  switch await Staging.create(~fs) {
+  let tmpDir = NodeJs.Os.makeStagingDir()
+  switch await Staging.create(~tmpDir, ~fs) {
   | Error(message) =>
     Error({stagingDir: "", message: "Failed to create staging dir: " ++ message})
   | Ok(stagingDir) =>

@@ -37,7 +37,6 @@ let makeCleanupFs = (
       isDirectory: () => directoryPaths->Array.some(path => path == target),
       isFile: () => !(directoryPaths->Array.some(path => path == target)),
     }: Ports.statResult),
-  makeStagingDir: () => deps.path.join(tmpRoot, "blueprint-probe"),
   realpath: target => Promise.resolve(target),
 }
 

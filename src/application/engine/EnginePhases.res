@@ -17,7 +17,7 @@ let runPhase0: (
     io.close()
     Error(e)
   | Ok(p0) =>
-    let conflictResult = await ConflictResolver.resolveConflicts(
+    let conflictResult = await ConflictRunner.resolveConflicts(
       ~io,
       ~conflicts=p0.conflicts->Array.map(c => {
         {ConflictResolver.sourcePath: c.sourcePath, targetPath: c.targetPath}

@@ -26,7 +26,6 @@ type fileSystem = {
   readdir: (string, ~options: readdirOptions=?) => promise<array<string>>,
   fileExists: string => promise<bool>,
   stat: string => promise<statResult>,
-  makeStagingDir: unit => string,
   realpath: string => promise<string>,
 }
 

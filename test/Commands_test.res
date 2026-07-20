@@ -14,7 +14,6 @@ let makeTrackingFs = (~readdirCalls: ref<int>): Ports.fileSystem => {
     },
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
-    makeStagingDir: () => base.makeStagingDir(),
     realpath: file => base.realpath(file),
   }
 }

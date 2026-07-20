@@ -31,9 +31,7 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   let resolvedTmpRoot = switch tmpRoot {
   | Some(dir) => dir
   | None => {
-      let probeDir = fs.makeStagingDir()
-      let probeRoot = path.dirname(probeDir)
-      await cleanupPath(~target=probeDir, ~fs)
+      let probeRoot = NodeJs.Os.tmpdir()
       probeRoot
     }
   }

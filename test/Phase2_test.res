@@ -63,7 +63,6 @@ let makeFsWithFailures = (
     readdir: (dir, ~options=?) => base.readdir(dir, ~options?),
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
-    makeStagingDir: () => base.makeStagingDir(),
     realpath: file => base.realpath(file),
   }
 }
@@ -110,7 +109,6 @@ let makeRollbackFs = (
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
-  makeStagingDir: () => "/tmp/test",
   realpath: path => Promise.resolve(path),
 }
 

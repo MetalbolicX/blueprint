@@ -1,11 +1,13 @@
 // Staging: Phase1 staging-dir lifecycle (create, write staged file, remove on failure).
 // No imports of other phase sub-modules — sits below Phase1 in the dependency arrow.
 
-let create: (~fs: Ports.fileSystem) => promise<result<string, string>> = async (~fs) => {
-  let stagingDir = fs.makeStagingDir()
+let create: (~tmpDir: string, ~fs: Ports.fileSystem) => promise<result<string, string>> = async (
+  ~tmpDir,
+  ~fs,
+) => {
   try {
-    let _ = await fs.mkdir(stagingDir, ~options={recursive: true})
-    Ok(stagingDir)
+    let _ = await fs.mkdir(tmpDir, ~options={recursive: true})
+    Ok(tmpDir)
   } catch {
   | JsExn(obj) =>
     let msg = switch JsExn.message(obj) {

@@ -73,7 +73,7 @@ testAsync("resolveConflicts: empty conflicts list", resolve => {
   close: () => ()
 }
 
-let _ = ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts=[], ~force=false)->Promise.then(
+let _ = ConflictRunner.resolveConflicts(~io=mockIo, ~conflicts=[], ~force=false)->Promise.then(
       result => {
         switch result {
         | Ok(decisions) => assert_eq(Array.length(decisions), 0)
@@ -107,7 +107,7 @@ let _ = ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts=[], ~force=fals
       }
     ]
 
-    ConflictResolver.resolveConflicts(~io=mockIo, ~conflicts, ~force=false)
+    ConflictRunner.resolveConflicts(~io=mockIo, ~conflicts, ~force=false)
     ->Promise.then(result => {
       switch result {
       | Ok(decisions) => {
