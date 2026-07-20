@@ -114,7 +114,6 @@ module ChildProcess = {
   type execOptions = {
     cwd?: string,
     env?: dict<string>,
-    shell?: bool,
     encoding?: string,
     timeout?: int,
   }
@@ -247,7 +246,6 @@ module ChildProcess = {
     try {
       let options: execOptions = {
         ?cwd,
-        shell: true,
         encoding: "utf8",
       }
       let result = await execAsync(command, ~options)

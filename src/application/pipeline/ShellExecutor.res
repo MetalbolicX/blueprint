@@ -114,7 +114,6 @@ let executeShellCommands: (
                 let shellOpts: Ports.shellOptions = {
                   cwd: cwd,
                   env: safeEnv,
-                  shell: true,
                   encoding: "utf8",
                   timeout: ExecPolicy.defaultTimeout,
                 }

@@ -1,5 +1,11 @@
 open Deno.Fs
 
+// DenoFileSystem — Deno fs adapter implementing Ports.fileSystem.
+// KNOWN GAP: readFile, writeFile, cp, and readdir silently discard ~options.
+// Deno.readTextFile/writeTextFile handle encoding via string automatically.
+// copyFile and readDirAsync do not support recursive or withFileTypes.
+// If a caller needs these options, implement them on Deno before relying on them.
+
 let make: unit => Ports.fileSystem = () => {
   readFile: (path, ~options=?) => {
     let _ = options // Deno readTextFile handles encoding via string automatically

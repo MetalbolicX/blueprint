@@ -57,7 +57,6 @@ module ChildProcess: {
   type execOptions = {
     cwd?: string,
     env?: dict<string>,
-    shell?: bool,
     encoding?: string,
     timeout?: int,
   }

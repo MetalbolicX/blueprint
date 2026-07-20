@@ -34,6 +34,8 @@ let execAsyncRaw: (string, option<shellOptions>) => promise<execResult> = async 
   cmdString,
   optionsOpt,
 ) => {
+  // NOTE: encoding is not read — Deno's TextDecoder handles UTF-8 implicitly.
+  // If non-UTF-8 encoding is needed, decode output.bytes manually.
   let options = optionsOpt->Belt.Option.getWithDefault({})
   let cmd = Deno.Command.make(
     "sh",
