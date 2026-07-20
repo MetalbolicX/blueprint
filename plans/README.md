@@ -28,7 +28,7 @@ Planned-at commit: `64a81fa`
 | 016 | Write fetch temp files to staging directory | P2 | S | — | DONE |
 | 017 | Preserve Phase2/rollback error detail through the engine boundary | P1 | M | — | DONE |
 | 018 | Surface real render/injection errors in TemplateRenderer | P1 | S | — | DONE |
-| 019 | Stop discarding error context at CLI and shell boundaries | P1 | S | — | TODO |
+| 019 | Stop discarding error context at CLI and shell boundaries | P1 | S | — | DONE |
 | 020 | Purge dead bindings and helpers (~120 lines) | P2 | S | — | DONE |
 | 021 | Deduplicate isTemplateFile predicate and remove getOptString wrapper | P2 | S | — | DONE |
 | 022 | Consolidate prompt-type parsing and options validation into Manifest | P2 | M | 020, 021 | TODO |
