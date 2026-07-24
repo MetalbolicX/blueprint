@@ -29,6 +29,23 @@ let getBoolField = (dict: Dict.t<JSON.t>, key: string, ~default: bool): bool => 
   }
 }
 
+let parseStringArray: JSON.t => option<array<string>> = json => {
+  switch json {
+  | JSON.Array(arr) =>
+    Some(
+      arr
+      ->Array.map(item =>
+        switch item {
+        | JSON.String(s) => Some(s)
+        | _ => None
+        }
+      )
+      ->Array.filterMap(x => x),
+    )
+  | _ => None
+  }
+}
+
 let parseTemplateSource: JSON.t => option<templateSource> = json => {
   switch json {
   | JSON.Object(dict) =>
@@ -82,20 +99,8 @@ let parseHookCommand: JSON.t => option<hookCommand> = json => {
   switch json {
   | JSON.Object(dict) =>
     let command = getStringField(dict, "command")
-    let args = switch Dict.get(dict, "args") {
-    | Some(JSON.Array(arr)) =>
-      Some(
-        arr
-        ->Array.map(item =>
-          switch item {
-          | JSON.String(s) => Some(s)
-          | _ => None
-          }
-        )
-        ->Array.filterMap(x => x),
-      )
-    | _ => None
-    }
+    let args = Dict.get(dict, "args")->Option.flatMap(parseStringArray)
+
     command->Option.map(c => {command: c, args: ?args})
   | _ => None
   }
@@ -140,20 +145,7 @@ let parseShellTool: JSON.t => option<shellTool> = json => {
   | JSON.Object(dict) =>
     let name = getStringField(dict, "name")
     let command = getStringField(dict, "command")
-    let args =
-      Dict.get(dict, "args")
-      ->Option.flatMap(v =>
-        switch v {
-        | JSON.Array(arr) =>
-          Some(arr->Array.map(item =>
-            switch item {
-            | JSON.String(s) => Some(s)
-            | _ => None
-            }
-          )->Array.filterMap(x => x))
-        | _ => None
-        }
-      )
+    let args = Dict.get(dict, "args")->Option.flatMap(parseStringArray)
 
     switch (name, command) {
     | (Some(n), Some(c)) => Some({name: n, command: c, args: ?args})
@@ -168,20 +160,7 @@ let parseScriptDef: JSON.t => option<scriptDef> = json => {
   | JSON.Object(dict) =>
     let name = getStringField(dict, "name")
     let path = getStringField(dict, "path")
-    let args =
-      Dict.get(dict, "args")
-      ->Option.flatMap(v =>
-        switch v {
-        | JSON.Array(arr) =>
-          Some(arr->Array.map(item =>
-            switch item {
-            | JSON.String(s) => Some(s)
-            | _ => None
-            }
-          )->Array.filterMap(x => x))
-        | _ => None
-        }
-      )
+    let args = Dict.get(dict, "args")->Option.flatMap(parseStringArray)
 
     switch (name, path) {
     | (Some(n), Some(p)) => Some({name: n, path: p, args: ?args})
