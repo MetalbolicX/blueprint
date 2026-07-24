@@ -341,41 +341,39 @@ let askPrompt: (
   }
 }
 
-// --- Main resolve function ---
+// --- Unified prompt processor ---
 
-let resolve: (
+type resolutionStrategy = Force | Interactive
+
+let rec processPrompt = (
   ~io: Ports.interactiveIO,
-  ~prompts: array<Manifest.prompt>,
-  ~force: bool,
+  ~prompt: Manifest.prompt,
   ~baseContext: dict<string>,
-) => promise<result<dict<string>, resolveError>> = (~io, ~prompts, ~force, ~baseContext) => {
-  let answers = Dict.make()
-
-  if force {
-    // Force mode: evaluate when/default, skip interactive I/O
-    let rec forceLoop = (idx, prompts) => {
-      if idx >= Array.length(prompts) {
-        Promise.resolve(Ok(answers))
-      } else {
-        switch prompts[idx] {
-        | Some(prompt) =>
-          // Evaluate `when` — skip if false
-          switch (prompt: Manifest.prompt).when_ {
-          | Some(whenExpr) =>
-            switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-            | Ok(false) => forceLoop(idx + 1, prompts)
-            | Ok(true) => assignForceDefault(prompt, prompts, idx)
-            | Error(e) => Promise.resolve(Error(e))
-            }
-          | None => assignForceDefault(prompt, prompts, idx)
-          }
-        | None => Promise.resolve(Ok(answers))
-        }
-      }
+  ~answers: dict<string>,
+  ~strategy: resolutionStrategy,
+) => {
+  // Shared: evaluate `when` — skip if false
+  switch prompt.when_ {
+  | Some(whenExpr) =>
+    switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+    | Ok(false) => Promise.resolve(Ok(answers))
+    | Ok(true) => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+    | Error(e) => Promise.resolve(Error(e))
     }
-    and assignForceDefault = (prompt, prompts, idx) => {
-      // Fail closed: Select/MultiSelect prompts without options can't be
-      // answered by force-defaulting — that's the whole point of select.
+  | None => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+  }
+}
+
+and processPromptBody = (
+  ~io,
+  ~prompt,
+  ~baseContext,
+  ~answers,
+  ~strategy,
+) => {
+  switch strategy {
+  | Force => {
+      // Fail closed: Select/MultiSelect without options can't be force-defaulted
       switch _requireOptions(prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
@@ -384,44 +382,19 @@ let resolve: (
           switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
           | Ok(d) => {
               Dict.set(answers, prompt.name, d)
-              forceLoop(idx + 1, prompts)
+              Promise.resolve(Ok(answers))
             }
           | Error(e) => Promise.resolve(Error(e))
           }
         | None => {
             Dict.set(answers, prompt.name, "")
-            forceLoop(idx + 1, prompts)
+            Promise.resolve(Ok(answers))
           }
         }
       }
     }
-
-    forceLoop(0, prompts)
-  } else {
-    // Interactive mode — ask each prompt with evaluation
-    let rec interactiveLoop = (idx, prompts) => {
-      if idx >= Array.length(prompts) {
-        Promise.resolve(Ok(answers))
-      } else {
-        switch prompts[idx] {
-        | Some(prompt) =>
-          // Evaluate `when` — skip if false
-          switch (prompt: Manifest.prompt).when_ {
-          | Some(whenExpr) =>
-            switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-            | Ok(false) => interactiveLoop(idx + 1, prompts)
-            | Ok(true) => handleInteractivePrompt(prompt, prompts, idx)
-            | Error(e) => Promise.resolve(Error(e))
-            }
-          | None => handleInteractivePrompt(prompt, prompts, idx)
-          }
-        | None => Promise.resolve(Ok(answers))
-        }
-      }
-    }
-    and handleInteractivePrompt = (prompt, prompts, idx) => {
-      // Fail closed: Select/MultiSelect prompts without options can't be
-      // answered interactively — never fall through to a free-text path.
+  | Interactive => {
+      // Fail closed: Select/MultiSelect without options can't be answered
       switch _requireOptions(prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
@@ -464,63 +437,100 @@ let resolve: (
             switch patternResult {
             | Error(e) => Promise.resolve(Error(e))
             | Ok(compiledPattern) =>
-              // Ask and validate with retry loop
-              promptWithRetry(
+              askPromptWithRetry(
                 ~io,
                 ~prompt,
                 ~evaluatedDefault,
                 ~evaluatedOptions,
                 ~compiledPattern,
-                ~prompts,
-                ~idx,
+                ~answers,
               )
+            }
           }
         }
       }
-      }
     }
-    and promptWithRetry = (
-      ~io,
-      ~prompt,
-      ~evaluatedDefault,
-      ~evaluatedOptions,
-      ~compiledPattern,
-      ~prompts,
-      ~idx,
-    ) => {
-      askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
-        let finalAnswer = if String.trim(answer) == "" {
-          evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
-        } else {
-          answer
-        }
-
-        // Validate
-        switch compiledPattern {
-        | Some((re, errMsg)) =>
-          if _matchesPattern(finalAnswer, re) {
-            Dict.set(answers, prompt.name, finalAnswer)
-            interactiveLoop(idx + 1, prompts)
-          } else {
-            // Show error message and retry
-            Console.log("Error: " ++ errMsg)
-            promptWithRetry(
-              ~io,
-              ~prompt,
-              ~evaluatedDefault,
-              ~evaluatedOptions,
-              ~compiledPattern,
-              ~prompts,
-              ~idx,
-            )
-          }
-        | None =>
-          Dict.set(answers, prompt.name, finalAnswer)
-          interactiveLoop(idx + 1, prompts)
-        }
-      })
-    }
-
-    interactiveLoop(0, prompts)
   }
+}
+
+and askPromptWithRetry = (
+  ~io,
+  ~prompt,
+  ~evaluatedDefault,
+  ~evaluatedOptions,
+  ~compiledPattern,
+  ~answers,
+) => {
+  askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
+    let finalAnswer = if String.trim(answer) == "" {
+      evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
+    } else {
+      answer
+    }
+
+    // Validate
+    switch compiledPattern {
+    | Some((re, errMsg)) =>
+      if _matchesPattern(finalAnswer, re) {
+        Dict.set(answers, prompt.name, finalAnswer)
+        Promise.resolve(Ok(answers))
+      } else {
+        // Show error message and retry
+        Console.log("Error: " ++ errMsg)
+        askPromptWithRetry(
+          ~io,
+          ~prompt,
+          ~evaluatedDefault,
+          ~evaluatedOptions,
+          ~compiledPattern,
+          ~answers,
+        )
+      }
+    | None =>
+      Dict.set(answers, prompt.name, finalAnswer)
+      Promise.resolve(Ok(answers))
+    }
+  })
+}
+
+// --- Main resolve function ---
+
+let resolve: (
+  ~io: Ports.interactiveIO,
+  ~prompts: array<Manifest.prompt>,
+  ~force: bool,
+  ~baseContext: dict<string>,
+) => promise<result<dict<string>, resolveError>> = (~io, ~prompts, ~force, ~baseContext) => {
+  let answers = Dict.make()
+  let strategy = force ? Force : Interactive
+  let idx = ref(0)
+
+  let rec loop = () => {
+    if idx.contents >= Array.length(prompts) {
+      Promise.resolve(Ok(answers))
+    } else {
+      switch prompts[idx.contents] {
+      | Some(prompt) =>
+        processPrompt(
+          ~io,
+          ~prompt,
+          ~baseContext,
+          ~answers,
+          ~strategy,
+        )->Promise.then(result => {
+          switch result {
+          | Ok(_) =>
+            idx.contents = idx.contents + 1
+            loop()
+          | Error(e) => Promise.resolve(Error(e))
+          }
+        })
+      | None =>
+        idx.contents = idx.contents + 1
+        loop()
+      }
+    }
+  }
+
+  loop()
 }

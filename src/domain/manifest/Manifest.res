@@ -1,6 +1,29 @@
 // Manifest parsing and validation
 // Declarative YAML manifest per generator, mirrors Go version's manifest.go
 
+// JSON traversal helpers
+let getString: (JSON.t, string) => option<string> = (obj, key) => {
+  switch obj {
+  | JSON.Object(dict) =>
+    switch dict->Dict.get(key) {
+    | Some(JSON.String(s)) => Some(s)
+    | _ => None
+    }
+  | _ => None
+  }
+}
+
+let getObject: (JSON.t, string) => option<dict<JSON.t>> = (obj, key) => {
+  switch obj {
+  | JSON.Object(dict) =>
+    switch dict->Dict.get(key) {
+    | Some(JSON.Object(objDict)) => Some(objDict)
+    | _ => None
+    }
+  | _ => None
+  }
+}
+
 type promptType = Input | Select | Confirm | MultiSelect
 
 type promptValidation = {pattern: string, message: string}
@@ -156,143 +179,118 @@ let appendPromptPreservingComments: (~yamlContent: string, ~prompt: prompt) => r
   }
 }
 
+// --- Prompt parsing helpers (extracted from parse for clarity) ---
+
+// Parse a single prompt option: string or {label, value} object
+let parsePromptOption: JSON.t => option<promptOption> = optJson => {
+  switch optJson {
+  | JSON.String(s) => Some({label: s, value: s})
+  | JSON.Object(_optDict) => {
+      let lbl = getString(optJson, "label")
+      let val = getString(optJson, "value")
+      switch (lbl, val) {
+      | (Some(l), Some(v)) => Some({label: l, value: v})
+      | _ => None
+      }
+    }
+  | _ => None
+  }
+}
+
+// Parse validate: {pattern, message} dict
+let parsePromptValidation: JSON.t => option<promptValidation> = promptJson => {
+  switch promptJson {
+  | JSON.Object(pd) =>
+    switch pd->Dict.get("validate") {
+    | Some(JSON.Object(vDict)) =>
+      let pattern = Dict.get(vDict, "pattern")
+      let message = Dict.get(vDict, "message")
+      switch (pattern, message) {
+      | (Some(JSON.String(p)), Some(JSON.String(m))) =>
+        if p != "" {
+          Some({pattern: p, message: m})
+        } else {
+          None
+        }
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  }
+}
+
+// Parse one prompt from JSON object
+let parsePrompt: JSON.t => option<prompt> = promptJson => {
+  switch promptJson {
+  | JSON.Object(_promptDict) => {
+      let name = getString(promptJson, "name")
+      let desc = getString(promptJson, "description")->Option.getOr("")
+      let defaultVal = getString(promptJson, "default")
+      let whenVal = getString(promptJson, "when")
+      let typeStr = getString(promptJson, "type")->Option.getOr("input")
+      let pt = parsePromptType(typeStr)->Option.getOr(Input)
+
+      // Parse options: support both string arrays and {label, value} objects
+      let opts = switch promptJson {
+      | JSON.Object(pd) =>
+        switch pd->Dict.get("options") {
+        | Some(JSON.Array(optArr)) =>
+          let parsed = optArr->Array.map(parsePromptOption)
+          let filtered = parsed->Array.filterMap(x => x)
+          if Array.length(filtered) == Array.length(optArr) {
+            Some(filtered)
+          } else {
+            None
+          }
+        | _ => None
+        }
+      | _ => None
+      }
+
+      // Parse validate
+      let validate = parsePromptValidation(promptJson)
+
+      switch name {
+      | Some(n) =>
+        Some({
+          name: n,
+          promptType: pt,
+          description: desc,
+          default: ?defaultVal,
+          when_: ?whenVal,
+          options: ?opts,
+          validate: ?validate,
+        })
+      | None => None
+      }
+    }
+  | _ => None
+  }
+}
+
+// Get prompts array from JSON object
+let getPromptsFromJson: (JSON.t, string) => option<array<prompt>> = (obj, key) => {
+  switch obj {
+  | JSON.Object(dict) =>
+    switch dict->Dict.get(key) {
+    | Some(JSON.Array(arr)) =>
+      arr->Array.map(parsePrompt)->Array.filterMap(x => x)->Some
+    | _ => None
+    }
+  | _ => None
+  }
+}
+
 let parse: string => result<manifest, string> = yamlContent => {
   try {
     let json = Bindings.Yaml.parse(yamlContent)
 
-    // Helper to get string field
-    let getString = (obj, key) => {
-      switch obj {
-      | JSON.Object(dict) =>
-        switch dict->Dict.get(key) {
-        | Some(v) =>
-          switch v {
-          | JSON.String(s) => Some(s)
-          | _ => None
-          }
-        | None => None
-        }
-      | _ => None
-      }
-    }
-
-    let getMetadata = (obj, key) => {
-      switch obj {
-      | JSON.Object(dict) =>
-        switch dict->Dict.get(key) {
-        | Some(v) =>
-          switch v {
-          | JSON.Object(objDict) => Some(objDict)
-          | _ => None
-          }
-        | None => None
-        }
-      | _ => None
-      }
-    }
-
-    let getPrompts = (obj, key) => {
-      switch obj {
-      | JSON.Object(dict) =>
-        switch dict->Dict.get(key) {
-        | Some(v) =>
-          switch v {
-          | JSON.Array(arr) =>
-            arr
-            ->Array.map(promptJson => {
-              switch promptJson {
-              | JSON.Object(_promptDict) => {
-                  let name = getString(promptJson, "name")
-                  let desc = getString(promptJson, "description")->Option.getOr("")
-                  let defaultVal = getString(promptJson, "default")
-                  let whenVal = getString(promptJson, "when")
-                  let typeStr = getString(promptJson, "type")->Option.getOr("input")
-                  let pt = parsePromptType(typeStr)->Option.getOr(Input)
-
-                  // Parse options: support both string arrays and {label, value} objects
-                  let opts = switch promptJson {
-                  | JSON.Object(pd) =>
-                    switch pd->Dict.get("options") {
-                    | Some(JSON.Array(optArr)) =>
-                      let parsed =
-                        optArr->Array.map(optJson => {
-                          switch optJson {
-                          | JSON.String(s) => Some({label: s, value: s})
-                          | JSON.Object(_optDict) => {
-                              let lbl = getString(optJson, "label")
-                              let val = getString(optJson, "value")
-                              switch (lbl, val) {
-                              | (Some(l), Some(v)) => Some({label: l, value: v})
-                              | _ => None
-                              }
-                            }
-                          | _ => None
-                          }
-                        })
-                      let filtered = parsed->Array.filterMap(x => x)
-                      if Array.length(filtered) == Array.length(optArr) {
-                        Some(filtered)
-                      } else {
-                        None
-                      }
-                    | _ => None
-                    }
-                  | _ => None
-                  }
-
-                  // Parse validate: {pattern, message}
-                  let validate = switch promptJson {
-                  | JSON.Object(pd) =>
-                    switch pd->Dict.get("validate") {
-                    | Some(JSON.Object(vDict)) =>
-                      let pattern = Dict.get(vDict, "pattern")
-                      let message = Dict.get(vDict, "message")
-                      switch (pattern, message) {
-                      | (Some(JSON.String(p)), Some(JSON.String(m))) =>
-                        if p != "" {
-                          Some({pattern: p, message: m})
-                        } else {
-                          None
-                        }
-                      | _ => None
-                      }
-                    | _ => None
-                    }
-                  | _ => None
-                  }
-
-                  switch name {
-                  | Some(n) =>
-                    Some({
-                      name: n,
-                      promptType: pt,
-                      description: desc,
-                      default: ?defaultVal,
-                      when_: ?whenVal,
-                      options: ?opts,
-                      validate: ?validate,
-                    })
-                  | None => None
-                  }
-                }
-              | _ => None
-              }
-            })
-            ->Array.filterMap(x => x)
-            ->Some
-          | _ => None
-          }
-        | None => None
-        }
-      | _ => None
-      }
-    }
-
     // Build manifest from JSON
     let name = getString(json, "name")->Option.getOr("")
     let classification = getString(json, "classification")->Option.getOr("")
-    let metadata = getMetadata(json, "metadata")
-    let prompts = getPrompts(json, "prompts")
+    let metadata = getObject(json, "metadata")
+    let prompts = getPromptsFromJson(json, "prompts")
 
     Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
   } catch {

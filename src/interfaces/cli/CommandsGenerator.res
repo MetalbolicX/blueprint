@@ -269,51 +269,69 @@ type directiveValues = {
   body: string,
 }
 
+type directiveKind = StringField | ConfirmField
+
+type directiveDescriptor = {
+  key: string,
+  yamlKey: string,
+  prompt: string,
+  kind: directiveKind,
+}
+
+let allDirectiveDescriptors: array<directiveDescriptor> = [
+  {key: "from", yamlKey: "from", prompt: "from path: ", kind: StringField},
+  {key: "inject", yamlKey: "inject", prompt: "inject regex: ", kind: StringField},
+  {key: "after", yamlKey: "after", prompt: "after regex: ", kind: StringField},
+  {key: "before", yamlKey: "before", prompt: "before regex: ", kind: StringField},
+  {key: "at_line", yamlKey: "at_line", prompt: "at_line number: ", kind: StringField},
+  {key: "skip_if", yamlKey: "skip_if", prompt: "skip_if regex: ", kind: StringField},
+  {key: "tool", yamlKey: "tool", prompt: "tool name: ", kind: StringField},
+  {key: "fetch", yamlKey: "fetch", prompt: "fetch URL: ", kind: StringField},
+  {key: "script", yamlKey: "script", prompt: "script name (resolved from shell.scripts): ", kind: StringField},
+  {key: "prepend", yamlKey: "prepend", prompt: "Enable prepend: true?", kind: ConfirmField},
+  {key: "append", yamlKey: "append", prompt: "Enable append: true?", kind: ConfirmField},
+  {key: "eof_last", yamlKey: "eof_last", prompt: "Enable eof_last: true?", kind: ConfirmField},
+  {key: "force", yamlKey: "force", prompt: "Enable force: true?", kind: ConfirmField},
+  {key: "unless_exists", yamlKey: "unless_exists", prompt: "Enable unless_exists: true?", kind: ConfirmField},
+]
+
 let buildFrontmatter: directiveValues => string = vals => {
   let frontmatterLines = ["---", "to: " ++ vals.toPath]
 
-  if vals.from->String.trim != "" {
-    Js.Array.push("from: " ++ vals.from->String.trim, frontmatterLines)->ignore
-  }
-  if vals.inject->String.trim != "" {
-    Js.Array.push("inject: " ++ vals.inject->String.trim, frontmatterLines)->ignore
-  }
-  if vals.after->String.trim != "" {
-    Js.Array.push("after: " ++ vals.after->String.trim, frontmatterLines)->ignore
-  }
-  if vals.before->String.trim != "" {
-    Js.Array.push("before: " ++ vals.before->String.trim, frontmatterLines)->ignore
-  }
-  if vals.atLine->String.trim != "" {
-    Js.Array.push("at_line: " ++ vals.atLine->String.trim, frontmatterLines)->ignore
-  }
-  if vals.skipIf->String.trim != "" {
-    Js.Array.push("skip_if: " ++ vals.skipIf->String.trim, frontmatterLines)->ignore
-  }
-  if vals.prepend {
-    Js.Array.push("prepend: true", frontmatterLines)->ignore
-  }
-  if vals.append {
-    Js.Array.push("append: true", frontmatterLines)->ignore
-  }
-  if vals.eofLast {
-    Js.Array.push("eof_last: true", frontmatterLines)->ignore
-  }
-  if vals.force {
-    Js.Array.push("force: true", frontmatterLines)->ignore
-  }
-  if vals.unlessExists {
-    Js.Array.push("unless_exists: true", frontmatterLines)->ignore
-  }
-  if vals.tool->String.trim != "" {
-    Js.Array.push("tool: " ++ vals.tool->String.trim, frontmatterLines)->ignore
-  }
-  if vals.fetch->String.trim != "" {
-    Js.Array.push("fetch: " ++ vals.fetch->String.trim, frontmatterLines)->ignore
-  }
-  if vals.script->String.trim != "" {
-    Js.Array.push("script: " ++ vals.script->String.trim, frontmatterLines)->ignore
-  }
+  allDirectiveDescriptors->Array.forEach(desc => {
+    switch desc.kind {
+    | StringField => {
+        let fieldVal = switch desc.key {
+        | "from" => vals.from
+        | "inject" => vals.inject
+        | "after" => vals.after
+        | "before" => vals.before
+        | "at_line" => vals.atLine
+        | "skip_if" => vals.skipIf
+        | "tool" => vals.tool
+        | "fetch" => vals.fetch
+        | "script" => vals.script
+        | _ => ""
+        }
+        if fieldVal->String.trim != "" {
+          Js.Array.push(desc.yamlKey ++ ": " ++ fieldVal->String.trim, frontmatterLines)->ignore
+        }
+      }
+    | ConfirmField => {
+        let boolVal = switch desc.key {
+        | "prepend" => vals.prepend
+        | "append" => vals.append
+        | "eof_last" => vals.eofLast
+        | "force" => vals.force
+        | "unless_exists" => vals.unlessExists
+        | _ => false
+        }
+        if boolVal {
+          Js.Array.push(desc.yamlKey ++ ": true", frontmatterLines)->ignore
+        }
+      }
+    }
+  })
 
   Js.Array.push("---", frontmatterLines)->ignore
   frontmatterLines->Array.concat([vals.body])->Array.join("\n") ++ "\n"
@@ -329,101 +347,49 @@ let promptForDirectives: (
     )
   let selected = parseDirectiveSelection(directiveSelection)
 
-  let fromValue =
-    if hasDirective(~selected, ~key="from") {
-      await io.ask("from path: ")
-    } else {
-      ""
-    }
-  let injectValue =
-    if hasDirective(~selected, ~key="inject") {
-      await io.ask("inject regex: ")
-    } else {
-      ""
-    }
-  let afterValue =
-    if hasDirective(~selected, ~key="after") {
-      await io.ask("after regex: ")
-    } else {
-      ""
-    }
-  let beforeValue =
-    if hasDirective(~selected, ~key="before") {
-      await io.ask("before regex: ")
-    } else {
-      ""
-    }
-  let atLineValue =
-    if hasDirective(~selected, ~key="at_line") {
-      await io.ask("at_line number: ")
-    } else {
-      ""
-    }
-  let skipIfValue =
-    if hasDirective(~selected, ~key="skip_if") {
-      await io.ask("skip_if regex: ")
-    } else {
-      ""
-    }
+  // Accumulate string and bool values
+  let stringVals = Dict.make()
+  let boolVals = Dict.make()
 
-  let prependEnabled =
-    hasDirective(~selected, ~key="prepend")
-      ? await io.askConfirm(~question="Enable prepend: true?", ~defaultYes=true)
-      : false
-  let appendEnabled =
-    hasDirective(~selected, ~key="append")
-      ? await io.askConfirm(~question="Enable append: true?", ~defaultYes=true)
-      : false
-  let eofLastEnabled =
-    hasDirective(~selected, ~key="eof_last")
-      ? await io.askConfirm(~question="Enable eof_last: true?", ~defaultYes=true)
-      : false
-  let forceEnabled =
-    hasDirective(~selected, ~key="force")
-      ? await io.askConfirm(~question="Enable force: true?", ~defaultYes=true)
-      : false
-  let unlessExistsEnabled =
-    hasDirective(~selected, ~key="unless_exists")
-      ? await io.askConfirm(~question="Enable unless_exists: true?", ~defaultYes=true)
-      : false
-
-  let toolValue =
-    if hasDirective(~selected, ~key="tool") {
-      await io.ask("tool name: ")
-    } else {
-      ""
+  let idx = ref(0)
+  while idx.contents < Array.length(allDirectiveDescriptors) {
+    switch allDirectiveDescriptors[idx.contents] {
+    | Some(desc) =>
+      if hasDirective(~selected, ~key=desc.key) {
+        switch desc.kind {
+        | StringField => {
+            let answer = await io.ask(desc.prompt)
+            Dict.set(stringVals, desc.key, answer)
+          }
+        | ConfirmField => {
+            let answer = await io.askConfirm(~question=desc.prompt, ~defaultYes=true)
+            Dict.set(boolVals, desc.key, answer)
+          }
+        }
+      }
+    | None => ()
     }
-  let fetchValue =
-    if hasDirective(~selected, ~key="fetch") {
-      await io.ask("fetch URL: ")
-    } else {
-      ""
-    }
-  let scriptValue =
-    if hasDirective(~selected, ~key="script") {
-      await io.ask("script name (resolved from shell.scripts): ")
-    } else {
-      ""
-    }
+    idx.contents = idx.contents + 1
+  }
 
   let body = await io.ask("Template body (single-line; optional): ")
 
   {
     toPath,
-    from: fromValue,
-    inject: injectValue,
-    after: afterValue,
-    before: beforeValue,
-    atLine: atLineValue,
-    skipIf: skipIfValue,
-    prepend: prependEnabled,
-    append: appendEnabled,
-    eofLast: eofLastEnabled,
-    force: forceEnabled,
-    unlessExists: unlessExistsEnabled,
-    tool: toolValue,
-    fetch: fetchValue,
-    script: scriptValue,
+    from: Dict.get(stringVals, "from")->Option.getOr(""),
+    inject: Dict.get(stringVals, "inject")->Option.getOr(""),
+    after: Dict.get(stringVals, "after")->Option.getOr(""),
+    before: Dict.get(stringVals, "before")->Option.getOr(""),
+    atLine: Dict.get(stringVals, "at_line")->Option.getOr(""),
+    skipIf: Dict.get(stringVals, "skip_if")->Option.getOr(""),
+    prepend: Dict.get(boolVals, "prepend")->Option.getOr(false),
+    append: Dict.get(boolVals, "append")->Option.getOr(false),
+    eofLast: Dict.get(boolVals, "eof_last")->Option.getOr(false),
+    force: Dict.get(boolVals, "force")->Option.getOr(false),
+    unlessExists: Dict.get(boolVals, "unless_exists")->Option.getOr(false),
+    tool: Dict.get(stringVals, "tool")->Option.getOr(""),
+    fetch: Dict.get(stringVals, "fetch")->Option.getOr(""),
+    script: Dict.get(stringVals, "script")->Option.getOr(""),
     body,
   }
 }

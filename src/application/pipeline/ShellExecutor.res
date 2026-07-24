@@ -13,6 +13,43 @@ let cleanupFetchTmpFiles: (array<string>, ~fs: Ports.fileSystem) => promise<unit
   })
 }
 
+// Shared helper: runs a shell tool (execFileAsync or execAsync) with consistent
+// options building, killed check, status check, and error mapping.
+let execToolAsync = (
+  ~run: (~options: Ports.shellOptions) => promise<Ports.execResult>,
+  ~cwd,
+  ~safeEnv,
+  ~timeout,
+  ~name,
+  ~countRef,
+) => {
+  let opts: Ports.shellOptions = {
+    cwd: cwd,
+    env: safeEnv,
+    encoding: "utf8",
+    timeout: timeout,
+  }
+  run(~options=opts)->Promise.then(result => {
+    if result.killed {
+      Promise.resolve(Error("Tool '" ++ name ++ "' timed out after " ++ Int.toString(timeout) ++ "ms"))
+    } else {
+      switch result.status {
+      | Some(0) => {
+          countRef.contents = countRef.contents + 1
+          Promise.resolve(Ok())
+        }
+      | status => Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
+      }
+    }
+  })->Promise.catch(e => {
+    let msg = switch JsExn.message(e->Obj.magic) {
+    | Some(m) => m
+    | None => "unknown error"
+    }
+    Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
+  })
+}
+
 // Execute all queued shell commands
 let executeShellCommands: (
   ~commands: array<shellCommand>,
@@ -89,64 +126,22 @@ let executeShellCommands: (
               ->Array.map(tool => tool.command)
             switch ExecPolicy.decide(~command=toolDef.command, ~args=toolDef.args, ~allowlist=toolsAllowlist) {
             | Reject(reason) => Promise.resolve(Error(reason))
-            | ExecFile(command, args) => {
-                let execFileOpts: Ports.shellOptions = {
-                  cwd: cwd,
-                  env: safeEnv,
-                  encoding: "utf8",
-                  timeout: ExecPolicy.defaultTimeout,
-                }
-                shell.execFileAsync(command, ~args, ~options=execFileOpts)->Promise.then(result => {
-                  if result.killed {
-                    Promise.resolve(Error("Tool '" ++ name ++ "' timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms"))
-                  } else {
-                    switch result.status {
-                    | Some(0) => {
-                        count.contents = count.contents + 1
-                        Promise.resolve(Ok())
-                      }
-                    | status => {
-                        Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
-                      }
-                    }
-                  }
-                })->Promise.catch(e => {
-                  let msg = switch JsExn.message(e->Obj.magic) {
-                  | Some(m) => m
-                  | None => "unknown error"
-                  }
-                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
-                })
-              }
-            | ShellExact(command) => {
-                let shellOpts: Ports.shellOptions = {
-                  cwd: cwd,
-                  env: safeEnv,
-                  encoding: "utf8",
-                  timeout: ExecPolicy.defaultTimeout,
-                }
-                shell.execAsync(command, ~options=shellOpts)->Promise.then(result => {
-                  if result.killed {
-                    Promise.resolve(Error("Tool '" ++ name ++ "' timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms"))
-                  } else {
-                    switch result.status {
-                    | Some(0) => {
-                        count.contents = count.contents + 1
-                        Promise.resolve(Ok())
-                      }
-                    | status => {
-                        Promise.resolve(Error("Tool '" ++ name ++ "' exited with code: " ++ Int.toString(status->Option.getOr(-1))))
-                      }
-                    }
-                  }
-                })->Promise.catch(e => {
-                  let msg = switch JsExn.message(e->Obj.magic) {
-                  | Some(m) => m
-                  | None => "unknown error"
-                  }
-                  Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
-                })
-              }
+            | ExecFile(command, args) => execToolAsync(
+                ~run=(~options) => shell.execFileAsync(command, ~args, ~options),
+                ~cwd,
+                ~safeEnv,
+                ~timeout=ExecPolicy.defaultTimeout,
+                ~name,
+                ~countRef=count,
+              )
+            | ShellExact(command) => execToolAsync(
+                ~run=(~options) => shell.execAsync(command, ~options),
+                ~cwd,
+                ~safeEnv,
+                ~timeout=ExecPolicy.defaultTimeout,
+                ~name,
+                ~countRef=count,
+              )
             }
           }
         | InlineCommand(command) => {
