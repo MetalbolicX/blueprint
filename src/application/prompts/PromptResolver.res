@@ -345,26 +345,58 @@ let askPrompt: (
 
 type resolutionStrategy = Force | Interactive
 
-let rec processPrompt = (
+// askPromptWithRetry: iterative retry loop (non-recursive at top level)
+// Uses an inner recursive helper for the actual retry recursion
+let askPromptWithRetry: (
+  ~io: Ports.interactiveIO,
+  ~prompt: Manifest.prompt,
+  ~evaluatedDefault: option<string>,
+  ~evaluatedOptions: option<array<Manifest.promptOption>>,
+  ~compiledPattern: option<(RegExp.t, string)>,
+  ~answers: dict<string>,
+) => promise<result<dict<string>, resolveError>> = (
+  ~io,
+  ~prompt,
+  ~evaluatedDefault,
+  ~evaluatedOptions,
+  ~compiledPattern,
+  ~answers,
+) => {
+  let rec loop = () => {
+    askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
+      let finalAnswer = if String.trim(answer) == "" {
+        evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
+      } else {
+        answer
+      }
+
+      switch compiledPattern {
+      | Some((re, errMsg)) =>
+        if _matchesPattern(finalAnswer, re) {
+          Dict.set(answers, prompt.name, finalAnswer)
+          Promise.resolve(Ok(answers))
+        } else {
+          Console.log("Error: " ++ errMsg)
+          loop()
+        }
+      | None =>
+        Dict.set(answers, prompt.name, finalAnswer)
+        Promise.resolve(Ok(answers))
+      }
+    })
+  }
+  loop()
+}
+
+// processPromptBody: handles Force vs Interactive mode
+// Force returns immediately, Interactive calls askPromptWithRetry
+let processPromptBody: (
   ~io: Ports.interactiveIO,
   ~prompt: Manifest.prompt,
   ~baseContext: dict<string>,
   ~answers: dict<string>,
   ~strategy: resolutionStrategy,
-) => {
-  // Shared: evaluate `when` — skip if false
-  switch prompt.when_ {
-  | Some(whenExpr) =>
-    switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-    | Ok(false) => Promise.resolve(Ok(answers))
-    | Ok(true) => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
-    | Error(e) => Promise.resolve(Error(e))
-    }
-  | None => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
-  }
-}
-
-and processPromptBody = (
+) => promise<result<dict<string>, resolveError>> = (
   ~io,
   ~prompt,
   ~baseContext,
@@ -373,7 +405,6 @@ and processPromptBody = (
 ) => {
   switch strategy {
   | Force => {
-      // Fail closed: Select/MultiSelect without options can't be force-defaulted
       switch _requireOptions(prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
@@ -394,11 +425,9 @@ and processPromptBody = (
       }
     }
   | Interactive => {
-      // Fail closed: Select/MultiSelect without options can't be answered
       switch _requireOptions(prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
-        // Evaluate default
         let defaultResult = switch prompt.default {
         | Some(defaultExpr) =>
           switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
@@ -411,7 +440,6 @@ and processPromptBody = (
         switch defaultResult {
         | Error(e) => Promise.resolve(Error(e))
         | Ok(evaluatedDefault) =>
-          // Evaluate options for select prompts
           let optionsResult = switch prompt.options {
           | Some(opts) =>
             switch _evaluateOptions(~opts, ~promptName=prompt.name, ~baseContext, ~answers) {
@@ -424,7 +452,6 @@ and processPromptBody = (
           switch optionsResult {
           | Error(e) => Promise.resolve(Error(e))
           | Ok(evaluatedOptions) =>
-            // Compile validation pattern once (if present)
             let patternResult = switch prompt.validate {
             | Some(v) =>
               switch _compilePattern(~pattern=v.pattern, ~promptName=prompt.name) {
@@ -453,44 +480,29 @@ and processPromptBody = (
   }
 }
 
-and askPromptWithRetry = (
+// processPrompt: top-level per-prompt processor — evaluates `when` then delegates
+let processPrompt: (
+  ~io: Ports.interactiveIO,
+  ~prompt: Manifest.prompt,
+  ~baseContext: dict<string>,
+  ~answers: dict<string>,
+  ~strategy: resolutionStrategy,
+) => promise<result<dict<string>, resolveError>> = (
   ~io,
   ~prompt,
-  ~evaluatedDefault,
-  ~evaluatedOptions,
-  ~compiledPattern,
+  ~baseContext,
   ~answers,
+  ~strategy,
 ) => {
-  askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
-    let finalAnswer = if String.trim(answer) == "" {
-      evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
-    } else {
-      answer
+  switch prompt.when_ {
+  | Some(whenExpr) =>
+    switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+    | Ok(false) => Promise.resolve(Ok(answers))
+    | Ok(true) => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+    | Error(e) => Promise.resolve(Error(e))
     }
-
-    // Validate
-    switch compiledPattern {
-    | Some((re, errMsg)) =>
-      if _matchesPattern(finalAnswer, re) {
-        Dict.set(answers, prompt.name, finalAnswer)
-        Promise.resolve(Ok(answers))
-      } else {
-        // Show error message and retry
-        Console.log("Error: " ++ errMsg)
-        askPromptWithRetry(
-          ~io,
-          ~prompt,
-          ~evaluatedDefault,
-          ~evaluatedOptions,
-          ~compiledPattern,
-          ~answers,
-        )
-      }
-    | None =>
-      Dict.set(answers, prompt.name, finalAnswer)
-      Promise.resolve(Ok(answers))
-    }
-  })
+  | None => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+  }
 }
 
 // --- Main resolve function ---
