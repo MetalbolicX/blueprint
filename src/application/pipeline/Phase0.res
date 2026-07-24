@@ -2,6 +2,7 @@
 // Mirrors Go version's phase0/phase0.go
 
 open Discovery
+open Resolver
 
 type conflictFile = {
   sourcePath: string,
@@ -97,7 +98,7 @@ let run: (
   | None => None
   }
 
-  // Convert attributes to plain strings for PromptResolver
+  // Convert attributes to plain strings for Resolver
   let baseContext = Dict.make()
   context.attributes->Dict.toArray->Array.forEach(((k, v)) => {
     switch v {
@@ -108,7 +109,7 @@ let run: (
 
   let resolvedAttributesResult = switch prompts {
   | Some(ps) if Array.length(ps) > 0 =>
-    await PromptResolver.resolve(~io, ~prompts=ps, ~force, ~baseContext)
+    await resolve(~io, ~prompts=ps, ~force, ~baseContext)
   | _ => Ok(Dict.make())
   }
 
@@ -118,13 +119,13 @@ let run: (
       let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force, ~fs, ~path)
       Ok({resolvedAttributes, conflicts})
     }
-  | Error(PromptResolver.EvaluationError({prompt, field, message})) =>
+  | Error(Expression.EvaluationError({prompt, field, message})) =>
     Error(
       "Prompt evaluation error [" ++ prompt ++ "." ++ field ++ "]: " ++ message,
     )
-  | Error(PromptResolver.ValidationConfigError({prompt, message})) =>
+  | Error(Expression.ValidationConfigError({prompt, message})) =>
     Error("Prompt validation config error [" ++ prompt ++ "]: " ++ message)
-  | Error(PromptResolver.MissingOptionsError({prompt, message})) =>
+  | Error(Expression.MissingOptionsError({prompt, message})) =>
     Error("Prompt configuration error [" ++ prompt ++ "]: " ++ message)
   }
 }

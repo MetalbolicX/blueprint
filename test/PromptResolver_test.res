@@ -78,7 +78,7 @@ suite("PromptResolver", () => {
     let result = PromptResolver.evalTemplate("<% if (true) { %>hi<% } %>", ~ctx)
     switch result {
     | Ok(_) => assert_false(true)
-    | Error(PromptResolver.EvaluationError(_)) => assert_true(true)
+    | Error(Expression.EvaluationError(_)) => assert_true(true)
     | Error(_) => assert_false(true)
     }
   })
@@ -88,7 +88,7 @@ suite("PromptResolver", () => {
     let result = PromptResolver.evalTemplate("<%- name %>", ~ctx)
     switch result {
     | Ok(_) => assert_false(true)
-    | Error(PromptResolver.EvaluationError(_)) => assert_true(true)
+    | Error(Expression.EvaluationError(_)) => assert_true(true)
     | Error(_) => assert_false(true)
     }
   })
@@ -304,7 +304,7 @@ suite("PromptResolver", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(PromptResolver.EvaluationError({prompt})) => {
+      | Error(Expression.EvaluationError({prompt})) => {
           assert_eq(prompt, "name")
         }
       | Error(_) => assert_false(true)
@@ -559,7 +559,7 @@ suite("PromptResolver", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+      | Error(Expression.MissingOptionsError({prompt, message})) => {
           assert_eq(prompt, "type")
           assert_true(String.includes(message, "select prompt requires options"))
         }
@@ -596,7 +596,7 @@ suite("PromptResolver", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+      | Error(Expression.MissingOptionsError({prompt, message})) => {
           assert_eq(prompt, "colors")
           assert_true(String.includes(message, "select prompt requires options"))
         }
@@ -630,7 +630,7 @@ suite("PromptResolver", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(PromptResolver.MissingOptionsError({prompt, message})) => {
+      | Error(Expression.MissingOptionsError({prompt, message})) => {
           assert_eq(prompt, "type")
           assert_true(String.includes(message, "select prompt requires options"))
         }
@@ -662,7 +662,7 @@ suite("PromptResolver", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(PromptResolver.MissingOptionsError({prompt, message: _message})) => {
+      | Error(Expression.MissingOptionsError({prompt, message: _message})) => {
           assert_eq(prompt, "colors")
         }
       | Error(_) => assert_false(true)

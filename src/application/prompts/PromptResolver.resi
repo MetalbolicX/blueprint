@@ -1,8 +1,8 @@
-type resolveError =
-  | EvaluationError({prompt: string, field: string, message: string})
-  | ValidationConfigError({prompt: string, message: string})
-  | MissingOptionsError({prompt: string, message: string})
+// PromptResolver — re-export interface for backward compatibility
 
+type resolveError = Expression.resolveError
+
+let evalTemplate: (string, ~ctx: {..}) => result<string, resolveError>
 let _validateSelectInput: (
   ~answer: string,
   ~opts: array<Manifest.promptOption>,
@@ -13,8 +13,6 @@ let _tokenizeMultiSelect: (
   ~answer: string,
   ~opts: array<Manifest.promptOption>,
 ) => (array<string>, array<string>)
-
-let evalTemplate: (string, ~ctx: {..}) => result<string, resolveError>
 
 let resolve: (
   ~io: Ports.interactiveIO,
