@@ -1,16 +1,38 @@
 // ConfigJsonParser.res
 open ConfigTypes
 
+let getStringField = (dict: Dict.t<JSON.t>, key: string): option<string> => {
+  switch dict->Dict.get(key) {
+  | Some(JSON.String(s)) => Some(s)
+  | _ => None
+  }
+}
+
+let _getObjectField = (dict: Dict.t<JSON.t>, key: string): option<Dict.t<JSON.t>> => {
+  switch dict->Dict.get(key) {
+  | Some(JSON.Object(o)) => Some(o)
+  | _ => None
+  }
+}
+
+let _getIntField = (dict: Dict.t<JSON.t>, key: string, ~default: int): int => {
+  switch dict->Dict.get(key) {
+  | Some(JSON.Number(n)) => n->Float.toInt
+  | _ => default
+  }
+}
+
+let getBoolField = (dict: Dict.t<JSON.t>, key: string, ~default: bool): bool => {
+  switch dict->Dict.get(key) {
+  | Some(JSON.Boolean(b)) => b
+  | _ => default
+  }
+}
+
 let parseTemplateSource: JSON.t => option<templateSource> = json => {
   switch json {
   | JSON.Object(dict) =>
-    let parseStr = key => {
-      switch Dict.get(dict, key) {
-      | Some(JSON.String(s)) => Some(s)
-      | _ => None
-      }
-    }
-    switch (parseStr("name"), parseStr("source"), parseStr("path")) {
+    switch (getStringField(dict, "name"), getStringField(dict, "source"), getStringField(dict, "path")) {
     | (Some(name), Some(source), Some(path)) => Some({name, source, path})
     | _ => None
     }
@@ -59,10 +81,7 @@ let parseDefaultAttributes: JSON.t => dict<string> = json => {
 let parseHookCommand: JSON.t => option<hookCommand> = json => {
   switch json {
   | JSON.Object(dict) =>
-    let command = switch Dict.get(dict, "command") {
-    | Some(JSON.String(s)) => Some(s)
-    | _ => None
-    }
+    let command = getStringField(dict, "command")
     let args = switch Dict.get(dict, "args") {
     | Some(JSON.Array(arr)) =>
       Some(
@@ -119,18 +138,8 @@ let parseHooks: JSON.t => option<hooksConfig> = json => {
 let parseShellTool: JSON.t => option<shellTool> = json => {
   switch json {
   | JSON.Object(dict) =>
-    let name = Dict.get(dict, "name")->Option.flatMap(v =>
-      switch v {
-      | JSON.String(s) => Some(s)
-      | _ => None
-      }
-    )
-    let command = Dict.get(dict, "command")->Option.flatMap(v =>
-      switch v {
-      | JSON.String(s) => Some(s)
-      | _ => None
-      }
-    )
+    let name = getStringField(dict, "name")
+    let command = getStringField(dict, "command")
     let args =
       Dict.get(dict, "args")
       ->Option.flatMap(v =>
@@ -157,18 +166,8 @@ let parseShellTool: JSON.t => option<shellTool> = json => {
 let parseScriptDef: JSON.t => option<scriptDef> = json => {
   switch json {
   | JSON.Object(dict) =>
-    let name = Dict.get(dict, "name")->Option.flatMap(v =>
-      switch v {
-      | JSON.String(s) => Some(s)
-      | _ => None
-      }
-    )
-    let path = Dict.get(dict, "path")->Option.flatMap(v =>
-      switch v {
-      | JSON.String(s) => Some(s)
-      | _ => None
-      }
-    )
+    let name = getStringField(dict, "name")
+    let path = getStringField(dict, "path")
     let args =
       Dict.get(dict, "args")
       ->Option.flatMap(v =>
@@ -216,10 +215,7 @@ let parseShellEnv: JSON.t => option<shellEnv> = json => {
 let parseShellConfig: JSON.t => option<shellConfig> = json => {
   switch json {
   | JSON.Object(dict) =>
-    let enabled = switch Dict.get(dict, "enabled") {
-    | Some(JSON.Boolean(b)) => b
-    | _ => false
-    }
+    let enabled = getBoolField(dict, "enabled", ~default=false)
     let tools =
       Dict.get(dict, "tools")
       ->Option.flatMap(v =>
