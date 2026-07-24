@@ -345,92 +345,93 @@ let askPrompt: (
 
 type resolutionStrategy = Force | Interactive
 
+// Threaded state record for the three-processPrompt trio.
+// Replaces the 5-6 individual labelled parameters each function previously took.
+type promptState = {
+  prompt: Manifest.prompt,
+  io: Ports.interactiveIO,
+  baseContext: dict<string>,
+  answers: dict<string>,
+  evaluatedDefault: option<string>,
+  evaluatedOptions: option<array<Manifest.promptOption>>,
+  compiledPattern: option<(RegExp.t, string)>,
+  value: option<string>,
+  attempt: int,
+  lastError: option<string>,
+  strategy: resolutionStrategy,
+}
+
 // askPromptWithRetry: iterative retry loop (non-recursive at top level)
-// Uses an inner recursive helper for the actual retry recursion
-let askPromptWithRetry: (
-  ~io: Ports.interactiveIO,
-  ~prompt: Manifest.prompt,
-  ~evaluatedDefault: option<string>,
-  ~evaluatedOptions: option<array<Manifest.promptOption>>,
-  ~compiledPattern: option<(RegExp.t, string)>,
-  ~answers: dict<string>,
-) => promise<result<dict<string>, resolveError>> = (
-  ~io,
-  ~prompt,
-  ~evaluatedDefault,
-  ~evaluatedOptions,
-  ~compiledPattern,
-  ~answers,
-) => {
-  let rec loop = () => {
-    askPrompt(~io, ~prompt, ~evaluatedDefault, ~evaluatedOptions)->Promise.then(answer => {
+// Uses an inner recursive helper for the actual retry recursion.
+// Threads promptState; mutates answers in place via Dict.set.
+let askPromptWithRetry: promptState => promise<result<promptState, resolveError>> = state => {
+  let rec loop = state => {
+    askPrompt(
+      ~io=state.io,
+      ~prompt=state.prompt,
+      ~evaluatedDefault=state.evaluatedDefault,
+      ~evaluatedOptions=state.evaluatedOptions,
+    )->Promise.then(answer => {
       let finalAnswer = if String.trim(answer) == "" {
-        evaluatedDefault->Option.getOr(prompt.default->Option.getOr(""))
+        state.evaluatedDefault->Option.getOr(state.prompt.default->Option.getOr(""))
       } else {
         answer
       }
 
-      switch compiledPattern {
+      switch state.compiledPattern {
       | Some((re, errMsg)) =>
         if _matchesPattern(finalAnswer, re) {
-          Dict.set(answers, prompt.name, finalAnswer)
-          Promise.resolve(Ok(answers))
+          let answers = state.answers
+          Dict.set(answers, state.prompt.name, finalAnswer)
+          Promise.resolve(Ok({...state, answers, value: Some(finalAnswer)}))
         } else {
           Console.log("Error: " ++ errMsg)
-          loop()
+          loop({...state, answers: state.answers, attempt: state.attempt + 1, lastError: Some(errMsg)})
         }
       | None =>
-        Dict.set(answers, prompt.name, finalAnswer)
-        Promise.resolve(Ok(answers))
+        let answers = state.answers
+        Dict.set(answers, state.prompt.name, finalAnswer)
+        Promise.resolve(Ok({...state, answers, value: Some(finalAnswer)}))
       }
     })
   }
-  loop()
+  loop(state)
 }
 
 // processPromptBody: handles Force vs Interactive mode
 // Force returns immediately, Interactive calls askPromptWithRetry
-let processPromptBody: (
-  ~io: Ports.interactiveIO,
-  ~prompt: Manifest.prompt,
-  ~baseContext: dict<string>,
-  ~answers: dict<string>,
-  ~strategy: resolutionStrategy,
-) => promise<result<dict<string>, resolveError>> = (
-  ~io,
-  ~prompt,
-  ~baseContext,
-  ~answers,
-  ~strategy,
-) => {
-  switch strategy {
+// Threads promptState; Force sets value directly, Interactive threads state to askPromptWithRetry.
+let processPromptBody: promptState => promise<result<promptState, resolveError>> = state => {
+  switch state.strategy {
   | Force => {
-      switch _requireOptions(prompt) {
+      switch _requireOptions(state.prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
-        switch prompt.default {
+        switch state.prompt.default {
         | Some(defaultExpr) =>
-          switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+          switch _evaluateDefault(~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
           | Ok(d) => {
-              Dict.set(answers, prompt.name, d)
-              Promise.resolve(Ok(answers))
+              let answers = state.answers
+              Dict.set(answers, state.prompt.name, d)
+              Promise.resolve(Ok({...state, answers, value: Some(d)}))
             }
           | Error(e) => Promise.resolve(Error(e))
           }
         | None => {
-            Dict.set(answers, prompt.name, "")
-            Promise.resolve(Ok(answers))
+            let answers = state.answers
+            Dict.set(answers, state.prompt.name, "")
+            Promise.resolve(Ok({...state, answers, value: Some("")}))
           }
         }
       }
     }
   | Interactive => {
-      switch _requireOptions(prompt) {
+      switch _requireOptions(state.prompt) {
       | Error(e) => Promise.resolve(Error(e))
       | Ok() =>
-        let defaultResult = switch prompt.default {
+        let defaultResult = switch state.prompt.default {
         | Some(defaultExpr) =>
-          switch _evaluateDefault(~defaultExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
+          switch _evaluateDefault(~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
           | Ok(d) => Ok(Some(d))
           | Error(e) => Error(e)
           }
@@ -440,9 +441,9 @@ let processPromptBody: (
         switch defaultResult {
         | Error(e) => Promise.resolve(Error(e))
         | Ok(evaluatedDefault) =>
-          let optionsResult = switch prompt.options {
+          let optionsResult = switch state.prompt.options {
           | Some(opts) =>
-            switch _evaluateOptions(~opts, ~promptName=prompt.name, ~baseContext, ~answers) {
+            switch _evaluateOptions(~opts, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
             | Ok(eo) => Ok(Some(eo))
             | Error(e) => Error(e)
             }
@@ -452,9 +453,9 @@ let processPromptBody: (
           switch optionsResult {
           | Error(e) => Promise.resolve(Error(e))
           | Ok(evaluatedOptions) =>
-            let patternResult = switch prompt.validate {
+            let patternResult = switch state.prompt.validate {
             | Some(v) =>
-              switch _compilePattern(~pattern=v.pattern, ~promptName=prompt.name) {
+              switch _compilePattern(~pattern=v.pattern, ~promptName=state.prompt.name) {
               | Ok(re) => Ok(Some((re, v.message)))
               | Error(e) => Error(e)
               }
@@ -464,14 +465,14 @@ let processPromptBody: (
             switch patternResult {
             | Error(e) => Promise.resolve(Error(e))
             | Ok(compiledPattern) =>
-              askPromptWithRetry(
-                ~io,
-                ~prompt,
-                ~evaluatedDefault,
-                ~evaluatedOptions,
-                ~compiledPattern,
-                ~answers,
-              )
+              askPromptWithRetry({
+                ...state,
+                evaluatedDefault,
+                evaluatedOptions,
+                compiledPattern,
+                attempt: 0,
+                lastError: None,
+              })
             }
           }
         }
@@ -481,27 +482,16 @@ let processPromptBody: (
 }
 
 // processPrompt: top-level per-prompt processor — evaluates `when` then delegates
-let processPrompt: (
-  ~io: Ports.interactiveIO,
-  ~prompt: Manifest.prompt,
-  ~baseContext: dict<string>,
-  ~answers: dict<string>,
-  ~strategy: resolutionStrategy,
-) => promise<result<dict<string>, resolveError>> = (
-  ~io,
-  ~prompt,
-  ~baseContext,
-  ~answers,
-  ~strategy,
-) => {
-  switch prompt.when_ {
+// Threads promptState through the evaluation and into processPromptBody.
+let processPrompt: promptState => promise<result<promptState, resolveError>> = state => {
+  switch state.prompt.when_ {
   | Some(whenExpr) =>
-    switch _evaluateWhen(~whenExpr, ~promptName=prompt.name, ~baseContext, ~answers) {
-    | Ok(false) => Promise.resolve(Ok(answers))
-    | Ok(true) => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+    switch _evaluateWhen(~whenExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
+    | Ok(false) => Promise.resolve(Ok(state))
+    | Ok(true) => processPromptBody(state)
     | Error(e) => Promise.resolve(Error(e))
     }
-  | None => processPromptBody(~io, ~prompt, ~baseContext, ~answers, ~strategy)
+  | None => processPromptBody(state)
   }
 }
 
@@ -523,15 +513,22 @@ let resolve: (
     } else {
       switch prompts[idx.contents] {
       | Some(prompt) =>
-        processPrompt(
-          ~io,
-          ~prompt,
-          ~baseContext,
-          ~answers,
-          ~strategy,
-        )->Promise.then(result => {
+        let state: promptState = {
+          prompt,
+          io,
+          baseContext,
+          answers,
+          evaluatedDefault: None,
+          evaluatedOptions: None,
+          compiledPattern: None,
+          value: None,
+          attempt: 0,
+          lastError: None,
+          strategy,
+        }
+        processPrompt(state)->Promise.then(result => {
           switch result {
-          | Ok(_) =>
+          | Ok(_newState) =>
             idx.contents = idx.contents + 1
             loop()
           | Error(e) => Promise.resolve(Error(e))
