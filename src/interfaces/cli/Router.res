@@ -15,6 +15,17 @@ let _isKnownFlag: string => bool = key => {
 }
 
 /**
+ * Checks whether a CLI flag (both long `--name` and short `-f` forms) is
+ * present in the argument list. The short form is derived from the first
+ * character of the flag name.
+ */
+let parseCommandFlag = (args: array<string>, ~name: string): bool => {
+  let long = "--" ++ name
+  let short = "-" ++ Js.String.slice(~from=0, ~to_=1, name)
+  args->Array.includes(long) || args->Array.includes(short)
+}
+
+/**
  * Extracts template attributes from CLI flag arguments.
  *
  * Parses `--key=value`, `--key value`, and `--key` (boolean true) patterns.
@@ -100,7 +111,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
     | "init" => {
         if args->Array.includes("--global") {
           await Commands.runInitGlobal(~deps)
-        } else if args->Array.includes("--help") || args->Array.includes("-h") {
+        } else if parseCommandFlag(args, ~name="help") {
           Help.printUsage()
           deps.process.exit(0)
         } else {
@@ -108,7 +119,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         }
       }
     | "generate" => {
-        if args->Array.includes("--help") || args->Array.includes("-h") {
+        if parseCommandFlag(args, ~name="help") {
           Help.printHelpFor("generate")
           deps.process.exit(0)
         }
@@ -151,7 +162,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         | None => classification
         }
 
-        let force = args->Array.includes("--force") || args->Array.includes("-f") || (
+        let force = parseCommandFlag(args, ~name="force") || (
           switch Dict.get(parsed.values, "force") {
           | Some("true") => true
           | _ => false
@@ -184,7 +195,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         )
       }
     | "template" => {
-        if args->Array.includes("--help") || args->Array.includes("-h") {
+        if parseCommandFlag(args, ~name="help") {
           Help.printHelpFor("template")
           deps.process.exit(0)
         }
@@ -216,7 +227,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
               ""
             }
           }
-          let force = args->Array.includes("--force") || args->Array.includes("-f")
+          let force = parseCommandFlag(args, ~name="force")
           await Commands.runTemplateCopy(~deps, ~fs, ~path=pathAdapter, ~name, ~force)
         | "list" => await Commands.runTemplateList(~deps, ~fs, ~path=pathAdapter)
         | "remove" =>
@@ -240,7 +251,7 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         deps.process.exit(0)
       }
     | "generator" => {
-        if args->Array.includes("--help") || args->Array.includes("-h") {
+        if parseCommandFlag(args, ~name="help") {
           Help.printHelpFor("generator")
           deps.process.exit(0)
         }
