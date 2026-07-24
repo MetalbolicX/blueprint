@@ -21,48 +21,140 @@ let _classifyIp: string => string = ip => {
   }
 }
 
-// True iff the IPv4 dotted-quad string lies inside [sN..eN] on each of four
-// octets. Operates on numeric octets.
-let _ipv4InOctetRange: (string, int, int, int, int, int, int, int, int) => bool = (
-  ip,
-  s0,
-  e0,
-  s1,
-  e1,
-  s2,
-  e2,
-  s3,
-  e3,
-) => {
-  let octets = ip->String.split(".")
-  let len = octets->Array.length
-  let get = i => {
-    if i < len {
-      switch octets[i] {
-      | Some(s) =>
-        switch Int.fromString(s) {
-        | Some(n) => n
-        | None => -1
+type ipClass = Private | Loopback | LinkLocal | Multicast | Public | Unspecified
+
+/// Parse dotted-quad IPv4 into an array of numeric octets.
+let parseIpv4 = (ip: string): array<int> => {
+  ip->String.split(".")->Array.map(s =>
+    switch Int.fromString(s) {
+    | Some(n) => n
+    | None => -1
+    }
+  )
+}
+
+/// Expand :: notation and return all 8 groups as strings.
+let parseIpv6 = (ip: string): array<string> => {
+  let parts = ip->String.split(":")
+  let nonEmpty = parts->Array.filter(s => s != "")
+  let zerosToAdd = 8 - nonEmpty->Array.length
+  if zerosToAdd <= 0 {
+    parts
+  } else {
+    let zeros = Array.make(~length=zerosToAdd, "0")
+    let before = ref([])
+    let after = ref([])
+    let gapFound = ref(false)
+    parts->Array.forEach(part => {
+      if part == "" {
+        if !gapFound.contents {
+          gapFound := true
         }
+      } else {
+        if gapFound.contents {
+          after := Array.concat(after.contents, [part])
+        } else {
+          before := Array.concat(before.contents, [part])
+        }
+      }
+    })
+    Array.concat(Array.concat(before.contents, zeros), after.contents)
+  }
+}
+
+/// Classify an IPv4 address (as parsed octets).
+let classifyIpv4 = (octets: array<int>): ipClass => {
+  let get = i =>
+    if i < octets->Array.length {
+      switch octets[i] {
+      | Some(n) => n
       | None => -1
       }
     } else {
       -1
     }
-  }
   let o0 = get(0)
   let o1 = get(1)
   let o2 = get(2)
   let o3 = get(3)
-  o0 >= s0 && o0 <= e0 && o1 >= s1 && o1 <= e1 && o2 >= s2 && o2 <= e2 && o3 >= s3 && o3 <= e3
+
+  if o0 >= 127 && o0 <= 127 && o1 >= 0 && o1 <= 255 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    Loopback
+  } else if o0 >= 10 && o0 <= 10 && o1 >= 0 && o1 <= 255 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    Private
+  } else if o0 >= 172 && o0 <= 172 && o1 >= 16 && o1 <= 31 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    Private
+  } else if o0 >= 192 && o0 <= 192 && o1 >= 168 && o1 <= 168 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    Private
+  } else if o0 >= 169 && o0 <= 169 && o1 >= 254 && o1 <= 254 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    LinkLocal
+  } else if o0 >= 0 && o0 <= 0 && o1 >= 0 && o1 <= 255 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
+    Unspecified
+  } else {
+    Public
+  }
 }
 
-// True iff `ip` (a normalized IPv6) starts with `hexPrefix`. Used for the
-// special-purpose IPv6 ranges that share a short hex prefix.
-let _ipv6StartsWith: (string, string) => bool = (ip, hexPrefix) => {
-  let normalized = ip->String.toLowerCase
-  let _ = normalized->String.length
-  String.startsWith(normalized, hexPrefix)
+/// Classify an IPv6 address (as expanded 8-group parts).
+let classifyIpv6 = (parts: array<string>): ipClass => {
+  let len = parts->Array.length
+  let get = i =>
+    if i < len {
+      switch parts[i] {
+      | Some(s) => s
+      | None => ""
+      }
+    } else {
+      ""
+    }
+
+  // Unspecified (::)
+  if len > 0 && parts->Array.every(s => s == "0") {
+    Unspecified
+  } 
+  // Loopback (::1)
+  else if len >= 2 {
+    let lastPart = get(len - 1)
+    let allButLast = parts->Array.slice(~start=0, ~end=len - 1)
+    if allButLast->Array.every(s => s == "0") && lastPart == "1" {
+      Loopback
+    } else {
+      // Prefix-based checks on first group
+      let first = get(0)
+      if String.startsWith(first, "fe8") || String.startsWith(first, "fe9") ||
+         String.startsWith(first, "fea") || String.startsWith(first, "feb") {
+        LinkLocal
+      } else if String.startsWith(first, "fc") || String.startsWith(first, "fd") {
+        Private
+      } else if String.startsWith(first, "ff") {
+        Multicast
+      } else {
+        Public
+      }
+    }
+  } else {
+    Public
+  }
+}
+
+/// Normalize an IPv6 address. For IPv4-mapped IPv6 (::ffff:x.x.x.x) we extract
+/// the embedded IPv4 so that Net.isIP returns 4 and classifyIpv4 handles it.
+let normalizeIpv6 = (addr: string): string => {
+  let normalized = addr->String.toLowerCase
+  if String.startsWith(normalized, "::ffff:") {
+    let len = String.length(normalized)
+    String.slice(normalized, ~start=7, ~end=len)
+  } else {
+    normalized
+  }
+}
+
+/// Policy: which IP classes are allowed for outbound fetch.
+let isClassAllowed = (cls: ipClass): bool => {
+  switch cls {
+  | Public => true
+  | _ => false
+  }
 }
 
 // Public IP classifier: true iff the IP is publicly-routable.
@@ -71,64 +163,10 @@ let _ipv6StartsWith: (string, string) => bool = (ip, hexPrefix) => {
 // (defense in depth: an attacker that slips a malformed address through URL
 // parsing still gets blocked here).
 let isIpAllowed: string => bool = ip => {
-  switch _classifyIp(ip) {
-  | "invalid" => false
-  | "v4" => {
-      // Reject IPv4 loopback (127.0.0.0/8), private (10/8, 172.16/12, 192.168/16),
-      // link-local (169.254/16) — covers cloud metadata 169.254.169.254.
-      // `_ipv4InOctetRange(ip, s0, e0, s1, e1, s2, e2, s3, e3)` requires
-      // each octet to fall in [sN..eN]. The trailing octets span [0..255]
-      // for the full subnet match.
-      let isLoopback = _ipv4InOctetRange(ip, 127, 127, 0, 255, 0, 255, 0, 255)
-      let isPrivate10 = _ipv4InOctetRange(ip, 10, 10, 0, 255, 0, 255, 0, 255)
-      let isPrivate172 = _ipv4InOctetRange(ip, 172, 172, 16, 31, 0, 255, 0, 255)
-      let isPrivate192 = _ipv4InOctetRange(ip, 192, 192, 168, 168, 0, 255, 0, 255)
-      let isLinkLocal = _ipv4InOctetRange(ip, 169, 169, 254, 254, 0, 255, 0, 255)
-      let isZero = _ipv4InOctetRange(ip, 0, 0, 0, 255, 0, 255, 0, 255)
-      if isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal || isZero {
-        false
-      } else {
-        true
-      }
-    }
-| "v6" => {
-      // Loopback ::1, link-local fe80::/10, unique-local fc00::/7,
-      // unspecified ::, multicast ff00::/8.
-      let normalized = ip->String.toLowerCase
-      let isLoopback = normalized == "::1"
-      let isUnspecified = normalized == "::"
-      // fe80::/10 means first byte = 0xfe AND second byte's top 2 bits = "10"
-      // (i.e., second nibble is 8/9/a/b).
-      let isLinkLocal =
-        _ipv6StartsWith(normalized, "fe8") ||
-          _ipv6StartsWith(normalized, "fe9") ||
-          _ipv6StartsWith(normalized, "fea") ||
-          _ipv6StartsWith(normalized, "feb")
-      // fc00::/7 means first byte is 1111 110x = 0xfc or 0xfd.
-      let isUniqueLocal =
-        _ipv6StartsWith(normalized, "fc") || _ipv6StartsWith(normalized, "fd")
-      let isMulticast = _ipv6StartsWith(normalized, "ff")
-      // IPv4-mapped IPv6: ::ffff:x.x.x.x — treat the trailing part as IPv4.
-      let isIpv4Mapped = String.startsWith(normalized, "::ffff:")
-      let ipv4Part = if isIpv4Mapped {
-        String.slice(normalized, ~start=7, ~end=String.length(normalized))
-      } else {
-        ""
-      }
-      let isMappedLoopback = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 127, 127, 0, 255, 0, 255, 0, 255)
-      let isMappedPrivate10 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 10, 10, 0, 255, 0, 255, 0, 255)
-      let isMappedPrivate172 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 172, 172, 16, 31, 0, 255, 0, 255)
-      let isMappedPrivate192 = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 192, 192, 168, 168, 0, 255, 0, 255)
-      let isMappedLinkLocal = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 169, 169, 254, 254, 0, 255, 0, 255)
-      let isMappedZero = isIpv4Mapped && _ipv4InOctetRange(ipv4Part, 0, 0, 0, 255, 0, 255, 0, 255)
-      if isLoopback || isUnspecified || isLinkLocal || isUniqueLocal || isMulticast ||
-        isMappedLoopback || isMappedPrivate10 || isMappedPrivate172 ||
-        isMappedPrivate192 || isMappedLinkLocal || isMappedZero {
-        false
-      } else {
-        true
-      }
-    }
+  let normalized = normalizeIpv6(ip)
+  switch Net.isIP(normalized) {
+  | 4 => parseIpv4(normalized)->classifyIpv4->isClassAllowed
+  | 6 => parseIpv6(normalized)->classifyIpv6->isClassAllowed
   | _ => false
   }
 }
