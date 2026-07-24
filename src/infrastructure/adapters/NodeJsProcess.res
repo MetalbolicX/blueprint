@@ -14,10 +14,10 @@ let removeSignalListeners: unit => unit = () => {
 }
 
 let make: unit => Ports.process = () => {
-  cwd: NodeProcess.cwd,
-  env: () => NodeProcess.env,
-  argv: () => NodeProcess.argv,
-  exit: NodeProcess.exit,
+  cwd: Process.cwd,
+  env: () => Process.env,
+  argv: () => Process.argv,
+  exit: Process.exit,
   onSignal,
   removeSignalListeners,
   homedir: NodeJs.Os.homedir,

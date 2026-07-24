@@ -1,3 +1,5 @@
+open ManifestYamlEditor
+
 let projectGeneratorSearchPaths = ["_templates", "templates", "generators"]
 
 let normalizeTemplateFilename = (filename: string) => {
@@ -232,7 +234,7 @@ let runAddPrompt: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = 
               }
 
               let manifestContent = await deps.fs.readFile(manifestPath, ~options={encoding: "utf8"})
-              switch Manifest.appendPromptPreservingComments(~yamlContent=manifestContent, ~prompt) {
+              switch appendPromptPreservingComments(~yamlContent=manifestContent, ~prompt) {
               | Error(e) => {
                   Console.error("Error: " ++ e)
                   deps.process.exit(1)

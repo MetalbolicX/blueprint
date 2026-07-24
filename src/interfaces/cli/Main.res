@@ -2,6 +2,6 @@
 let _ = Cli.main()->Promise.catch(e => {
   let msg = Errors.extractErrorMessage(e)
   Console.error("Fatal: " ++ msg)
-  NodeJs.NodeProcess.exit(1)
+  NodeJs.Process.exit(1)
   Promise.resolve()
 })

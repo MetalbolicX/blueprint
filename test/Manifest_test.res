@@ -319,7 +319,7 @@ suite("Manifest", () => {
       default: "Button",
     }
 
-    let result = Manifest.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
+    let result = ManifestYamlEditor.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
     switch result {
     | Ok(updatedYaml) => {
         assert_true(String.includes(updatedYaml, "# generator manifest"))
@@ -365,7 +365,7 @@ suite("Manifest", () => {
       ],
     }
 
-    let result = Manifest.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
+    let result = ManifestYamlEditor.appendPromptPreservingComments(~yamlContent=yaml, ~prompt=newPrompt)
     switch result {
     | Ok(updatedYaml) => {
         assert_true(String.includes(updatedYaml, "# no prompts yet"))
@@ -403,7 +403,7 @@ suite("Manifest", () => {
       description: "x",
     }
 
-    let result = Manifest.appendPromptPreservingComments(~yamlContent=invalidYaml, ~prompt=newPrompt)
+    let result = ManifestYamlEditor.appendPromptPreservingComments(~yamlContent=invalidYaml, ~prompt=newPrompt)
     switch result {
     | Ok(_) => assert_false(true)
     | Error(msg) => assert_true(String.length(msg) > 0)

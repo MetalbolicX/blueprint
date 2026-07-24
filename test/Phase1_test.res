@@ -396,7 +396,7 @@ suite("Phase1", () => {
           | Some(shellCommand) =>
             switch shellCommand.target {
             | Template.ScriptFile(path) => {
-                let expected = NodeJs.Path.resolve(NodeJs.NodeProcess.cwd(), "_templates/component/scripts/setup.sh")
+                let expected = NodeJs.Path.resolve(NodeJs.Process.cwd(), "_templates/component/scripts/setup.sh")
                 assert_eq(path, expected)
               }
             | _ => assert_false(true)

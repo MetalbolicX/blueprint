@@ -30,7 +30,6 @@ let parsePromptType: string => option<promptType>
 let parsePromptTypeFromInput: string => promptType
 let promptTypeToString: promptType => string
 let promptRequiresOptions: promptType => bool
-let appendPromptPreservingComments: (~yamlContent: string, ~prompt: prompt) => result<string, string>
 let parse: string => result<manifest, string>
 let validate: manifest => result<unit, array<validationError>>
 let validationErrorsToString: array<validationError> => string
