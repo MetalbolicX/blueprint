@@ -1,26 +1,14 @@
-let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
-  let homeDir = deps.process.homedir()
-  let configDir = deps.path.join(deps.path.join(homeDir, ".config"), "blueprint")
-  let configPath = deps.path.join(configDir, "config.yaml")
+// Commands — aggregator re-exporting per-command modules under commands/
+// Backwards-compatible run functions delegate to the individual command modules.
+module InitGlobal = InitGlobal
+module TemplateCopy = TemplateCopy
+module TemplateList = TemplateList
+module TemplateRemove = TemplateRemove
+module Init = Init
+module Generate = Generate
 
-  // Check if global config already exists
-  let exists = await deps.fs.fileExists(configPath)
-  if exists {
-    Console.error("Error: Global config already exists at " ++ configPath)
-    deps.process.exit(1)
-  } else {
-    // Create the directory if it doesn't exist
-    let dirExists = await deps.fs.fileExists(configDir)
-    if !dirExists {
-      let _ = await deps.fs.mkdir(configDir, ~options={recursive: true})
-    }
-    // WS4: `allow_dangerous_commands` removed from the bootstrapped config —
-    // ExecPolicy (WS2) is the single authority over shell command safety.
-    let content = "# Global Blueprint configuration\n# Loaded from ~/.config/blueprint/config.yaml\n\ntemplates: []\nforce_overwrite: false\ndry_run: false\ntimeout: 5\ndefault_attributes: {}\nregistry: []\n"
-    let _ = await deps.fs.writeFile(configPath, content)
-    Console.log("Scaffolded global config at " ++ configPath)
-  }
-}
+// Backwards-compatible run functions used by Router.res
+let runInitGlobal: (~deps: Ports.deps) => promise<unit> = InitGlobal.runInitGlobal
 
 let runTemplateCopy: (
   ~deps: Ports.deps,
@@ -28,214 +16,30 @@ let runTemplateCopy: (
   ~path: Ports.path,
   ~name: string,
   ~force: bool,
-) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
-  let homeDir = deps.process.homedir()
-  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
-
-  let cwd = deps.process.cwd()
-  let configResult = await Config.loadFrom(~fs, ~path, cwd)
-  let projectConfig = switch configResult {
-  | Ok(c) => c
-  | Error(_) => None
-  }
-  let merged = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
-  let sourceSearchPaths = ["_templates", "templates", "generators"]->Array.concat(merged.templates)
-  let generators = await Discovery.discover(~fs, ~path, ~searchPaths=sourceSearchPaths, ())
-
-  switch Discovery.findByClassification(generators, name) {
-  | None => {
-      Console.error("Error: template not found: " ++ name)
-      deps.process.exit(1)
-    }
-  | Some(generator) => {
-      let registryRoot = Utils.globalTemplateRegistryRoot(~deps)
-      let configPath = Utils.globalConfigPath(~deps)
-      let result = await TemplateRegistry.copyTemplateToRegistry(
-        ~deps,
-        ~fs,
-        ~path,
-        ~name,
-        ~sourcePath=generator.path,
-        ~registryRoot,
-        ~configPath,
-        ~globalConfig,
-        ~force,
-        ~confirmOverwrite=targetPath =>
-          deps.interactiveIO.askConfirm(
-            ~question="Template already exists at " ++ targetPath ++ ". Overwrite?",
-            ~defaultYes=false,
-          ),
-      )
-      switch result {
-      | Ok(_) => Console.log("Installed template: " ++ name ++ " -> " ++ deps.path.join(registryRoot, name))
-      | Error(e) => {
-          Console.error("Error: " ++ e)
-          deps.process.exit(1)
-        }
-      }
-    }
-  }
-}
+) => promise<unit> = TemplateCopy.runTemplateCopy
 
 let runTemplateList: (
   ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<unit> = async (~deps, ~fs, ~path) => {
-  let homeDir = deps.process.homedir()
-  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
-
-  if Array.length(globalConfig.registry) == 0 {
-    Console.log("No templates installed in registry.")
-  } else {
-    globalConfig.registry
-    ->Array.forEach(entry => Console.log(entry.name ++ "\t" ++ entry.source ++ "\t" ++ entry.path))
-  }
-}
+) => promise<unit> = TemplateList.runTemplateList
 
 let runTemplateRemove: (
   ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~name: string,
-) => promise<unit> = async (~deps, ~fs, ~path, ~name) => {
-  let homeDir = deps.process.homedir()
-  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
-  let configPath = Utils.globalConfigPath(~deps)
-  let result = await TemplateRegistry.removeTemplateFromRegistry(~deps, ~fs, ~path, ~name, ~configPath, ~globalConfig)
-  switch result {
-  | Ok(_) => Console.log("Removed template: " ++ name)
-  | Error(e) => {
-      Console.error("Error: " ++ e)
-      deps.process.exit(1)
-    }
-  }
-}
+) => promise<unit> = TemplateRemove.runTemplateRemove
 
-let runInit: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
-  let cwd = deps.process.cwd()
-  let configPath = deps.path.join(cwd, ".blueprint.yaml")
-
-  let exists = await deps.fs.fileExists(configPath)
-  if exists {
-    Console.error("Error: .blueprint.yaml already exists at " ++ configPath)
-    deps.process.exit(1)
-  } else {
-    let content = "# Blueprint configuration\n# Generated by Blueprint\n\ngenerators: []\nhooks:\n  pre_generate: \"\"\n  post_generate: \"\"\n  timeout: 5s"
-    await deps.fs.writeFile(configPath, content)
-    Console.log("Scaffolded .blueprint.yaml at " ++ configPath)
-  }
-}
+let runInit: (~deps: Ports.deps) => promise<unit> = Init.runInit
 
 let runGenerate: (
+  ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-  ~deps: Ports.deps,
   ~classification: string,
   ~name: string,
   ~force: bool,
   ~outputDir: string,
   ~cliAttributes: dict<Context.attrValue>,
-) => promise<unit> = async (~fs, ~path, ~deps, ~classification, ~name, ~force, ~outputDir, ~cliAttributes) => {
-  // Load global config (from ~/.config/blueprint/config.yaml)
-  let homeDir = deps.process.homedir()
-  let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
-
-  let cwd = deps.process.cwd()
-  let configResult = await Config.loadFrom(~fs, ~path, cwd)
-  let projectConfig = switch configResult {
-  | Ok(c) => c
-  | Error(e) => {
-      Console.error("Error loading .blueprint.yaml: " ++ e)
-      deps.process.exit(1)
-      None
-    }
-  }
-
-  let mergedConfig = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
-
-  switch Config.validateMergedConfig(mergedConfig) {
-  | Error(e) => {
-      Console.error("Error: " ++ e)
-      deps.process.exit(1)
-    }
-  | Ok() => {
-      // Build search paths: project paths first, then registry paths, then raw global paths
-      let projectPaths = ["_templates", "templates", "generators"]
-      let allPaths = Utils.buildGenerateSearchPaths(
-        ~deps,
-        ~projectPaths,
-        ~registry=globalConfig.registry,
-        ~globalTemplates=mergedConfig.templates,
-      )
-      let generators = await Discovery.discover(~fs, ~path, ~searchPaths=allPaths, ())
-
-      switch Discovery.findByClassification(generators, classification) {
-      | None => {
-          Console.error("Error: generator not found for classification \"" ++ classification ++ "\"")
-          deps.process.exit(1)
-        }
-      | Some(generator) => {
-          // Build effective config for Engine (using merged timeout)
-          // Keep project hooks as-is but use merged timeout
-          let effectiveConfig: Config.config = {
-            output: ?projectConfig->Option.flatMap(c => c.output),
-            dryRun: ?Some(mergedConfig.dryRun),
-            hooks: ?Some({
-              preGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate),
-              postGenerate: ?projectConfig->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate),
-              timeout: mergedConfig.timeout,
-            }),
-            shell: ?mergedConfig.shell,
-          }
-
-          let result = await Engine.run(
-            ~generator,
-            ~name,
-            ~cliAttributes,
-            ~outputDir,
-            ~force,
-            ~config=effectiveConfig,
-            ~deps,
-          )
-
-          switch result {
-          | Error(e) => {
-              Console.error("Error: " ++ e.message)
-              switch e.partialCommit {
-              | Some(files) if files->Array.length > 0 =>
-                Console.error("Partially committed files: " ++ files->Array.join(", "))
-              | _ => ()
-              }
-              switch e.catastrophic {
-              | Some(true) =>
-                switch e.failedRollbackFiles {
-                | Some(failed) if failed->Array.length > 0 =>
-                  Console.error("WARNING: Could not rollback these files: " ++ failed->Array.join(", "))
-                | _ => ()
-                }
-                Console.error("Catastrophic failure — output directory may be in an inconsistent state")
-              | _ => ()
-              }
-              deps.process.exit(1)
-            }
-          | Ok(r) => {
-              switch r.shellErrors {
-              | Some(errs) if errs->Array.length > 0 =>
-                errs->Array.forEach(err => Console.warn("Shell warning: " ++ err))
-              | _ => ()
-              }
-              Console.log(
-                "Blueprint: generated " ++
-                Int.toString(r.filesCreated) ++
-                " file(s), " ++
-                Int.toString(r.commandsExecuted) ++
-                " command(s)",
-              )
-            }
-          }
-        }
-      }
-    }
-  }
-}
+) => promise<unit> = Generate.runGenerate
