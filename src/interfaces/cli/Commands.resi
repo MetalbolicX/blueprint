@@ -3,9 +3,9 @@ let runInit: (~deps: Ports.deps) => promise<unit>
 let runInitGlobal: (~deps: Ports.deps) => promise<unit>
 
 let runGenerate: (
+  ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-  ~deps: Ports.deps,
   ~classification: string,
   ~name: string,
   ~force: bool,

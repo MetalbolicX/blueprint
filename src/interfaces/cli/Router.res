@@ -184,9 +184,9 @@ let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~
         })
 
         await Commands.runGenerate(
+          ~deps,
           ~fs,
           ~path=pathAdapter,
-          ~deps,
           ~classification,
           ~name,
           ~force,
