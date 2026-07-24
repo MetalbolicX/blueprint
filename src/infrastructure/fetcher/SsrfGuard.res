@@ -262,10 +262,7 @@ let isUrlAllowed: (
       // Promise.catch handler receives `exn` (not JsExn.t); Obj.magic is
       // required to bridge the untyped exception payload into JsExn.t.
       ->Promise.catch(e => {
-        let msg = switch JsExn.message(e->Obj.magic) {
-        | Some(m) => m
-        | None => "DNS lookup failed"
-        }
+        let msg = Errors.extractErrorMessage(e)
         Promise.resolve(Error("DNS lookup failed for " ++ hostname ++ ": " ++ msg))
       })
     }
