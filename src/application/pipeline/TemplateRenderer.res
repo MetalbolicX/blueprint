@@ -9,6 +9,10 @@ type renderedOutput = {
   renderedBody: string,
 }
 
+type stageVerdict =
+  | StageProceed
+  | StageSkip
+
 let resolveTargetPath: (Template.directive, Context.context) => result<string, string> = (
   directive,
   ctx,
@@ -135,11 +139,8 @@ let applyInjection: (
   }
 }
 
-let loadTemplateBodyFromDirective: (
-  template,
-  ~fs: Ports.fileSystem,
-  ~path: Ports.path,
-) => promise<result<template, string>> = async (template, ~fs, ~path) => {
+// Resolve template body from inline value or `from:` directive file load
+let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.path) => {
   switch template.directives->Array.find(d => {
     switch d {
     | From(_) => true
@@ -160,7 +161,7 @@ let loadTemplateBodyFromDirective: (
       } else {
         try {
           let externalBody = await fs.readFile(resolvedPath, ~options={encoding: "utf8"})
-          Ok({...template, body: externalBody})
+          Ok(externalBody)
         } catch {
         | JsExn(obj) =>
           let msg = switch JsExn.message(obj) {
@@ -171,11 +172,38 @@ let loadTemplateBodyFromDirective: (
         }
       }
     }
-  | _ => Ok(template)
+  | _ => Ok(template.body)
   }
 }
 
-// Render a template end-to-end (resolve target, skip-decisions, body load, render, inject).
+// Validate staging conditions: path security, conflict decisions, unlessExists
+let stageAndValidate = async (template, ~targetPath: string, ~finalTargetPath: string, ~outputDir: string, ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>, ~fs: Ports.fileSystem, ~path: Ports.path) => {
+  let isWithin = await PathSecurity.isWithinTree(finalTargetPath, outputDir, path, fs)
+  if !isWithin {
+    Error("Rendered 'to' path escapes output tree: " ++ targetPath)
+  } else {
+    let skipFromDecision = switch conflictDecisions {
+    | Some(decisions) =>
+      decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
+    | None => false
+    }
+
+    if skipFromDecision {
+      Ok(StageSkip)
+    } else if hasUnlessExists(template) {
+      let exists = await fs.fileExists(finalTargetPath)
+      if exists {
+        Ok(StageSkip)
+      } else {
+        Ok(StageProceed)
+      }
+    } else {
+      Ok(StageProceed)
+    }
+  }
+}
+
+// Render a template end-to-end (resolve target, body load, render, validate, inject).
 // Returns None when the template should be skipped (conflict-decision-skip or unless-exists hit).
 let render: (
   ~template: template,
@@ -194,7 +222,7 @@ let render: (
   ~path,
   ~process as _,
 ) => {
-  // Find "to" directive for target path
+  // 1. Resolve target path
   let targetPathResult =
     template.directives
     ->Array.find(d => {
@@ -207,65 +235,48 @@ let render: (
 
   switch targetPathResult {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)
-  | Some(Error(e)) => Error("Failed to render 'to' path in template " ++ template.sourcePath ++ ": " ++ e)
+  | Some(Error(e)) =>
+    Error("Failed to render 'to' path in template " ++ template.sourcePath ++ ": " ++ e)
   | Some(Ok(targetPath)) => {
     let finalTargetPath = path.join(outputDir, targetPath)
 
-    // WS1: reject any rendered `to:` that escapes the output tree.
-    // Covers absolute paths, `..` traversal, and symlinks that resolve outside outputDir.
-    // Mirrors the existing `from:` guard at TemplateRenderer.loadTemplateBodyFromDirective:149.
-    let isWithin = await PathSecurity.isWithinTree(finalTargetPath, outputDir, path, fs)
-    if !isWithin {
-      Error("Rendered 'to' path escapes output tree: " ++ targetPath)
-    } else {
-      // Check conflict decisions: skip files the user chose not to overwrite
-      let skipFromDecision = switch conflictDecisions {
-      | Some(decisions) =>
-        decisions->Array.some(d => d.targetPath == finalTargetPath && !d.overwrite)
-      | None => false
-      }
-
-      if skipFromDecision {
-        Ok(None)
-      } else if hasUnlessExists(template) {
-        let exists = await fs.fileExists(finalTargetPath)
-        if exists {
-          Ok(None)
-        } else {
-          switch await loadTemplateBodyFromDirective(template, ~fs, ~path) {
-          | Error(e) => Error(e)
-          | Ok(templateToRender) => {
-              let renderCtx = Context.toRenderContext(context)
-              switch Renderer.render(templateToRender, renderCtx) {
-              | Ok(renderedBody) =>
-                Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody}))
-              | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
-              }
-            }
-          }
-        }
-      } else {
-        switch await loadTemplateBodyFromDirective(template, ~fs, ~path) {
+    // 2. Resolve template body (inline or from: directive file)
+    switch await resolveTemplateBody(template, ~fs, ~path) {
+    | Error(e) => Error(e)
+    | Ok(resolvedBody) =>
+      // 3. Render the template body with context
+      let renderCtx = Context.toRenderContext(context)
+      switch Renderer.render({...template, body: resolvedBody}, renderCtx) {
+      | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
+      | Ok(renderedBody) =>
+        // 4. Validate staging (path security, conflict decisions, unlessExists)
+        switch await stageAndValidate(
+          template,
+          ~targetPath,
+          ~finalTargetPath,
+          ~outputDir,
+          ~conflictDecisions,
+          ~fs,
+          ~path,
+        ) {
+        | Ok(StageSkip) => Ok(None)
         | Error(e) => Error(e)
-        | Ok(templateToRender) => {
-            let renderCtx = Context.toRenderContext(context)
-            switch Renderer.render(templateToRender, renderCtx) {
-            | Ok(renderedBody) => {
-                // Apply injection if template has injection directives
-                let finalRenderedBody = if requiresExistingTarget(template) {
-                  switch await applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
-                  | Error(e) => Error(e)
-                  | Ok(injected) => Ok(injected)
-                  }
-                } else {
-                  Ok(renderedBody)
-                }
-                switch finalRenderedBody {
+        | Ok(StageProceed) => {
+            // 5. Apply injection when template requires an existing target file
+            let finalRenderedBody =
+              if hasUnlessExists(template) {
+                Ok(renderedBody)
+              } else if requiresExistingTarget(template) {
+                switch await applyInjection(~renderedBody, ~template, ~finalTargetPath, ~fs) {
                 | Error(e) => Error(e)
-                | Ok(body) => Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody: body}))
+                | Ok(injected) => Ok(injected)
                 }
+              } else {
+                Ok(renderedBody)
               }
-            | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
+            switch finalRenderedBody {
+            | Error(e) => Error(e)
+            | Ok(body) => Ok(Some({sourcePath: template.sourcePath, targetPath, renderedBody: body}))
             }
           }
         }
