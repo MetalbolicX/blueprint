@@ -157,39 +157,32 @@ module ChildProcess = {
     Nullable.toOption(err.code)->Option.getOr(1)
   }
 
+  // Shared callback wrapper — extracts error, builds execResult
+  let wrapExecResult = (invoke: (~callback: execCallback) => childProcess): promise<execResult> => {
+    Promise.make((resolve, _reject) => {
+      let _ = invoke(~callback=(err, stdout, stderr) => {
+        if Nullable.isNullable(err) {
+          resolve({stdout, stderr, status: Some(0), signalCode: None, killed: false})
+        } else {
+          let errObj = Nullable.toOption(err)->Option.getOrThrow
+          let (signal, killed) = extractExecError(errObj)
+          let code = extractExitCode(errObj)
+          resolve({stdout, stderr, status: Some(code), signalCode: signal, killed})
+        }
+      })
+    })
+  }
+
   // Properly typed async exec using callback API internally
   let execAsync: (
     string,
     ~options: execOptions=?,
   ) => promise<execResult> = (cmd, ~options=?) => {
-    Promise.make((resolve, _reject) => {
-      let opts = switch options {
-      | Some(o) => o
-      | None => {}
-      }
-      let _ = execWithCallback(cmd, ~options=opts, ~callback=(err, stdout, stderr) => {
-        if Nullable.isNullable(err) {
-          resolve({
-            stdout,
-            stderr,
-            status: Some(0),
-            signalCode: None,
-            killed: false,
-          })
-        } else {
-          let errObj = Nullable.toOption(err)->Option.getOrThrow
-          let (signal, killed) = extractExecError(errObj)
-          let code = extractExitCode(errObj)
-          resolve({
-            stdout,
-            stderr,
-            status: Some(code),
-            signalCode: signal,
-            killed,
-          })
-        }
-      })
-    })
+    let opts = switch options {
+    | Some(o) => o
+    | None => {}
+    }
+    wrapExecResult((~callback) => execWithCallback(cmd, ~options=opts, ~callback))
   }
 
   @module("node:child_process")
@@ -205,38 +198,15 @@ module ChildProcess = {
     ~args: array<string>=?,
     ~options: execOptions=?,
   ) => promise<execResult> = (cmd, ~args=?, ~options=?) => {
-    Promise.make((resolve, _reject) => {
-      let opts = switch options {
-      | Some(o) => o
-      | None => {}
-      }
-      let argsArr = switch args {
-      | Some(a) => a
-      | None => []
-      }
-      let _ = execFileWithCallback(cmd, argsArr, ~options=opts, ~callback=(err, stdout, stderr) => {
-        if Nullable.isNullable(err) {
-          resolve({
-            stdout,
-            stderr,
-            status: Some(0),
-            signalCode: None,
-            killed: false,
-          })
-        } else {
-          let errObj = Nullable.toOption(err)->Option.getOrThrow
-          let (signal, killed) = extractExecError(errObj)
-          let code = extractExitCode(errObj)
-          resolve({
-            stdout,
-            stderr,
-            status: Some(code),
-            signalCode: signal,
-            killed,
-          })
-        }
-      })
-    })
+    let opts = switch options {
+    | Some(o) => o
+    | None => {}
+    }
+    let argsArr = switch args {
+    | Some(a) => a
+    | None => []
+    }
+    wrapExecResult((~callback) => execFileWithCallback(cmd, argsArr, ~options=opts, ~callback))
   }
 
   let execShellCommand: (
