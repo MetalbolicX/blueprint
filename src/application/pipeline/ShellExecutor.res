@@ -42,10 +42,7 @@ let execToolAsync = (
       }
     }
   })->Promise.catch(e => {
-    let msg = switch JsExn.message(e->Obj.magic) {
-    | Some(m) => m
-    | None => "unknown error"
-    }
+    let msg = Errors.extractErrorMessage(e)
     Promise.resolve(Error("Tool '" ++ name ++ "' execution failed: " ++ msg))
   })
 }
@@ -104,10 +101,7 @@ let executeShellCommands: (
                     count.contents = count.contents + 1
                     Promise.resolve(Ok())
                   })->Promise.catch(e => {
-                    let msg = switch JsExn.message(e->Obj.magic) {
-                    | Some(m) => m
-                    | None => "unknown error"
-                    }
+                    let msg = Errors.extractErrorMessage(e)
                     Promise.resolve(Error("Failed to write fetched content: " ++ url ++ " — " ++ msg))
                   })
                 }
@@ -218,10 +212,7 @@ let executeShellCommands: (
                     })->Promise.catch(e => {
                       // Promise.catch handler receives `exn` (not JsExn.t);
                       // Obj.magic bridges into JsExn.t for message extraction.
-                      let msg = switch JsExn.message(e->Obj.magic) {
-                      | Some(m) => m
-                      | None => "unknown"
-                      }
+                      let msg = Errors.extractErrorMessage(e)
                       Promise.resolve(Error("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")"))
                     })
                   }
