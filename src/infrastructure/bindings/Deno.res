@@ -102,5 +102,9 @@ module Fs = {
   
   @val @scope("Deno") external makeTempDirSync: unit => string = "makeTempDirSync"
 
+  @val @scope("Deno") external makeTempDir: unit => promise<string> = "makeTempDir"
+
+  @val @scope("Deno") external tempDir: unit => string = "tempDir"
+
   @val @scope("Deno") external realPath: string => promise<string> = "realPath"
 }

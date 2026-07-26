@@ -17,6 +17,15 @@ type cpOptions = {recursive: bool}
 type readdirOptions = {withFileTypes: bool}
 type statResult = {isDirectory: unit => bool, isFile: unit => bool}
 
+type yamlParser = {
+  parse: string => result<JSON.t, string>,
+}
+
+type ejs = {
+  renderString: (~template: string, ~context: dict<string>) => result<string, string>,
+  renderFile: (~path: string, ~context: dict<string>) => promise<result<string, string>>,
+}
+
 type fileSystem = {
   readFile: (string, ~options: readFileOptions=?) => promise<string>,
   writeFile: (string, string, ~options: writeFileOptions=?) => promise<unit>,
@@ -27,6 +36,7 @@ type fileSystem = {
   fileExists: string => promise<bool>,
   stat: string => promise<statResult>,
   realpath: string => promise<string>,
+  makeStagingDir: string => promise<string>,
 }
 
 type process = {
@@ -90,4 +100,6 @@ type deps = {
   shell: shell,
   interactiveIO: interactiveIO,
   argParser: argParser,
+  yamlParser: yamlParser,
+  ejs: ejs,
 }
