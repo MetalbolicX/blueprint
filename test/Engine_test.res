@@ -11,6 +11,8 @@ let deps: Ports.deps = {
   shell: NodeJsShell.make(),
   interactiveIO: NodeJsInteractiveIO.make(()),
   argParser: NodeJsArgParser.make(),
+  yamlParser: NodeJsYamlParser.make(),
+  ejs: NodeJsEjs.make(),
 }
 
 let staleThresholdMs = 5 * 60 * 1000
@@ -38,6 +40,7 @@ let makeCleanupFs = (
       isFile: () => !(directoryPaths->Array.some(path => path == target)),
     }: Ports.statResult),
   realpath: target => Promise.resolve(target),
+  makeStagingDir: prefix => Promise.resolve(tmpRoot ++ "/" ++ prefix ++ "-test"),
 }
 
 let makeSignalProcess = (
@@ -565,6 +568,8 @@ suite("Engine", () => {
       shell: deps.shell,
       interactiveIO: NodeJsInteractiveIO.make(()),
       argParser: deps.argParser,
+      yamlParser: deps.yamlParser,
+      ejs: deps.ejs,
     }
     let gen: Discovery.generator = {
       name: "component",

@@ -16,6 +16,7 @@ let makeMockFs = (): Ports.fileSystem => {
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   realpath: path => Promise.resolve(path),
+  makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
 
 let runTests = (label, pathAdapter) => {

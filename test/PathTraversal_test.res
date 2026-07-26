@@ -13,6 +13,7 @@ let makeMockFs = (): Ports.fileSystem => {
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   realpath: path => Promise.resolve(path),
+  makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
 
 let runIsWithinTree = (path, root, pathAdapter) => {
@@ -36,6 +37,7 @@ let makeRecordingFs = (~cpCalls: ref<int>): Ports.fileSystem => {
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   realpath: path => Promise.resolve(path),
+  makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
 
 suite("PathTraversal", () => {
@@ -137,6 +139,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
     ->Promise.then(result => {
@@ -168,6 +171,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
     ->Promise.then(result => {
@@ -198,6 +202,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
     ->Promise.then(result => {

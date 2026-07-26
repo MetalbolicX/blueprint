@@ -31,6 +31,7 @@ let makeFsWithRestoreFailure = (~failingRestoreFromPath: string): Ports.fileSyst
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
     realpath: file => base.realpath(file),
+    makeStagingDir: prefix => base.makeStagingDir(prefix),
   }
 }
 

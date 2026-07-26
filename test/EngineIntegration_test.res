@@ -9,6 +9,8 @@ let deps: Ports.deps = {
   shell: NodeJsShell.make(),
   interactiveIO: NodeJsInteractiveIO.make(()),
   argParser: NodeJsArgParser.make(),
+  yamlParser: NodeJsYamlParser.make(),
+  ejs: NodeJsEjs.make(),
 }
 
 suite("Engine Integration", () => {

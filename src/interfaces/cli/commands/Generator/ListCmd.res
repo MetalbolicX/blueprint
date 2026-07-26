@@ -14,7 +14,7 @@ let runList: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = async
           let manifestPath = deps.path.join(generatorDir, "manifest.yaml")
           let manifestResult = if await deps.fs.fileExists(manifestPath) {
             let manifestContent = await deps.fs.readFile(manifestPath, ~options={encoding: "utf8"})
-            Manifest.parse(manifestContent)
+            Manifest.parse(~yamlParser=deps.yamlParser, ~yaml=manifestContent)
           } else {
             Error("manifest missing")
           }

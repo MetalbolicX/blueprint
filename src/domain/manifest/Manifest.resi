@@ -30,6 +30,6 @@ let parsePromptType: string => option<promptType>
 let parsePromptTypeFromInput: string => promptType
 let promptTypeToString: promptType => string
 let promptRequiresOptions: promptType => bool
-let parse: string => result<manifest, string>
+let parse: (~yamlParser: Ports.yamlParser, ~yaml: string) => result<manifest, string>
 let validate: manifest => result<unit, array<validationError>>
 let validationErrorsToString: array<validationError> => string

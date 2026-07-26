@@ -30,6 +30,8 @@ let makeDeps = (~cwd: string, ~exitCodes: ref<array<int>>): Ports.deps => {
     argParser: {
       parse: (~args as _, ~strict as _, ~allowPositionals as _) => Ok({values: Dict.make(), positionals: []}),
     },
+    yamlParser: NodeJsYamlParser.make(),
+    ejs: NodeJsEjs.make(),
   }
 }
 

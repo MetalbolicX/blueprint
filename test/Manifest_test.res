@@ -1,11 +1,12 @@
 // Manifest_test — manifest parsing and validation tests
 
 open TestHelpers
+open TestPorts
 
 suite("Manifest", () => {
   test("parse: minimal valid manifest", () => {
     let yaml = "name: test\nclassification: test\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => {
         assert_eq(m.name, "test")
@@ -17,7 +18,7 @@ suite("Manifest", () => {
 
   test("parse: manifest with prompts", () => {
     let yaml = "name: component\nclassification: component\nprompts:\n  - name: path\n    type: input\n    description: Output path\n    default: src/components\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => {
         assert_eq(m.name, "component")
@@ -41,7 +42,7 @@ suite("Manifest", () => {
 
   test("parse: select prompt with options", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - component\n      - hook\n      - utility\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -62,7 +63,7 @@ suite("Manifest", () => {
 
   test("parse: confirm prompt", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: typescript\n    type: confirm\n    description: Use TypeScript\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -77,7 +78,7 @@ suite("Manifest", () => {
 
   test("parse: metadata", () => {
     let yaml = "name: test\nclassification: test\nmetadata:\n  author: someone\n  version: 1.0\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.metadata {
       | Some(meta) => {
@@ -123,7 +124,7 @@ suite("Manifest", () => {
 
   test("parse: multi-select prompt with options", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: colors\n    type: multi-select\n    options:\n      - red\n      - green\n      - blue\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -202,7 +203,7 @@ suite("Manifest", () => {
 
   test("parse: prompt with when field", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: color\n    type: input\n    description: Color\n    when: answers.theme == \"custom\"\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -223,7 +224,7 @@ suite("Manifest", () => {
 
   test("parse: prompt with validate pattern and message", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: email\n    type: input\n    description: Email\n    validate:\n      pattern: \"^[a-z]+@[a-z]+\\\\.[a-z]+$\"\n      message: Must be a valid email\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -250,7 +251,7 @@ suite("Manifest", () => {
 
   test("parse: select prompt with options as objects", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - label: React Component\n        value: component\n      - label: Custom Hook\n        value: hook\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -280,7 +281,7 @@ suite("Manifest", () => {
 
   test("parse: backward compat — options as plain string array", () => {
     let yaml = "name: test\nclassification: test\nprompts:\n  - name: type\n    type: select\n    options:\n      - component\n      - hook\n      - utility\n"
-    let result = Manifest.parse(yaml)
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
     switch result {
     | Ok(m) => switch m.prompts {
       | Some(prompts) => switch prompts[0] {
@@ -326,7 +327,7 @@ suite("Manifest", () => {
         assert_true(String.includes(updatedYaml, "# prompts section"))
         assert_true(String.includes(updatedYaml, "# existing prompt"))
 
-        switch Manifest.parse(updatedYaml) {
+        switch Manifest.parse(~yamlParser=stubYamlParser, ~yaml=updatedYaml) {
         | Ok(manifest) =>
           switch manifest.prompts {
           | Some(prompts) => {
@@ -369,7 +370,7 @@ suite("Manifest", () => {
     switch result {
     | Ok(updatedYaml) => {
         assert_true(String.includes(updatedYaml, "# no prompts yet"))
-        switch Manifest.parse(updatedYaml) {
+        switch Manifest.parse(~yamlParser=stubYamlParser, ~yaml=updatedYaml) {
         | Ok(manifest) =>
           switch manifest.prompts {
           | Some(prompts) => {
