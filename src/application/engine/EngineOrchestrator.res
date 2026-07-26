@@ -29,7 +29,7 @@ let run: (
   ~config=?,
   ~deps,
 ) => {
-  let {fs, path, process: proc, shell, interactiveIO: io} = deps
+  let {fs, path, process: proc, shell, interactiveIO: io, ejs} = deps
 
   // Phase 0: setup (unconditional)
   Fetcher.clearCache()
@@ -103,6 +103,7 @@ let run: (
         ~shellConfig,
         ~fs,
         ~path,
+        ~ejs,
         ~process=proc,
       ) {
       | Error(e) => Error({Commit.message: e})

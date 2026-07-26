@@ -31,7 +31,15 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   let resolvedTmpRoot = switch tmpRoot {
   | Some(dir) => dir
   | None => {
-      let probeRoot = NodeJs.Os.tmpdir()
+      // Create a short-lived staging probe to derive the temp root
+      let probeDir = await fs.makeStagingDir(stagingDirPrefix ++ "probe")
+      let probeRoot = path.dirname(probeDir)
+      // Remove the probe immediately after deriving the root
+      try {
+        await fs.rm(probeDir, ~options={recursive: true})
+      } catch {
+      | _ => ()
+      }
       probeRoot
     }
   }
