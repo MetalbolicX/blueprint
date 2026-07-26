@@ -61,9 +61,9 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
 //   Ok(Some)  — manifest present AND valid
 //   Error(s)  — manifest present but failed to parse OR failed validation;
 //                s is `manifest at <path> invalid: <details>`
-let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<
+let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports.yamlParser, string) => promise<
   result<option<Manifest.manifest>, string>,
-> = async (~fs, ~path, generatorPath) => {
+> = async (~fs, ~path, ~yamlParser, generatorPath) => {
   let manifestPath = path.join(generatorPath, "manifest.yaml")
 
   let exists = await fs.fileExists(manifestPath)
@@ -72,7 +72,7 @@ let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
   } else {
     try {
       let content = await fs.readFile(manifestPath, ~options={encoding: "utf8"})
-      switch Manifest.parse(content) {
+      switch Manifest.parse(~yamlParser, ~yaml=content) {
       | Ok(m) =>
         switch Manifest.validate(m) {
         | Ok() => Ok(Some(m))
@@ -95,9 +95,10 @@ let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
 }
 
 // Discover all generators under a base directory
-let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<array<generator>> = async (
+let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports.yamlParser, string) => promise<array<generator>> = async (
   ~fs,
   ~path,
+  ~yamlParser,
   baseDir,
 ) => {
   let exists = await fs.fileExists(baseDir)
@@ -164,7 +165,7 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<ar
           // Fail-fast: if the manifest fails to parse or validate, skip this
           // generator entirely (with a visible warning) instead of silently
           // returning it with a malformed/missing manifest attached.
-          switch await _loadManifest(~fs, ~path, genPath) {
+          switch await _loadManifest(~fs, ~path, ~yamlParser, genPath) {
           | Ok(maybeM) =>
             Some({
               name: entry,
@@ -205,16 +206,17 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<ar
 let discover: (
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~yamlParser: Ports.yamlParser,
   ~searchPaths: array<string>=?,
   unit,
-) => promise<array<generator>> = async (~fs, ~path, ~searchPaths=?, ()) => {
+) => promise<array<generator>> = async (~fs, ~path, ~yamlParser, ~searchPaths=?, ()) => {
   let defaultPaths = ["_templates", "templates", "generators"]
   let paths = switch searchPaths {
   | Some(p) => p
   | None => defaultPaths
   }
 
-  let allGenPromises = paths->Array.map(baseDir => discoverIn(~fs, ~path, baseDir))
+  let allGenPromises = paths->Array.map(baseDir => discoverIn(~fs, ~path, ~yamlParser, baseDir))
   let allResults = await Promise.all(allGenPromises)
 
   // Flatten all generators from all paths

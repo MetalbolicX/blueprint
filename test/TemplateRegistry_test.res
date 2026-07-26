@@ -24,14 +24,16 @@ let writeGeneratorFixture = (~root: string, ~name: string) => {
 suite("TemplateRegistry", () => {
   test("buildGenerateSearchPaths: keeps project-local precedence", () => {
     let paths = Cli.buildGenerateSearchPaths(
-      ~deps={
-        fs: fsAdapter,
-        path: pathAdapter,
-        process: NodeJsProcess.make(),
-        shell: NodeJsShell.make(),
-        argParser: NodeJsArgParser.make(),
-        interactiveIO: NodeJsInteractiveIO.make(),
-      },
+        ~deps={
+          fs: fsAdapter,
+          path: pathAdapter,
+          process: NodeJsProcess.make(),
+          shell: NodeJsShell.make(),
+          argParser: NodeJsArgParser.make(),
+          interactiveIO: NodeJsInteractiveIO.make(),
+          yamlParser: NodeJsYamlParser.make(),
+          ejs: NodeJsEjs.make(),
+        },
       ~projectPaths=["_templates", "templates"],
       ~registry=[
         {
@@ -76,6 +78,8 @@ suite("TemplateRegistry", () => {
           shell: NodeJsShell.make(),
           argParser: NodeJsArgParser.make(),
           interactiveIO: NodeJsInteractiveIO.make(),
+          yamlParser: NodeJsYamlParser.make(),
+          ejs: NodeJsEjs.make(),
         },
         ~fs=fsAdapter,
         ~path=pathAdapter,
@@ -164,6 +168,8 @@ suite("TemplateRegistry", () => {
           shell: NodeJsShell.make(),
           argParser: NodeJsArgParser.make(),
           interactiveIO: NodeJsInteractiveIO.make(),
+          yamlParser: NodeJsYamlParser.make(),
+          ejs: NodeJsEjs.make(),
         },
         ~fs=fsAdapter,
         ~path=pathAdapter,
@@ -204,7 +210,7 @@ suite("TemplateRegistry", () => {
     NodeJs.Fs.mkdir(installed, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(installed, "manifest.yaml"), "name: api-route\n"))
     ->Promise.then(_ => Config.saveGlobalAtPath(~fs=fsAdapter, ~path=pathAdapter, ~configPath, cfg))
-    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~deps={fs: fsAdapter, path: pathAdapter, process: NodeJsProcess.make(), shell: NodeJsShell.make(), argParser: NodeJsArgParser.make(), interactiveIO: NodeJsInteractiveIO.make()}, ~fs=fsAdapter, ~path=pathAdapter, ~name="api-route", ~configPath, ~globalConfig=cfg))
+    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~deps={fs: fsAdapter, path: pathAdapter, process: NodeJsProcess.make(), shell: NodeJsShell.make(), argParser: NodeJsArgParser.make(), interactiveIO: NodeJsInteractiveIO.make(), yamlParser: NodeJsYamlParser.make(), ejs: NodeJsEjs.make()}, ~fs=fsAdapter, ~path=pathAdapter, ~name="api-route", ~configPath, ~globalConfig=cfg))
     ->Promise.then(result => {
       switch result {
       | Error(_) => {
@@ -253,6 +259,8 @@ suite("TemplateRegistry", () => {
           shell: NodeJsShell.make(),
           argParser: NodeJsArgParser.make(),
           interactiveIO: NodeJsInteractiveIO.make(),
+          yamlParser: NodeJsYamlParser.make(),
+          ejs: NodeJsEjs.make(),
         },
         ~projectPaths=[localRoot],
         ~registry=[
@@ -264,7 +272,7 @@ suite("TemplateRegistry", () => {
         ],
         ~globalTemplates=[],
       )
-      Discovery.discover(~fs=fsAdapter, ~path=pathAdapter, ~searchPaths=paths, ())
+      Discovery.discover(~fs=fsAdapter, ~path=pathAdapter, ~yamlParser=NodeJsYamlParser.make(), ~searchPaths=paths, ())
     })
     ->Promise.then(generators => {
       switch Discovery.findByClassification(generators, classification) {

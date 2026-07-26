@@ -50,4 +50,18 @@ let make: unit => Ports.fileSystem = () => {
   },
   fileExists: fileExists,
   realpath: Deno.Fs.realPath,
+  makeStagingDir: async _prefix => {
+    let ts = Date.now()->Float.toInt->Int.toString
+    let r = Math.random()->Float.toString
+    let r2 = String.split(r, ".")->Array.get(1)->Option.getOr("x")
+    let dir = "blueprint-" ++ ts ++ "-" ++ r2
+    let tmp = Deno.Fs.tempDir()
+    let fullPath = Path.join(tmp, dir)
+    try {
+      let _ = await Deno.Fs.mkdir(fullPath, {recursive: true})
+      fullPath
+    } catch {
+    | _ => fullPath
+    }
+  },
 }

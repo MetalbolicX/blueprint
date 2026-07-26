@@ -9,7 +9,7 @@ type phase1Error = {
   message: string,
 }
 
-let resolveTargetPath: (Template.directive, Context.context) => result<string, string>
+let resolveTargetPath: (~ejs: Ports.ejs, Template.directive, Context.context) => result<string, string>
 
 let run: (
   ~templates: array<Template.template>,
@@ -19,5 +19,6 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>>

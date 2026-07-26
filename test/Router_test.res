@@ -41,6 +41,8 @@ let makeProbeDeps = (~exitCodes: ref<array<int>>): Ports.deps => {
     parse: (~args as _, ~strict as _, ~allowPositionals as _) =>
       Ok({values: Dict.make(), positionals: []}),
   },
+  yamlParser: NodeJsYamlParser.make(),
+  ejs: NodeJsEjs.make(),
 }
 
 suite("Router extractAttributes", () => {

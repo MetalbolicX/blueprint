@@ -13,6 +13,8 @@ let main: unit => promise<unit> = async () => {
       shell: DenoShell.make(),
       interactiveIO: DenoInteractiveIO.make(()),
       argParser: DenoArgParser.make(),
+      yamlParser: DenoYamlParser.make(),
+      ejs: DenoEjs.make(),
     }
   } else {
     {
@@ -22,6 +24,8 @@ let main: unit => promise<unit> = async () => {
       shell: NodeJsShell.make(),
       interactiveIO: NodeJsInteractiveIO.make(()),
       argParser: NodeJsArgParser.make(),
+      yamlParser: NodeJsYamlParser.make(),
+      ejs: NodeJsEjs.make(),
     }
   }
 

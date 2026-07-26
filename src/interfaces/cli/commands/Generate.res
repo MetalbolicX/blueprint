@@ -34,7 +34,7 @@ let runGenerate: (
         ~registry=ctx.globalConfig.registry,
         ~globalTemplates=ctx.merged.templates,
       )
-      let generators = await Discovery.discover(~fs, ~path, ~searchPaths=allPaths, ())
+      let generators = await Discovery.discover(~fs, ~path, ~yamlParser=deps.yamlParser, ~searchPaths=allPaths, ())
 
       switch Discovery.findByClassification(generators, classification) {
       | None => {

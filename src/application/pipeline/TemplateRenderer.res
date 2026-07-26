@@ -13,7 +13,8 @@ type stageVerdict =
   | StageProceed
   | StageSkip
 
-let resolveTargetPath: (Template.directive, Context.context) => result<string, string> = (
+let resolveTargetPath: (~ejs: Ports.ejs, Template.directive, Context.context) => result<string, string> = (
+  ~ejs,
   directive,
   ctx,
 ) => {
@@ -43,17 +44,9 @@ let resolveTargetPath: (Template.directive, Context.context) => result<string, s
       // Add h helper functions (pascalCase, kebabCase, etc.)
       Dict.set(data, "h", FuncMap.makeHelpersDict()->Obj.magic)
 
-      try {
-        let rendered = Bindings.Ejs.render(path, data)
-        Ok(rendered)
-      } catch {
-      | JsExn(obj) =>
-        let msg = switch JsExn.message(obj) {
-        | Some(m) => m
-        | None => "EJS render error"
-        }
-        Error(msg)
-      | _ => Error("EJS render error in 'to' path")
+      switch ejs.renderString(~template=path, ~context=data) {
+      | Ok(rendered) => Ok(rendered)
+      | Error(msg) => Error(msg)
       }
     }
   | _ => Error("No 'to' directive")
@@ -212,6 +205,7 @@ let render: (
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<option<renderedOutput>, string>> = async (
   ~template,
@@ -220,6 +214,7 @@ let render: (
   ~conflictDecisions,
   ~fs,
   ~path,
+  ~ejs,
   ~process as _,
 ) => {
   // 1. Resolve target path
@@ -231,7 +226,7 @@ let render: (
       | _ => false
       }
     })
-    ->Option.map(d => resolveTargetPath(d, context))
+    ->Option.map(d => resolveTargetPath(~ejs, d, context))
 
   switch targetPathResult {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)

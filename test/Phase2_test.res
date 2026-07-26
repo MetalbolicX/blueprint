@@ -64,6 +64,7 @@ let makeFsWithFailures = (
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
     realpath: file => base.realpath(file),
+    makeStagingDir: prefix => base.makeStagingDir(prefix),
   }
 }
 
@@ -110,6 +111,7 @@ let makeRollbackFs = (
   fileExists: _ => Promise.resolve(false),
   stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
   realpath: path => Promise.resolve(path),
+  makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
 
 suite("Phase2", () => {

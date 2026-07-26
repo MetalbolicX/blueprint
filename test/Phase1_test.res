@@ -4,6 +4,8 @@ open TestHelpers
 open Commit
 
 suite("Phase1", () => {
+  let ejs = NodeJsEjs.make()
+
   test("phase1Result: structure", () => {
     let result = {
       Phase1.stagingDir: "/tmp/blueprint-abc123",
@@ -34,7 +36,7 @@ suite("Phase1", () => {
       (),
     )
 
-    let result = Phase1.resolveTargetPath(Template.To("src/<%= Name %>.tsx"), ctx)
+    let result = Phase1.resolveTargetPath(~ejs, Template.To("src/<%= Name %>.tsx"), ctx)
     switch result {
     | Ok(path) => assert_eq(path, "src/Hello.tsx")
     | Error(_) => assert_false(true)
@@ -49,7 +51,7 @@ suite("Phase1", () => {
       (),
     )
 
-    let result = Phase1.resolveTargetPath(Template.Tool("npm install"), ctx)
+    let result = Phase1.resolveTargetPath(~ejs, Template.Tool("npm install"), ctx)
     switch result {
     | Ok(_) => assert_false(true)
     | Error(msg) => assert_true(String.includes(msg, "No 'to' directive"))
@@ -64,7 +66,7 @@ suite("Phase1", () => {
       (),
     )
 
-    let result = Phase1.resolveTargetPath(Template.To("src/<%= name %>.tsx"), ctx)
+    let result = Phase1.resolveTargetPath(~ejs, Template.To("src/<%= name %>.tsx"), ctx)
     switch result {
     | Ok(path) => assert_eq(path, "src/button.tsx")
     | Error(_) => assert_false(true)
@@ -109,6 +111,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -171,6 +174,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -228,6 +232,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -274,6 +279,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -326,6 +332,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -385,6 +392,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -448,6 +456,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -500,6 +509,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -549,6 +559,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -601,6 +612,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -650,6 +662,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -696,6 +709,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -742,6 +756,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -815,6 +830,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -908,6 +924,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result => {
@@ -1015,6 +1032,7 @@ suite("Phase1", () => {
         ~fs,
         ~path=pathAdapter,
         ~process=processAdapter,
+        ~ejs=ejs,
       )
     )
     ->Promise.then(result =>

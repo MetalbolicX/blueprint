@@ -15,6 +15,7 @@ let makeTrackingFs = (~readdirCalls: ref<int>): Ports.fileSystem => {
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
     realpath: file => base.realpath(file),
+    makeStagingDir: prefix => base.makeStagingDir(prefix),
   }
 }
 
@@ -51,6 +52,8 @@ let makeDeps = (
     argParser: {
       parse: (~args as _, ~strict as _, ~allowPositionals as _) => Ok({values: Dict.make(), positionals: []}),
     },
+    yamlParser: NodeJsYamlParser.make(),
+    ejs: NodeJsEjs.make(),
   }
 }
 

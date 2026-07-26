@@ -36,6 +36,7 @@ let _prepareTemplate: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<option<(string, string, string, array<shellCommand>)>, string>> = async (
   ~template,
@@ -45,6 +46,7 @@ let _prepareTemplate: (
   ~shellConfig,
   ~fs,
   ~path,
+  ~ejs,
   ~process,
 ) => {
   let renderResult = await TemplateRenderer.render(
@@ -54,6 +56,7 @@ let _prepareTemplate: (
     ~conflictDecisions,
     ~fs,
     ~path,
+    ~ejs,
     ~process,
   )
   switch renderResult {
@@ -89,6 +92,7 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>> = async (
   ~templates as _templates,
@@ -98,9 +102,10 @@ let run: (
   ~shellConfig,
   ~fs,
   ~path,
+  ~ejs as _ejs,
   ~process,
 ) => {
-  let tmpDir = NodeJs.Os.makeStagingDir()
+  let tmpDir = await fs.makeStagingDir("blueprint")
   switch await Staging.create(~tmpDir, ~fs) {
   | Error(message) =>
     Error({stagingDir: "", message: "Failed to create staging dir: " ++ message})
@@ -114,6 +119,7 @@ let run: (
         ~shellConfig,
         ~fs,
         ~path,
+        ~ejs=_ejs,
         ~process,
       ) {
       | Error(e) => Error(e)

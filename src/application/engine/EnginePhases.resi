@@ -20,5 +20,6 @@ let runPhase1: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<Phase1.phase1Result, string>>

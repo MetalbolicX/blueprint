@@ -10,7 +10,7 @@ let runTemplateCopy: (
 
   let projectPaths = ["_templates", "templates", "generators"]
   let sourceSearchPaths = projectPaths->Array.concat(ctx.merged.templates)
-  let generators = await Discovery.discover(~fs, ~path, ~searchPaths=sourceSearchPaths, ())
+  let generators = await Discovery.discover(~fs, ~path, ~yamlParser=deps.yamlParser, ~searchPaths=sourceSearchPaths, ())
 
   switch Discovery.findByClassification(generators, name) {
   | None => {

@@ -14,6 +14,7 @@ suite("Ports", () => {
       fileExists: _ => Promise.resolve(false),
       stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}),
       realpath: path => Promise.resolve(path),
+      makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
     }
     assert_true(true)
   })
@@ -112,6 +113,7 @@ suite("Ports", () => {
         fileExists: _ => Promise.resolve(false),
         stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true} : statResult),
         realpath: path => Promise.resolve(path),
+        makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
       },
       path: {
         join: (a, b) => a ++ "/" ++ b,
@@ -141,6 +143,13 @@ suite("Ports", () => {
       },
       argParser: {
         parse: (~args as _, ~strict as _, ~allowPositionals as _) => Ok({values: Dict.make(), positionals: []}),
+      },
+      yamlParser: {
+        parse: s => Ok(Bindings.Yaml.parse(s)),
+      },
+      ejs: {
+        renderString: (~template as _, ~context as _) => Ok("rendered"),
+        renderFile: (~path as _, ~context as _) => Promise.resolve(Ok("rendered")),
       },
     }
     assert_true(true)

@@ -56,6 +56,8 @@ let makeDeps = (~cwd: string, ~answers: array<string>, ~confirmAnswers: array<bo
     shell: NodeJsShell.make(),
     interactiveIO: makeInteractiveIO(~answers, ~confirmAnswers),
     argParser: NodeJsArgParser.make(),
+    yamlParser: NodeJsYamlParser.make(),
+    ejs: NodeJsEjs.make(),
   }
   (deps, harness)
 }
@@ -85,7 +87,7 @@ suite("Generator wizard integration", () => {
       | None => assert_true(true)
       }
       assert_true(String.includes(updated, "# manifest comment"))
-      switch Manifest.parse(updated) {
+      switch Manifest.parse(~yamlParser=deps.yamlParser, ~yaml=updated) {
       | Ok(manifest) =>
         switch manifest.prompts {
         | Some(prompts) => {

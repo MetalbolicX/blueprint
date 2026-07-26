@@ -197,24 +197,18 @@ let getPromptsFromJson: (JSON.t, string) => option<array<prompt>> = (obj, key) =
   }
 }
 
-let parse: string => result<manifest, string> = yamlContent => {
-  try {
-    let json = Bindings.Yaml.parse(yamlContent)
+let parse: (~yamlParser: Ports.yamlParser, ~yaml: string) => result<manifest, string> = (~yamlParser, ~yaml) => {
+  switch yamlParser.parse(yaml) {
+  | Error(msg) => Error(msg)
+  | Ok(json) => {
+      // Build manifest from JSON
+      let name = getString(json, "name")->Option.getOr("")
+      let classification = getString(json, "classification")->Option.getOr("")
+      let metadata = getObject(json, "metadata")
+      let prompts = getPromptsFromJson(json, "prompts")
 
-    // Build manifest from JSON
-    let name = getString(json, "name")->Option.getOr("")
-    let classification = getString(json, "classification")->Option.getOr("")
-    let metadata = getObject(json, "metadata")
-    let prompts = getPromptsFromJson(json, "prompts")
-
-    Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
-  } catch {
-  | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => m
-    | None => "Failed to parse manifest"
+      Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
     }
-    Error(msg)
   }
 }
 

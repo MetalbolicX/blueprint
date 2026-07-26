@@ -5,6 +5,7 @@ open TestHelpers
 suite("Discovery", () => {
   let fs = NodeJsFileSystem.make()
   let pathAdapter = NodeJsPath.make()
+  let yamlParser = NodeJsYamlParser.make()
   test("findByClassification: returns generator when exists", () => {
     let gens = [
       {
@@ -56,7 +57,7 @@ suite("Discovery", () => {
         "---\nto: src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_true(Array.length(gens) >= 1)
@@ -76,7 +77,7 @@ suite("Discovery", () => {
   })
 
   testAsync("discoverIn: returns empty array for non-existent directory", resolve => {
-    let _ = Discovery.discoverIn(~fs, ~path=pathAdapter, "/non/existent/path")
+    let _ = Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, "/non/existent/path")
     ->Promise.then(gens => {
       assert_eq(Array.length(gens), 0)
       resolve()
@@ -94,7 +95,7 @@ suite("Discovery", () => {
         "not a generator",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_eq(Array.length(gens), 0)
@@ -134,7 +135,7 @@ suite("Discovery", () => {
         "---\nto src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_eq(Array.length(gens), 1)
@@ -169,7 +170,7 @@ suite("Discovery", () => {
         "---\nto src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         assert_eq(Array.length(gens), 1)
@@ -209,7 +210,7 @@ suite("Discovery", () => {
         "---\nto: src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         // Generator with invalid manifest must be excluded entirely
@@ -244,7 +245,7 @@ suite("Discovery", () => {
         "---\nto: src/{{ .name }}.tsx\n---\nimport React from 'react'\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         // Malformed manifest → generator excluded, no crash
@@ -296,7 +297,7 @@ suite("Discovery", () => {
         "---\nto: src/x.tsx\n---\nhello\n",
       )
     )
-    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, tmpDir))
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
     ->Promise.then(gens => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         // Only the valid generator should remain
