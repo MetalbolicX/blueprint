@@ -1,0 +1,78 @@
+# openspec/config.yaml — blueprint SDD bootstrap
+schema: spec-driven
+
+context: |
+  Tech stack: ReScript 12.x, pnpm 10.x, ESM (in-source), Node >=22
+  Architecture: Hexagonal/Clean (interfaces → application → domain + infrastructure)
+  Bundle: rolldown v1.x (rolldown -c after rescript compile)
+  Testing: retest (rescript-test v8.x), c8 coverage
+  Style: PascalCase modules, snake_case values, // comments
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Reference existing openspec/changes/ for prior art
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Write delta specs per openspec-convention.md
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Respect Hexagonal/Clean boundaries
+  tasks:
+    - Group by phase, use hierarchical numbering (1, 1.1, 1.2, ...)
+    - Keep tasks completable in one session
+    - Mark ReScript file paths with .res extension
+  apply:
+    guidelines:
+      - Follow existing code patterns (snake_case, PascalCase modules)
+      - ReScript in-source compilation: edit .res, compile to .res.mjs
+      - Two-step build: rescript THEN rolldown
+    strict_tdd: false
+    test_command: "pnpm res:test"
+  verify:
+    test_command: "pnpm res:test"
+    build_command: "pnpm build"
+    coverage_command: "pnpm res:test:coverage:check"
+    coverage_threshold:
+      lines: 50
+      functions: 50
+      branches: 40
+  archive:
+    - Warn before merging destructive deltas
+    - Move to openspec/changes/archive/YYYY-MM-DD-{change-name}/
+
+testing:
+  strict_tdd: false
+  detected: "2026-07-23"
+  runner:
+    command: "pnpm res:test"
+    framework: "retest (rescript-test v8.x)"
+  layers:
+    unit:
+      available: true
+      tool: "retest"
+    integration:
+      available: false
+      tool: "—"
+    e2e:
+      available: false
+      tool: "—"
+  coverage:
+    available: true
+    command: "pnpm res:test:coverage"
+    thresholds:
+      lines: 50
+      functions: 50
+      branches: 40
+  quality:
+    linter:
+      available: false
+      command: "—"
+    type_checker:
+      available: false
+      command: "— (ReScript compiler is the type checker)"
+    formatter:
+      available: false
+      command: "—"
