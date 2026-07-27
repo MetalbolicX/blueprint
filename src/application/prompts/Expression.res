@@ -41,9 +41,10 @@ let _buildEvalContext: (
 // Evaluate an EJS template string against evaluation context
 // Returns Error on unsafe tags or EJS evaluation failure
 let evalTemplate: (
+  ~ejs: Ports.ejs,
   string,
   ~ctx: {..},
-) => result<string, resolveError> = (template, ~ctx) => {
+) => result<string, resolveError> = (~ejs, template, ~ctx) => {
   if EjsSafety._hasUnsafeEjsTags(template) {
     Error(
       EvaluationError({
@@ -53,12 +54,9 @@ let evalTemplate: (
       }),
     )
   } else {
-    try {
-      let rendered = EjsSafety._renderEval(template, ctx)
-      Ok(rendered)
-    } catch {
-    | JsExn(obj) =>
-      let msg = JsExn.message(obj)->Option.getOr("EJS evaluation failed")
+    switch EjsSafety._renderEval(~ejs, ~template, ~ctx) {
+    | Ok(rendered) => Ok(rendered)
+    | Error(msg) =>
       Error(
         EvaluationError({
           prompt: "",
@@ -72,13 +70,14 @@ let evalTemplate: (
 
 // Evaluate `when` expression; returns true if prompt should be shown
 let _evaluateWhen: (
+  ~ejs: Ports.ejs,
   ~whenExpr: string,
   ~promptName: string,
   ~baseContext: dict<string>,
   ~answers: dict<string>,
-) => result<bool, resolveError> = (~whenExpr, ~promptName, ~baseContext, ~answers) => {
+) => result<bool, resolveError> = (~ejs, ~whenExpr, ~promptName, ~baseContext, ~answers) => {
   let evalCtx = _buildEvalContext(~baseContext, ~answers)
-  switch evalTemplate(whenExpr, ~ctx=evalCtx) {
+  switch evalTemplate(~ejs, whenExpr, ~ctx=evalCtx) {
   | Ok(rendered) => {
       let trimmed = String.trim(rendered)->String.toLowerCase
       Ok(trimmed != "false" && trimmed != "" && trimmed != "0")
@@ -91,13 +90,14 @@ let _evaluateWhen: (
 
 // Evaluate `default` template string
 let _evaluateDefault: (
+  ~ejs: Ports.ejs,
   ~defaultExpr: string,
   ~promptName: string,
   ~baseContext: dict<string>,
   ~answers: dict<string>,
-) => result<string, resolveError> = (~defaultExpr, ~promptName, ~baseContext, ~answers) => {
+) => result<string, resolveError> = (~ejs, ~defaultExpr, ~promptName, ~baseContext, ~answers) => {
   let evalCtx = _buildEvalContext(~baseContext, ~answers)
-  switch evalTemplate(defaultExpr, ~ctx=evalCtx) {
+  switch evalTemplate(~ejs, defaultExpr, ~ctx=evalCtx) {
   | Ok(rendered) => Ok(rendered)
   | Error(EvaluationError(e)) =>
     Error(EvaluationError({...e, prompt: promptName, field: "default"}))
@@ -107,11 +107,13 @@ let _evaluateDefault: (
 
 // Evaluate select options templates (label/value)
 let _evaluateOptions: (
+  ~ejs: Ports.ejs,
   ~opts: array<Manifest.promptOption>,
   ~promptName: string,
   ~baseContext: dict<string>,
   ~answers: dict<string>,
 ) => result<array<Manifest.promptOption>, resolveError> = (
+  ~ejs,
   ~opts,
   ~promptName,
   ~baseContext,
@@ -120,8 +122,8 @@ let _evaluateOptions: (
   let evalCtx = _buildEvalContext(~baseContext, ~answers)
   let results: array<option<Manifest.promptOption>> =
     opts->Array.map(opt => {
-      let labelResult = evalTemplate(opt.label, ~ctx=evalCtx)
-      let valueResult = evalTemplate(opt.value, ~ctx=evalCtx)
+      let labelResult = evalTemplate(~ejs, opt.label, ~ctx=evalCtx)
+      let valueResult = evalTemplate(~ejs, opt.value, ~ctx=evalCtx)
       switch (labelResult, valueResult) {
       | (Ok(l), Ok(v)) => Some({Manifest.label: l, value: v})
       | _ => None

@@ -3,8 +3,11 @@
 
 // processPromptBody: handles Force vs Interactive mode
 // Force returns immediately, Interactive calls askPromptWithRetry
-// Threads promptState; Force sets value directly, Interactive threads state to askPromptWithRetry.
-let processPromptBody: Interactive.promptState => promise<result<Interactive.promptState, Expression.resolveError>> = state => {
+// Threads promptState and ~ejs; Force sets value directly, Interactive threads state to askPromptWithRetry.
+let processPromptBody: (
+  ~ejs: Ports.ejs,
+  Interactive.promptState,
+) => promise<result<Interactive.promptState, Expression.resolveError>> = (~ejs, state) => {
   switch state.strategy {
   | Expression.Force => {
       switch Expression._requireOptions(state.prompt) {
@@ -12,7 +15,7 @@ let processPromptBody: Interactive.promptState => promise<result<Interactive.pro
       | Ok() =>
         switch state.prompt.default {
         | Some(defaultExpr) =>
-          switch Expression._evaluateDefault(~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
+          switch Expression._evaluateDefault(~ejs, ~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
           | Ok(d) => {
               let answers = state.answers
               Dict.set(answers, state.prompt.name, d)
@@ -34,7 +37,7 @@ let processPromptBody: Interactive.promptState => promise<result<Interactive.pro
       | Ok() =>
         let defaultResult = switch state.prompt.default {
         | Some(defaultExpr) =>
-          switch Expression._evaluateDefault(~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
+          switch Expression._evaluateDefault(~ejs, ~defaultExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
           | Ok(d) => Ok(Some(d))
           | Error(e) => Error(e)
           }
@@ -46,7 +49,7 @@ let processPromptBody: Interactive.promptState => promise<result<Interactive.pro
         | Ok(evaluatedDefault) =>
           let optionsResult = switch state.prompt.options {
           | Some(opts) =>
-            switch Expression._evaluateOptions(~opts, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
+            switch Expression._evaluateOptions(~ejs, ~opts, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
             | Ok(eo) => Ok(Some(eo))
             | Error(e) => Error(e)
             }
@@ -85,16 +88,19 @@ let processPromptBody: Interactive.promptState => promise<result<Interactive.pro
 }
 
 // processPrompt: top-level per-prompt processor — evaluates `when` then delegates
-// Threads promptState through the evaluation and into processPromptBody.
-let processPrompt: Interactive.promptState => promise<result<Interactive.promptState, Expression.resolveError>> = state => {
+// Threads ~ejs and promptState through the evaluation and into processPromptBody.
+let processPrompt: (
+  ~ejs: Ports.ejs,
+  Interactive.promptState,
+) => promise<result<Interactive.promptState, Expression.resolveError>> = (~ejs, state) => {
   switch state.prompt.when_ {
   | Some(whenExpr) =>
-    switch Expression._evaluateWhen(~whenExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
+    switch Expression._evaluateWhen(~ejs, ~whenExpr, ~promptName=state.prompt.name, ~baseContext=state.baseContext, ~answers=state.answers) {
     | Ok(false) => Promise.resolve(Ok(state))
-    | Ok(true) => processPromptBody(state)
+    | Ok(true) => processPromptBody(~ejs, state)
     | Error(e) => Promise.resolve(Error(e))
     }
-  | None => processPromptBody(state)
+  | None => processPromptBody(~ejs, state)
   }
 }
 
@@ -102,10 +108,11 @@ let processPrompt: Interactive.promptState => promise<result<Interactive.promptS
 
 let resolve: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
   ~baseContext: dict<string>,
-) => promise<result<dict<string>, Expression.resolveError>> = (~io, ~prompts, ~force, ~baseContext) => {
+) => promise<result<dict<string>, Expression.resolveError>> = (~io, ~ejs, ~prompts, ~force, ~baseContext) => {
   let answers = Dict.make()
   let strategy: Expression.resolutionStrategy = force ? Expression.Force : Expression.Interactive
   let idx = ref(0)
@@ -129,7 +136,7 @@ let resolve: (
           lastError: None,
           strategy,
         }
-        processPrompt(state)->Promise.then(result => {
+        processPrompt(~ejs, state)->Promise.then(result => {
           switch result {
           | Ok(_newState) =>
             idx.contents = idx.contents + 1

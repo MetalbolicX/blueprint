@@ -77,6 +77,7 @@ let detectConflicts: (
 // Run Phase0: resolve prompts and detect conflicts
 let run: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~generator: generator,
   ~context: Context.context,
   ~outputDir: string,
@@ -85,6 +86,7 @@ let run: (
   ~path: Ports.path,
 ) => promise<result<phase0Result, string>> = async (
   ~io,
+  ~ejs,
   ~generator,
   ~context,
   ~outputDir,
@@ -109,7 +111,7 @@ let run: (
 
   let resolvedAttributesResult = switch prompts {
   | Some(ps) if Array.length(ps) > 0 =>
-    await resolve(~io, ~prompts=ps, ~force, ~baseContext)
+    await resolve(~io, ~ejs, ~prompts=ps, ~force, ~baseContext)
   | _ => Ok(Dict.make())
   }
 

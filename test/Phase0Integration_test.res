@@ -44,7 +44,7 @@ suite("Phase0 Integration", () => {
 
     let context = Context.build(~cwd=tmpDir, ~actionfolder=tmpDir, ~name="Test", ())
 
-    Phase0.run(~io, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=false, ~fs, ~path=pathAdapter)
+    Phase0.run(~io, ~ejs=TestPorts.stubEjs, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=false, ~fs, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(phase0Result) => {
@@ -87,7 +87,7 @@ suite("Phase0 Integration", () => {
 
     let context = Context.build(~cwd=tmpDir, ~actionfolder=tmpDir, ~name="Test", ())
 
-    Phase0.run(~io, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=false, ~fs, ~path=pathAdapter)
+    Phase0.run(~io, ~ejs=TestPorts.stubEjs, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=false, ~fs, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(phase0Result) => {
@@ -135,7 +135,7 @@ suite("Phase0 Integration", () => {
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
     ->Promise.then(_ =>
-      Phase0.run(~io, ~generator=gen, ~context, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
+      Phase0.run(~io, ~ejs=TestPorts.stubEjs, ~generator=gen, ~context, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(result => {
       switch result {
@@ -190,7 +190,7 @@ suite("Phase0 Integration", () => {
     NodeJs.Fs.mkdir(outDir, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(targetFile, "existing"))
     ->Promise.then(_ =>
-      Phase0.run(~io, ~generator=gen, ~context, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
+      Phase0.run(~io, ~ejs=TestPorts.stubEjs, ~generator=gen, ~context, ~outputDir=outDir, ~force=false, ~fs, ~path=pathAdapter)
     )
     ->Promise.then(result => {
       switch result {
@@ -236,7 +236,7 @@ suite("Phase0 Integration", () => {
 
     let context = Context.build(~cwd=tmpDir, ~actionfolder=tmpDir, ~name="Test", ())
 
-    Phase0.run(~io, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=true, ~fs, ~path=pathAdapter)
+    Phase0.run(~io, ~ejs=TestPorts.stubEjs, ~generator=gen, ~context, ~outputDir=tmpDir, ~force=true, ~fs, ~path=pathAdapter)
     ->Promise.then(result => {
       switch result {
       | Ok(phase0Result) => {

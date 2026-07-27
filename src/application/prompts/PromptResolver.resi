@@ -2,7 +2,7 @@
 
 type resolveError = Expression.resolveError
 
-let evalTemplate: (string, ~ctx: {..}) => result<string, resolveError>
+let evalTemplate: (~ejs: Ports.ejs, string, ~ctx: {..}) => result<string, resolveError>
 let _validateSelectInput: (
   ~answer: string,
   ~opts: array<Manifest.promptOption>,
@@ -16,6 +16,7 @@ let _tokenizeMultiSelect: (
 
 let resolve: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~prompts: array<Manifest.prompt>,
   ~force: bool,
   ~baseContext: dict<string>,

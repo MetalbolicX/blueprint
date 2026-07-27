@@ -1,0 +1,112 @@
+# Delta for architecture-guard
+
+> Change: `route-ejs-safety-leak-through-port`. The guard SHALL additionally
+> forbid bare `Ejs.` references in the domain and application layers, and the
+> application prompt-evaluation code SHALL route EJS rendering exclusively
+> through the injected `Ports.ejs` port. Existing `Bindings`/`NodeJs`/`Deno`
+> isolation requirements are unchanged.
+
+## ADDED Requirements
+
+### Requirement: EJS Direct-Binding Isolation
+
+Authored sources under `src/domain/**/*.res` and `src/application/**/*.res`
+(and `.resi`) MUST NOT contain direct references to the EJS infrastructure
+binding. The architecture-guard test SHALL assert zero matches for the pattern
+`Ejs\.[A-Z]` across both trees. The `src/infrastructure/**` exemption continues
+to apply; the sanctioned route for application-layer EJS rendering is the
+`Ports.ejs` port (see *Prompt Evaluation EJS Routing*), not the bare binding.
+
+#### Scenario: No Ejs references in application
+
+- GIVEN the architecture-guard test running against `src/application/**/*.res`
+- WHEN it scans for `Ejs\.[A-Z]`
+- THEN zero matches are found
+
+#### Scenario: No Ejs references in domain
+
+- GIVEN the architecture-guard test running against `src/domain/**/*.res`
+- WHEN it scans for `Ejs\.[A-Z]`
+- THEN zero matches are found
+
+#### Scenario: Guard fails on a bare Ejs.render leak
+
+- GIVEN `src/application/prompts/EjsSafety.res` still contains a bare
+  `Ejs.render(...)` call after the change
+- WHEN the architecture-guard test runs against `src/application/**/*.res`
+- THEN the `Ejs\.[A-Z]` scan matches the call and the test FAILS
+- AND the fix passes only because the bare call has been routed through the port
+
+#### Scenario: Existing isolation assertions remain green
+
+- GIVEN the extended architecture-guard test
+- WHEN it runs against `src/domain/**` and `src/application/**`
+- THEN the pre-existing `Bindings\.[A-Z]`, `NodeJs\.[A-Z]`, and `Deno\.[A-Z]`
+  assertions still report zero matches
+
+### Requirement: Prompt Evaluation EJS Routing
+
+Prompt evaluation in the application layer SHALL render EJS exclusively through
+the injected `Ports.ejs` port, never the bare infrastructure binding.
+`EjsSafety._renderEval` SHALL accept `~ejs: Ports.ejs` and call
+`ejs.renderString(~template, ~context)`. The `~ejs` port SHALL be threaded
+through `Expression.evalTemplate`, `_evaluateWhen`, `_evaluateDefault`,
+`_evaluateOptions`, `PromptResolver.evalTemplate`, and
+`Resolver.resolve`/`processPrompt`/`processPromptBody`, and SHALL originate
+from `Ports.deps.ejs` at the pipeline entry that owns `deps` (Phase0 prompt
+resolution). `PromptResolver.resi` SHALL declare the updated `~ejs` signatures
+for both `evalTemplate` and `resolve`. The `Obj.magic` cast between the
+structural eval context and the port's `dict<string>` parameter SHALL remain at
+the single `_renderEval` boundary.
+
+#### Scenario: _renderEval renders via the injected port
+
+- GIVEN `EjsSafety._renderEval` called with a valid template and `~ejs` backed
+  by a real EJS adapter
+- WHEN rendering executes
+- THEN it returns `Ok(rendered)` with the template content interpolated
+- AND no bare `Ejs.` call is made inside `EjsSafety.res`
+
+#### Scenario: Structural eval context is preserved
+
+- GIVEN `Expression.evalTemplate` called with a template referencing
+  `context.<key>` and `answers.<key>`
+- WHEN rendering executes against the `{context, answers}` structural context
+- THEN the output substitutes both `context.<key>` and `answers.<key>` correctly
+- AND `_buildEvalContext` still returns `{context: dict<string>, answers: dict<string>}`
+  (not a flattened `dict<string>`)
+
+#### Scenario: Missing ejs argument is a compile-time error
+
+- GIVEN `PromptResolver.resi` declares `evalTemplate` and `resolve` with
+  `~ejs: Ports.ejs`
+- WHEN a caller omits `~ejs`
+- THEN the ReScript compiler rejects the call at compile time
+
+#### Scenario: Error path is result-based
+
+- GIVEN `ejs.renderString` returns `Error(msg)` for a malformed template
+- WHEN `Expression.evalTemplate` handles the result
+- THEN it surfaces an `Error` (result-matching), not a thrown `JsExn`
+
+### Requirement: EJS Test Fixture Delegation
+
+The prompt-evaluation test fixtures SHALL construct an `ejs` stub that
+delegates to the real EJS binding so nested `context`/`answers` key resolution
+is exercised identically to production. `TestPorts.stubEjs.renderString` SHALL
+delegate to `Bindings.Ejs.render`, mirroring how `stubYamlParser` delegates to
+`Bindings.Yaml.parse`. A no-op stub that returns `Ok(template)` unmodified is
+PROHIBITED — it masks structural-context regressions.
+
+#### Scenario: stubEjs delegates to the real binding
+
+- GIVEN `test/res/utils/TestPorts.res` provides `stubEjs`
+- WHEN `stubEjs.renderString` runs against a template interpolating
+  `context.<key>`
+- THEN it returns the substituted output, not the raw template
+
+#### Scenario: Affected tests inject the ejs port
+
+- GIVEN `test/PromptResolver_test.res` and `test/Phase0Integration_test.res`
+- WHEN they invoke `evalTemplate` or `resolve`
+- THEN they pass `~ejs=TestPorts.stubEjs`

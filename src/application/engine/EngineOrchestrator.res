@@ -64,6 +64,7 @@ let run: (
       // NOTE: io.close() is called inside EnginePhases.runPhase0 on error
       switch await EnginePhases.runPhase0(
         ~io,
+        ~ejs,
         ~generator,
         ~context,
         ~outputDir,

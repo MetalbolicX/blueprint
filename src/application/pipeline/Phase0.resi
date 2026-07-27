@@ -18,6 +18,7 @@ let detectConflicts: (
 
 let run: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~generator: Discovery.generator,
   ~context: Context.context,
   ~outputDir: string,

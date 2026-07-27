@@ -31,7 +31,8 @@ external pathJoin: (string, string) => string = "join"
 let checkLine: string => bool = line => {
   String.includes(line, "Bindings.") ||
   String.includes(line, "NodeJs.") ||
-  String.includes(line, "Deno.")
+  String.includes(line, "Deno.") ||
+  String.includes(line, "Ejs.")
 }
 
 let scanForForbiddenRefs: string => array<string> = scanRoot => {
@@ -74,12 +75,12 @@ let scanForForbiddenRefs: string => array<string> = scanRoot => {
 open TestHelpers
 
 suite("Architecture guard", () => {
-  test("domain layer contains no Bindings/NodeJs/Deno references", () => {
+  test("domain layer contains no Bindings/NodeJs/Deno/Ejs references", () => {
     let violations = scanForForbiddenRefs("src/domain")
     assert_eq(Array.length(violations), 0)
   })
 
-  test("application layer contains no Bindings/NodeJs/Deno references", () => {
+  test("application layer contains no Bindings/NodeJs/Deno/Ejs references", () => {
     let violations = scanForForbiddenRefs("src/application")
     assert_eq(Array.length(violations), 0)
   })

@@ -11,10 +11,12 @@ let _hasUnsafeEjsTags: string => bool = template => {
   RegExp.test(controlFlowPattern, template) || RegExp.test(unescapedPattern, template)
 }
 
-// EJS render wrapper: Ejs.render is typed as `dict<string>`, but our eval
-// context is a structured object ({context: dict<string>, answers: dict<string>}).
-// This helper localises the cast in one named place so the unsafe boundary is
-// explicit and reviewable.
-let _renderEval: (string, {..}) => string = (template, ctx) => {
-  Ejs.render(template, ctx->Obj.magic)
-}
+// EJS render wrapper: the injected port's renderString is typed as
+// `dict<string>`, but our eval context is a structured object
+// ({context: dict<string>, answers: dict<string>}).
+// This helper localises the Obj.magic cast in one named place so the unsafe
+// boundary is explicit and reviewable.
+let _renderEval: (~ejs: Ports.ejs, ~template: string, ~ctx: {..}) => result<string, string> =
+  (~ejs, ~template, ~ctx) => {
+    ejs.renderString(~template, ~context=Obj.magic(ctx))
+  }

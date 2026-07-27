@@ -66,7 +66,7 @@ suite("PromptResolver", () => {
 
   test("evalTemplate: renders simple interpolation", () => {
     let ctx = {"name": "Ada"}
-    let result = PromptResolver.evalTemplate("Hello <%= name %>", ~ctx)
+    let result = PromptResolver.evalTemplate(~ejs=TestPorts.stubEjs, "Hello <%= name %>", ~ctx)
     switch result {
     | Ok(s) => assert_eq(s, "Hello Ada")
     | Error(_) => assert_false(true)
@@ -75,7 +75,7 @@ suite("PromptResolver", () => {
 
   test("evalTemplate: rejects control flow tags", () => {
     let ctx = {"name": "Ada"}
-    let result = PromptResolver.evalTemplate("<% if (true) { %>hi<% } %>", ~ctx)
+    let result = PromptResolver.evalTemplate(~ejs=TestPorts.stubEjs, "<% if (true) { %>hi<% } %>", ~ctx)
     switch result {
     | Ok(_) => assert_false(true)
     | Error(Expression.EvaluationError(_)) => assert_true(true)
@@ -85,7 +85,7 @@ suite("PromptResolver", () => {
 
   test("evalTemplate: rejects unescaped output tags", () => {
     let ctx = {"name": "Ada"}
-    let result = PromptResolver.evalTemplate("<%- name %>", ~ctx)
+    let result = PromptResolver.evalTemplate(~ejs=TestPorts.stubEjs, "<%- name %>", ~ctx)
     switch result {
     | Ok(_) => assert_false(true)
     | Error(Expression.EvaluationError(_)) => assert_true(true)
@@ -111,7 +111,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -150,7 +150,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -188,7 +188,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -227,7 +227,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -266,7 +266,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -300,7 +300,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -336,7 +336,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -372,7 +372,7 @@ suite("PromptResolver", () => {
     let baseContext: dict<string> = Dict.make()
     Dict.set(baseContext, "theme", "custom")
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -404,7 +404,7 @@ suite("PromptResolver", () => {
     let baseContext: dict<string> = Dict.make()
     Dict.set(baseContext, "name", "Blueprint")
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -442,7 +442,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -478,7 +478,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -518,7 +518,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => {
@@ -555,7 +555,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -592,7 +592,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -626,7 +626,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -658,7 +658,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=true, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=true, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -689,7 +689,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       switch result {
       | Ok(answers) => assert_eq(Dict.get(answers, "name"), Some("answer"))
@@ -798,7 +798,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       // Capture and restore BEFORE assertions so PASS/FAIL output prints
       let msgs = getTestMessages()
@@ -849,7 +849,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       let msgs = getTestMessages()
       let capturedAnswers = switch result {
@@ -894,7 +894,7 @@ suite("PromptResolver", () => {
     ]
     let baseContext: dict<string> = Dict.make()
 
-    PromptResolver.resolve(~io=mockIo, ~prompts, ~force=false, ~baseContext)
+    PromptResolver.resolve(~io=mockIo, ~ejs=TestPorts.stubEjs, ~prompts, ~force=false, ~baseContext)
     ->Promise.then(result => {
       let msgs = getTestMessages()
       let capturedAnswers = switch result {

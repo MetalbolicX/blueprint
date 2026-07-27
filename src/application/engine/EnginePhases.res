@@ -3,14 +3,15 @@ open Discovery
 
 let runPhase0: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~generator: generator,
   ~context: Context.context,
   ~outputDir: string,
   ~force: bool,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>> = async (~io, ~generator, ~context, ~outputDir, ~force, ~fs, ~path) => {
-  let phase0Result = await Phase0.run(~io, ~generator, ~context, ~outputDir, ~force, ~fs, ~path)
+) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>> = async (~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path) => {
+  let phase0Result = await Phase0.run(~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path)
 
   switch phase0Result {
   | Error(e) =>

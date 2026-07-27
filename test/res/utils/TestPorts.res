@@ -24,9 +24,22 @@ let stubYamlParser: yamlParser = {
 }
 
 /**
- * A minimal ejs stub for tests.
+ * An ejs stub that delegates to the real Bindings.Ejs.render.
+ * Use this in tests that need real EJS template interpolation.
  */
 let stubEjs: ejs = {
-  renderString: (~template, ~context as _context) => Ok(template),
-  renderFile: (~path, ~context as _context) => Promise.resolve(Ok("rendered: " ++ path)),
+  renderString: (~template, ~context) => {
+    try {
+      Ok(Bindings.Ejs.render(template, context->Obj.magic))
+    } catch {
+    | JsExn(obj) => {
+        let msg = switch JsExn.message(obj) {
+        | Some(m) => m
+        | None => "EJS render error"
+        }
+        Error(msg)
+      }
+    }
+  },
+  renderFile: (~path as _path, ~context as _context) => Promise.resolve(Error("stubEjs.renderFile not implemented in TestPorts")),
 }

@@ -3,6 +3,7 @@ open Discovery
 
 let runPhase0: (
   ~io: Ports.interactiveIO,
+  ~ejs: Ports.ejs,
   ~generator: generator,
   ~context: Context.context,
   ~outputDir: string,
