@@ -201,13 +201,28 @@ let parse: (~yamlParser: Ports.yamlParser, ~yaml: string) => result<manifest, st
   switch yamlParser.parse(yaml) {
   | Error(msg) => Error(msg)
   | Ok(json) => {
-      // Build manifest from JSON
-      let name = getString(json, "name")->Option.getOr("")
-      let classification = getString(json, "classification")->Option.getOr("")
-      let metadata = getObject(json, "metadata")
-      let prompts = getPromptsFromJson(json, "prompts")
+      // Reject unknown top-level manifest keys
+      let knownKeys = ["name", "classification", "metadata", "prompts"]
+      let unknownKeys = switch json {
+      | JSON.Object(dict) => {
+          let allKeys = dict->Dict.keysToArray
+          allKeys->Array.filter(key =>
+            !Belt.Array.some(knownKeys, k => k == key)
+          )
+        }
+      | _ => []
+      }
+      if Array.length(unknownKeys) > 0 {
+        Error("Unknown manifest fields: " ++ Js.Array.joinWith(", ", unknownKeys))
+      } else {
+        // Build manifest from JSON
+        let name = getString(json, "name")->Option.getOr("")
+        let classification = getString(json, "classification")->Option.getOr("")
+        let metadata = getObject(json, "metadata")
+        let prompts = getPromptsFromJson(json, "prompts")
 
-      Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
+        Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
+      }
     }
   }
 }

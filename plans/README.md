@@ -37,6 +37,7 @@ Planned-at commit: `64a81fa`
 | 025 | Relocate PromptResolver from infrastructure to application layer | P3 | M | 020 | DONE |
 | 026 | Extract pure buildFrontmatter and promptForDirectives from runAddFile | P3 | M | 021, 022 | DONE |
 | 027 | Refactor EngineOrchestrator nested phase chain to pipeline accumulator | P3 | M | 017 | DONE |
+| 029 | Pin YAML schema, reject unknown manifest keys, validate directive values | P2 | M | — | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
