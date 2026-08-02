@@ -15,7 +15,11 @@ type mkdirOptions = {recursive: bool}
 type rmOptions = {recursive: bool}
 type cpOptions = {recursive: bool}
 type readdirOptions = {withFileTypes: bool}
-type statResult = {isDirectory: unit => bool, isFile: unit => bool}
+type statResult = {
+  isDirectory: unit => bool,
+  isFile: unit => bool,
+  isSymbolicLink: unit => bool,
+}
 
 type yamlParser = {
   parse: string => result<JSON.t, string>,
@@ -35,6 +39,7 @@ type fileSystem = {
   readdir: (string, ~options: readdirOptions=?) => promise<array<string>>,
   fileExists: string => promise<bool>,
   stat: string => promise<statResult>,
+  lstat: string => promise<statResult>,
   realpath: string => promise<string>,
   makeStagingDir: string => promise<string>,
 }

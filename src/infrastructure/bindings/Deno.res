@@ -84,6 +84,7 @@ module Fs = {
   }
   
 @val @scope("Deno") external stat: string => promise<fileInfo> = "stat"
+@val @scope("Deno") external lstat: string => promise<fileInfo> = "lstat"
 
   /**
    * Checks if a file exists at the given path.

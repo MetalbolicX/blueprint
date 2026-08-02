@@ -38,6 +38,9 @@ external readdir: (string, ~options: readdirOptions=?) => promise<array<string>>
 external stat: string => promise<statResult> = "stat"
 
 @module("node:fs") @scope("promises")
+external lstat: string => promise<statResult> = "lstat"
+
+@module("node:fs") @scope("promises")
 external access: (string, ~mode: int=?) => promise<unit> = "access"
 
 // Sync mkdir for internal use

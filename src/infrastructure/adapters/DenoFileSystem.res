@@ -42,9 +42,23 @@ let make: unit => Ports.fileSystem = () => {
     let s = await stat(path)
     let isDir = s.isDirectory
     let isF = s.isFile
+    let isSym = s.isSymlink
     let res: Ports.statResult = {
       isDirectory: () => isDir,
       isFile: () => isF,
+      isSymbolicLink: () => isSym,
+    }
+    res
+  },
+  lstat: async path => {
+    let s = await Deno.Fs.lstat(path)
+    let isDir = s.isDirectory
+    let isF = s.isFile
+    let isSym = s.isSymlink
+    let res: Ports.statResult = {
+      isDirectory: () => isDir,
+      isFile: () => isF,
+      isSymbolicLink: () => isSym,
     }
     res
   },

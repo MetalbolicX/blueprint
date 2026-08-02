@@ -25,6 +25,7 @@ let rm: (string, ~options: rmOptions=?) => promise<unit>
 let cp: (string, string, ~options: cpOptions=?) => promise<unit>
 let readdir: (string, ~options: readdirOptions=?) => promise<array<string>>
 let stat: string => promise<statResult>
+let lstat: string => promise<statResult>
 let access: (string, ~mode: int=?) => promise<unit>
 
 let fOk: int

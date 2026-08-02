@@ -1,8 +1,6 @@
 // Staging: Phase1 staging-dir lifecycle (create, write staged file, remove on failure).
 // No imports of other phase sub-modules — sits below Phase1 in the dependency arrow.
 
-open PathSecurity
-
 let create: (~tmpDir: string, ~fs: Ports.fileSystem) => promise<result<string, string>> = async (
   ~tmpDir,
   ~fs,
