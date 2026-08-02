@@ -214,4 +214,156 @@ suite("Frontmatter", () => {
     | Error(_) => assert_true(true)
     }
   })
+
+  // --- Step 4: directive value validation ---
+
+  test("parse: rejects absolute path in to directive", () => {
+    let content = "---\nto: /etc/abs\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects parent-segment path in to directive", () => {
+    let content = "---\nto: ../escape\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects absolute path in from directive", () => {
+    let content = "---\nfrom: /abs/path\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects parent-segment path in from directive", () => {
+    let content = "---\nfrom: ../other\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts normal relative path in to directive", () => {
+    let content = "---\nto: src/x.ts\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.To(path)) => assert_eq(path, "src/x.ts")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts normal relative path in from directive", () => {
+    let content = "---\nfrom: templates/x.ejs.t\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.From(path)) => assert_eq(path, "templates/x.ejs.t")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects non-http scheme in fetch directive", () => {
+    let content = "---\nfetch: file:///etc/passwd\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects javascript scheme in fetch directive", () => {
+    let content = "---\nfetch: javascript:alert(1)\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts https URL in fetch directive", () => {
+    let content = "---\nfetch: https://ok.example.com/file\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Fetch(url)) => assert_eq(url, "https://ok.example.com/file")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts http URL in fetch directive", () => {
+    let content = "---\nfetch: http://ok.example.com/file\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Fetch(url)) => assert_eq(url, "http://ok.example.com/file")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts tool directive (lookup key is safe by design)", () => {
+    let content = "---\ntool: somename\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Tool(name)) => assert_eq(name, "somename")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts script directive (lookup key is safe by design)", () => {
+    let content = "---\nscript: somename\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Ok(parsed) =>
+      switch parsed.directives[0] {
+      | Some(Template.Script(name)) => assert_eq(name, "somename")
+      | _ => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects to directive with mixed separators containing parent segment", () => {
+    let content = "---\nto: foo\\..\\bar\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects from directive with parent segment in middle", () => {
+    let content = "---\nfrom: templates/../etc/passwd\n---\ncontent\n"
+    let result = Frontmatter.parse(content)
+    switch result {
+    | Error(_) => assert_true(true)
+    | Ok(_) => assert_false(true)
+    }
+  })
 })

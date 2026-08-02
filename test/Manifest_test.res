@@ -473,4 +473,57 @@ suite("Manifest", () => {
     assert_true(String.includes(formatted, "prompts.options: select prompt requires options"))
     assert_true(String.includes(formatted, "; "))
   })
+
+  // --- Step 3: reject unknown top-level manifest keys ---
+
+  test("parse: rejects unknown top-level keys", () => {
+    let yaml = "name: x\nclassification: y\nbogusField: 123\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "bogusField"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: rejects multiple unknown top-level keys", () => {
+    let yaml = "name: x\nclassification: y\nunknown1: val1\nunknown2: val2\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => {
+        assert_true(String.includes(msg, "unknown1"))
+        assert_true(String.includes(msg, "unknown2"))
+      }
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts manifest with only known keys", () => {
+    let yaml = "name: x\nclassification: y\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) => {
+        assert_eq(m.name, "x")
+        assert_eq(m.classification, "y")
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts manifest with optional metadata key", () => {
+    let yaml = "name: x\nclassification: y\nmetadata:\n  author: someone\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) => assert_true(m.metadata != None)
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: accepts manifest with optional prompts key", () => {
+    let yaml = "name: x\nclassification: y\nprompts:\n  - name: path\n    type: input\n    description: Output path\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) => assert_true(m.prompts != None)
+    | Error(_) => assert_false(true)
+    }
+  })
 })

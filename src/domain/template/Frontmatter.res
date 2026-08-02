@@ -14,16 +14,73 @@ type parseError = {
   line?: int,
 }
 
+// URL type for scheme validation
+type jsUrl
+
+@new
+external makeUrl: string => jsUrl = "URL"
+
+@get
+external urlProtocol: jsUrl => string = "protocol"
+
+// Path absolute check (uses node:path directly to avoid infrastructure module prefix)
+@module("node:path")
+external pathIsAbsolute: string => bool = "isAbsolute"
+
 let frontmatterRegex: RegExp.t = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 
+// Reject paths that are absolute or contain parent-segment escapes
+let rejectUnsafePath: string => result<string, string> = value => {
+  if pathIsAbsolute(value) {
+    Error("Absolute paths are not allowed: " ++ value)
+  } else {
+    // Check for ".." segment (parent directory escape) in both / and \ separators
+    let segments = Js.String.split("/", value)
+    let hasParentSegment = segments->Belt.Array.some(s => s == "..")
+    if hasParentSegment {
+      Error("Paths with '..' segment are not allowed: " ++ value)
+    } else {
+      // Also check backslash separator
+      let backslashSegments = Js.String.split("\\", value)
+      let hasParentSegmentBackslash = backslashSegments->Belt.Array.some(s => s == "..")
+      if hasParentSegmentBackslash {
+        Error("Paths with '..' segment are not allowed: " ++ value)
+      } else {
+        Ok(value)
+      }
+    }
+  }
+}
+
+// Require http or https URL scheme
+let requireHttpUrl: string => result<string, string> = value => {
+  try {
+    let url = makeUrl(value)
+    let proto = urlProtocol(url)
+    if proto == "http:" || proto == "https:" {
+      Ok(value)
+    } else {
+      Error("Only http/https URLs are allowed, got: " ++ proto)
+    }
+  } catch {
+  | _ => Error("Invalid URL: " ++ value)
+  }
+}
+
 // Helper to check directive type
 let checkDirective: (string, string) => result<directive, string> = (key, value) => {
   if key == "to" {
-    Ok(To(value))
+    switch rejectUnsafePath(value) {
+    | Ok(path) => Ok(To(path))
+    | Error(msg) => Error(msg)
+    }
   } else if key == "from" {
-    Ok(From(value))
+    switch rejectUnsafePath(value) {
+    | Ok(path) => Ok(From(path))
+    | Error(msg) => Error(msg)
+    }
   } else if key == "inject" {
     Ok(Inject(value))
   } else if key == "after" {
@@ -50,7 +107,10 @@ let checkDirective: (string, string) => result<directive, string> = (key, value)
   } else if key == "tool" {
     Ok(Tool(value))
   } else if key == "fetch" {
-    Ok(Fetch(value))
+    switch requireHttpUrl(value) {
+    | Ok(url) => Ok(Fetch(url))
+    | Error(msg) => Error(msg)
+    }
   } else if key == "script" {
     Ok(Script(value))
   } else if key == "sh" {

@@ -1,6 +1,6 @@
+// EJS escape/client/outputFunctionName options are intentionally NOT exposed — they are RCE primitives if fed untrusted input.
 type options = {
   delimiter?: string,
-  escape?: string => string,
 }
 
 @module("ejs")
