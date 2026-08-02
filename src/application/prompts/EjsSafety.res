@@ -1,8 +1,11 @@
 // EjsSafety — EJS expression safety guard
 // Mirrors Go version's phase0/prompt_resolver.go EJS safety checks
 
-// Check that a template contains only interpolation tags (<%= ... %>)
-// Rejects control flow (<% ... %>) and unescaped output (<%- ... %>)
+// Check that a template contains only interpolation tags (<%= ... %)
+// Rejects control flow (<% ... %>) and unescaped output (<%- ... %)
+// NOTE: The blocklist is allowlist-equivalent in practice — the only EJS tag
+// that passes is <%= ... %> (since <% followed by - or = is excluded).
+// Any <% not clearly <%- or <%= is conservatively treated as unsafe.
 let _hasUnsafeEjsTags: string => bool = template => {
   // Match any <% that is NOT followed by =
   let controlFlowPattern = RegExp.fromString("<%(?![-=])")
