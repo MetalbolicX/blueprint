@@ -45,7 +45,8 @@ let testWriteStagedFileDeniesTraversal = () => {
     // Use NodeJsPath.resolve to properly normalize .. components
     let nodePath = NodeJsPath.make()
     let realpath = path => Promise.resolve(nodePath.resolve(path, ""))
-    let stat = _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult)
+    let stat = _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult)
+    let lstat = _path => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult)
 
     let mockFs: Ports.fileSystem = {
       readFile: (_, ~options as _=?) => Promise.resolve(""),
@@ -56,6 +57,7 @@ let testWriteStagedFileDeniesTraversal = () => {
       readdir: (_, ~options as _=?) => Promise.resolve([]),
       fileExists: _ => Promise.resolve(false),
       stat: stat,
+      lstat: lstat,
       realpath: realpath,
       makeStagingDir: _prefix => Promise.resolve("/tmp/blueprint-test"),
     }
@@ -108,7 +110,8 @@ let testWriteStagedFileAcceptsInTreePath = () => {
       cp: (_, _, ~options as _=?) => Promise.resolve(),
       readdir: (_, ~options as _=?) => Promise.resolve([]),
       fileExists: _ => Promise.resolve(false),
-      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: _path => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult),
       realpath: realpath,
       makeStagingDir: _prefix => Promise.resolve("/tmp/blueprint-test"),
     }

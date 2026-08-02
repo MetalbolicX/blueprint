@@ -26,7 +26,8 @@ let testRollbackOutputDeniesOutOfTree = () => {
       },
       readdir: baseFs.readdir,
       fileExists: _ => Promise.resolve(false),
-      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: baseFs.lstat,
       realpath: path => Promise.resolve(path),
       makeStagingDir: baseFs.makeStagingDir,
     }
@@ -77,7 +78,8 @@ let testRollbackOutputAllowsInTree = () => {
       cp: (src, dst, ~options as _=?) => Promise.resolve(),
       readdir: baseFs.readdir,
       fileExists: _ => Promise.resolve(false),
-      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: baseFs.lstat,
       realpath: path => Promise.resolve(path),
       makeStagingDir: baseFs.makeStagingDir,
     }
@@ -125,7 +127,8 @@ let testRollbackDeniesNonTmpdir = () => {
       cp: baseFs.cp,
       readdir: baseFs.readdir,
       fileExists: _ => Promise.resolve(false),
-      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: baseFs.lstat,
       realpath: path => Promise.resolve(path),
       makeStagingDir: baseFs.makeStagingDir,
     }
@@ -172,7 +175,8 @@ let testRollbackAllowsInTmpdir = () => {
       cp: baseFs.cp,
       readdir: baseFs.readdir,
       fileExists: _ => Promise.resolve(false),
-      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: baseFs.lstat,
       realpath: path => Promise.resolve(path),
       makeStagingDir: baseFs.makeStagingDir,
     }
@@ -202,6 +206,113 @@ let testRollbackAllowsInTmpdir = () => {
   })
 }
 
+// Step 5: symlink rejection via lstat.
+//
+// These tests are mock-based rather than real-fs: a real symlink in a CI/sandbox
+// may be uncreatable (permission denied on symlink(2)), making the test flaky.
+// The mock's lstat reports the relevant path as a symbolic link, exercising the
+// guard in Commit.commitFiles / Commit.backupIfOverwriting deterministically.
+
+// commitFiles must refuse to copy a staged file that is a symbolic link.
+// Guards against a symlink in staging pointing outside, which would let an
+// attacker write arbitrary files into output via the commit copy.
+let testCommitFilesRejectsSymlink = () => {
+  testAsync("commitFiles: staged symbolic link is rejected and cp is not called", resolve => {
+    let cpCalls: ref<array<string>> = ref([])
+    let baseFs = NodeJsFileSystem.make()
+
+    let mockFs: Ports.fileSystem = {
+      readFile: baseFs.readFile,
+      writeFile: baseFs.writeFile,
+      mkdir: baseFs.mkdir,
+      rm: baseFs.rm,
+      cp: (src, dst, ~options as _=?) => {
+        cpCalls.contents->Array.push(src ++ "=>" ++ dst)->ignore
+        Promise.resolve()
+      },
+      readdir: baseFs.readdir,
+      fileExists: _ => Promise.resolve(false),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: _path => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => true}: Ports.statResult),
+      realpath: path => Promise.resolve(path),
+      makeStagingDir: baseFs.makeStagingDir,
+    }
+
+    Commit.commitFiles(
+      ~stagingDir="/tmp/blueprint-staging",
+      ~outputDir="/home/user/project",
+      ~renderedFiles=[("ignored-source", "src/index.ts")],
+      ~path=NodeJsPath.make(),
+      ~fs=mockFs,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_true(true)
+      | Ok(_) => assert_true(false) // a symlink staged file must be refused
+      }
+      // cp must NEVER have been called — symlink refused before the copy
+      assert_true(cpCalls.contents->Array.length == 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      assert_true(cpCalls.contents->Array.length == 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+}
+
+// An existing output file that is a symbolic link must abort the commit before
+// the backup copy runs. backupIfOverwriting is private, so this is exercised
+// through the public commitFiles: fileExists=true forces the backup branch,
+// whose lstat guard rejects the symlinked destination before cp runs.
+let testCommitRejectsSymlinkedExistingOutput = () => {
+  testAsync("commitFiles: existing symbolic-link output is refused (no backup cp)", resolve => {
+    let cpCalls: ref<array<string>> = ref([])
+    let baseFs = NodeJsFileSystem.make()
+
+    let mockFs: Ports.fileSystem = {
+      readFile: baseFs.readFile,
+      writeFile: baseFs.writeFile,
+      mkdir: baseFs.mkdir,
+      rm: baseFs.rm,
+      cp: (src, dst, ~options as _=?) => {
+        cpCalls.contents->Array.push(src ++ "=>" ++ dst)->ignore
+        Promise.resolve()
+      },
+      readdir: baseFs.readdir,
+      fileExists: _ => Promise.resolve(true),
+      stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
+      lstat: _path => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => true}: Ports.statResult),
+      realpath: path => Promise.resolve(path),
+      makeStagingDir: baseFs.makeStagingDir,
+    }
+
+    Commit.commitFiles(
+      ~stagingDir="/tmp/blueprint-staging",
+      ~outputDir="/home/user/project",
+      ~renderedFiles=[("ignored-source", "existing.txt")],
+      ~path=NodeJsPath.make(),
+      ~fs=mockFs,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_true(true)
+      | Ok(_) => assert_true(false) // a symlink destination must be refused
+      }
+      assert_true(cpCalls.contents->Array.length == 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => {
+      assert_true(cpCalls.contents->Array.length == 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+}
+
 let suite = () => {
   suite("Commit rollbackOutput containment", () => {
     testRollbackOutputDeniesOutOfTree()
@@ -210,6 +321,10 @@ let suite = () => {
   suite("Commit rollback tmpdir assertion", () => {
     testRollbackDeniesNonTmpdir()
     testRollbackAllowsInTmpdir()
+  })
+  suite("Commit symlink rejection", () => {
+    testCommitFilesRejectsSymlink()
+    testCommitRejectsSymlinkedExistingOutput()
   })
 }
 

@@ -37,6 +37,9 @@ Planned-at commit: `64a81fa`
 | 025 | Relocate PromptResolver from infrastructure to application layer | P3 | M | 020 | DONE |
 | 026 | Extract pure buildFrontmatter and promptForDirectives from runAddFile | P3 | M | 021, 022 | DONE |
 | 027 | Refactor EngineOrchestrator nested phase chain to pipeline accumulator | P3 | M | 017 | DONE |
+| 028 | Harden filesystem containment (realpath catch-all, symlink follow, self-contained checks) | P1 | M | — | DONE |
+| 029 | Pin YAML schema to JSON, reject unknown manifest keys, validate directive values | P2 | M | — | TODO |
+| 030 | Remove the EJS `escape` option from bindings and characterize the EjsSafety guard | P3 | S | — | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -110,3 +113,44 @@ interactions beyond the dependencies above):
 - Naive pluralization (English-only +"s"): rejected — feature request without user evidence.
 - Hygen import tool: rejected — no evidence of user demand.
 - ConfigParser dead delegation shell: resolved — covered by Plan 007.
+
+## Findings considered and rejected (round 2026-08-01 — deep security audit)
+
+This round ran the `improve` skill's security audit (parallel subagent audit +
+targeted verification). The headline injection hypothesis ("template directive
+values are EJS-rendered before shell exec") was investigated and **rejected as
+false** — `tool:`/`script:`/`fetch:` values are literal lookup keys into
+`.blueprint.yaml`; commands/args originate from config, never template content.
+`ExecPolicy` is sound and the SSRF guard is robust (DNS resolve + verbatim
+lookup + IP-class allowlist). Three themes were turned into plans 028-030.
+
+- **CI / dependency posture**: rejected — CI already exists and is comprehensive.
+  `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`, `res:build`,
+  `res:test`, `pnpm audit --prod`, gitleaks, and `bundle`. (The AGENTS.md "No CI
+  detected" line is stale.) Only a `pnpm.overrides` pin for the dev-only
+  transitive `brace-expansion` advisory was applied to `package.json`.
+- **Obj.magic elimination at EJS boundaries (render context opaque type)**:
+  rejected — re-opens QUAL-11 (round 2026-07-20), which judged typed EJS
+  bindings "cleaner but not worth a separate plan." Not re-opened this round;
+  the user may override separately if the ROI case strengthens.
+- **Input length/size limits on YAML/reads/fetches**: rejected — re-confirms the
+  prior round's verdict ("negligible risk for local-CLI"). Not included in 029.
+
+## Dependency notes (round 2026-08-01)
+
+- Plans 028, 029, 030 are independent of each other and of plans 001-027; they
+  can be executed in any order or in parallel.
+- 028 (FS hardening) Step 5 extends the `fileSystem` port with `lstat` — any
+  in-flight adapter work should be coordinated to avoid port-contract drift.
+  - Step 5 lstat landed; the build-break root cause was an adapter interface gap
+    (`lstat` was declared in `NodeJs/Fs.res` but missing from `NodeJs/Fs.resi`,
+    so it was private/unused), not a port extension. Port + adapter `.res` were
+    already correct; the `.resi` export + qualified `NodeJs.Fs.lstat` call fixed it.
+- 029 (input contracts) tightens YAML/manifest parsing; audit `_templates/` and
+  `examples/` for YAML anchors/aliases before merging (see its STOP conditions).
+
+## Recommended execution batches (round 2026-08-01)
+
+- **Security hardening batch** (028, 029, 030): all TDD, independent. 028 is the
+  highest-leverage (concrete containment fixes); 029 is the broadest contract
+  change (schema + manifest + directives); 030 is a quick binding + test add.

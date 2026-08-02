@@ -38,6 +38,13 @@ let makeCleanupFs = (
     Promise.resolve({
       isDirectory: () => directoryPaths->Array.some(path => path == target),
       isFile: () => !(directoryPaths->Array.some(path => path == target)),
+      isSymbolicLink: () => false,
+    }: Ports.statResult),
+  lstat: target =>
+    Promise.resolve({
+      isDirectory: () => false,
+      isFile: () => false,
+      isSymbolicLink: () => false,
     }: Ports.statResult),
   realpath: target => Promise.resolve(target),
   makeStagingDir: prefix => Promise.resolve(tmpRoot ++ "/" ++ prefix ++ "-test"),

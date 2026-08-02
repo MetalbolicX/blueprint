@@ -30,6 +30,7 @@ let makeFsWithRestoreFailure = (~failingRestoreFromPath: string): Ports.fileSyst
     readdir: (dir, ~options=?) => base.readdir(dir, ~options?),
     fileExists: file => base.fileExists(file),
     stat: file => base.stat(file),
+    lstat: file => base.lstat(file),
     realpath: file => base.realpath(file),
     makeStagingDir: prefix => base.makeStagingDir(prefix),
   }
