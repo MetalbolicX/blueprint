@@ -34,12 +34,20 @@ let backupIfOverwriting: (
   if !exists {
     Ok(None)
   } else {
+    // Step 5: refuse to back up (and thus overwrite) a symbolic-link destination.
+    // The lstat is inside the try so a transient fs error surfaces as a backup
+    // Error rather than an unhandled rejection; a genuine symlink returns Error.
     let backupPath = path.join(stagingDir, path.join(backupDirName, targetPath))
     let backupDir = path.dirname(backupPath)
     try {
-      let _ = await fs.mkdir(backupDir, ~options={recursive: true})
-      await fs.cp(destPath, backupPath, ~options={recursive: false})
-      Ok(Some({outputPath: destPath, backupPath}))
+      let destStat = await fs.lstat(destPath)
+      if destStat.isSymbolicLink() {
+        Error("Refusing to back up symbolic link: " ++ destPath)
+      } else {
+        let _ = await fs.mkdir(backupDir, ~options={recursive: true})
+        await fs.cp(destPath, backupPath, ~options={recursive: false})
+        Ok(Some({outputPath: destPath, backupPath}))
+      }
     } catch {
     | JsExn(obj) =>
       let msg = switch JsExn.message(obj) {
@@ -88,10 +96,19 @@ let commitFiles: (
       switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
       | Error(e) => Error((e, None))
       | Ok(backupOpt) => {
+          // Step 5: refuse to copy a symbolic-link staged file into the output tree.
+          // The lstat is inside the try so a missing/unreadable staged file surfaces
+          // as a commit Error (preserving partialCommit) rather than an unhandled
+          // rejection; a genuine symlink returns Error without ever reaching cp.
           try {
-            let _ = await fs.mkdir(destDir, ~options={recursive: true})
-            await fs.cp(stagedPath, destPath, ~options={recursive: false})
-            Ok((destPath, backupOpt))
+            let stagedStat = await fs.lstat(stagedPath)
+            if stagedStat.isSymbolicLink() {
+              Error(("Refusing to copy symbolic link: " ++ stagedPath, None))
+            } else {
+              let _ = await fs.mkdir(destDir, ~options={recursive: true})
+              await fs.cp(stagedPath, destPath, ~options={recursive: false})
+              Ok((destPath, backupOpt))
+            }
           } catch {
           | JsExn(obj) =>
             let msg = switch JsExn.message(obj) {
