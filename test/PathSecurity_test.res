@@ -108,6 +108,29 @@ let runTests = (label, pathAdapter) => {
       })
       ->Promise.catch(_ => { resolve(); Promise.resolve() })->ignore
     })
+
+    // Step 1: non-ENOENT realpath failure must deny, not silently fall back
+    testAsync("isWithinTree: realpath EACCES rejects path (does not fall back)", resolve => {
+      let mockFs = makeMockFs()
+      // Override realpath to throw a non-ENOENT error with a code property
+      let denyFs = {
+        ...mockFs,
+        realpath: _path => {
+          // Create a plain JS error-like object with a code property
+          let err = Obj.magic({"message": "EACCES permission denied", "code": "EACCES"})
+          Promise.reject(err)
+        },
+      }
+      // Path is syntactically inside /home/user/project, but realpath fails with EACCES
+      // Must deny rather than silently falling back to the unresolved path
+      PathSecurity.isWithinTree("/home/user/project/src", "/home/user/project", pathAdapter, denyFs)
+      ->Promise.then(result => {
+        assert_false(result) // deny on non-ENOENT realpath failure
+        resolve()
+        Promise.resolve()
+      })
+      ->Promise.catch(_ => { resolve(); Promise.resolve() })->ignore
+    })
   })
 }
 
