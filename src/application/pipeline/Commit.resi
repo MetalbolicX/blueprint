@@ -31,4 +31,4 @@ let rollbackOutput: (
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, array<rollbackFailure>>>
 
-let rollback: (string, ~fs: Ports.fileSystem) => promise<result<unit, string>>
+let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~fs: Ports.fileSystem) => promise<result<unit, string>>

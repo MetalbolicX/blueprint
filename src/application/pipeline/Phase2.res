@@ -36,6 +36,15 @@ let run: (
   ~process,
   ~shell,
 ) => {
+  // Compute tmpRoot from process environment for rollback containment check
+  let tmpRoot = {
+    let env = process.env()
+    switch Dict.get(env, "TMPDIR") {
+    | Some(t) => t
+    | None => "/tmp"
+    }
+  }
+
   let committedFiles = renderedFiles->Array.map(((_, targetPath)) => path.join(outputDir, targetPath))
 
   // Commit files
@@ -63,7 +72,7 @@ let run: (
 
       switch shellResult {
       | Ok((cmdsExec, shellErrors)) => {
-          let _ = await Commit.rollback(stagingDir, ~fs)
+          let _ = await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs)
 
           let shellErrs: option<array<string>> = shellErrors->Array.length > 0 ? Some(shellErrors) : None
           let result: phase2Result = {
@@ -77,7 +86,7 @@ let run: (
       | Error(message) => {
           switch await Commit.rollbackOutput(~committedFiles, ~backups, ~outputDir, ~path, ~fs) {
           | Ok() =>
-            switch await Commit.rollback(stagingDir, ~fs) {
+            switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
             | Ok() => {
                 let err: phase2Error = {message, partialCommit: committedFiles}
                 Error(err)
@@ -99,7 +108,7 @@ let run: (
                 failedRollbackFiles: failedPaths,
               }
 
-              switch await Commit.rollback(stagingDir, ~fs) {
+              switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
               | Ok() => Error(catastrophicError)
               | Error(rollbackMessage) => {
                   let err: phase2Error = {
@@ -116,7 +125,7 @@ let run: (
     }
   | Error(err) => {
       // Commit failed — rollback
-      switch await Commit.rollback(stagingDir, ~fs) {
+      switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
       | Ok() => Error(err)
       | Error(rollbackMessage) => {
           let e: phase2Error = {

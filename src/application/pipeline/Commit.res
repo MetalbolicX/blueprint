@@ -200,16 +200,24 @@ let rollbackOutput: (
 }
 
 // Rollback: remove staging directory
-let rollback: (string, ~fs: Ports.fileSystem) => promise<result<unit, string>> = async (stagingDir, ~fs) => {
-  try {
-    await fs.rm(stagingDir, ~options={recursive: true})
-    Ok()
-  } catch {
-  | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(message) => message
-    | None => "Failed to remove staging directory"
+// Asserts staging dir is within tmpRoot before rm to prevent catastrophic deletion.
+let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~fs: Ports.fileSystem) => promise<result<unit, string>> = async (stagingDir, ~tmpRoot, ~path, ~fs) => {
+  // Guard: staging dir must be within the known tmpdir tree.
+  // Without this, a caller passing a path like /usr could wipe system directories.
+  let isWithin = await PathSecurity.isWithinTree(stagingDir, tmpRoot, path, fs)
+  if !isWithin {
+    Error("Refusing to remove staging dir outside temp directory: " ++ stagingDir)
+  } else {
+    try {
+      await fs.rm(stagingDir, ~options={recursive: true})
+      Ok()
+    } catch {
+    | JsExn(obj) =>
+      let msg = switch JsExn.message(obj) {
+      | Some(message) => message
+      | None => "Failed to remove staging directory"
+      }
+      Error(msg)
     }
-    Error(msg)
   }
 }

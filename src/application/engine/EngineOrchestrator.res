@@ -31,6 +31,15 @@ let run: (
 ) => {
   let {fs, path, process: proc, shell, interactiveIO: io, ejs} = deps
 
+  // Compute tmpRoot for rollback containment check
+  let tmpRoot = {
+    let env = proc.env()
+    switch Dict.get(env, "TMPDIR") {
+    | Some(t) => t
+    | None => "/tmp"
+    }
+  }
+
   // Phase 0: setup (unconditional)
   Fetcher.clearCache()
   await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path)
@@ -127,7 +136,7 @@ let run: (
         Console.log(
           "Dry run — would generate " ++ Int.toString(p1.renderedFiles->Array.length) ++ " file(s)",
         )
-        let _ = await Commit.rollback(p1.stagingDir, ~fs)
+        let _ = await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs)
         Ok({
           filesCreated: p1.renderedFiles->Array.length,
           filesInjected: 0,
