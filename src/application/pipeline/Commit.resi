@@ -26,6 +26,8 @@ let commitFiles: (
 let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
+  ~outputDir: string,
+  ~path: Ports.path,
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, array<rollbackFailure>>>
 

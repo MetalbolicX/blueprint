@@ -282,7 +282,7 @@ suite("Phase2", () => {
       {outputPath: "/output/fail.txt", backupPath: "/backups/fail.txt"},
     ]
 
-    rollbackOutput(~committedFiles, ~backups, ~fs)
+    rollbackOutput(~committedFiles, ~backups, ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -317,7 +317,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == outputNew ? Some("cannot delete") : None,
     )
 
-    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~fs)
+    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)

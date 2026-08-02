@@ -75,7 +75,7 @@ let run: (
           Ok(result)
         }
       | Error(message) => {
-          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~fs) {
+          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~outputDir, ~path, ~fs) {
           | Ok() =>
             switch await Commit.rollback(stagingDir, ~fs) {
             | Ok() => {

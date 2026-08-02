@@ -131,43 +131,55 @@ let commitFiles: (
 let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
+  ~outputDir: string,
+  ~path: Ports.path,
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, array<rollbackFailure>>> = async (
   ~committedFiles,
   ~backups,
+  ~outputDir,
+  ~path,
   ~fs,
 ) => {
   let backupByOutput: dict<backupEntry> = Dict.make()
   backups->Array.forEach(backup => backupByOutput->Dict.set(backup.outputPath, backup))
 
   let workItems = committedFiles->Array.map(outputPath => async () => {
-    switch backupByOutput->Dict.get(outputPath) {
-    | Some(backup) => {
-        try {
-          await fs.cp(backup.backupPath, outputPath, ~options={recursive: false})
-          Ok()
-        } catch {
-        | JsExn(obj) =>
-          let msg = switch JsExn.message(obj) {
-          | Some(m) => m
-          | None => "unknown error"
+    // Re-validate containment: each outputPath must be within outputDir.
+    // Without this check, a future caller could pass unvalidated paths and
+    // rm/cp outside the committed output tree during rollback.
+    let isWithin = await PathSecurity.isWithinTree(outputPath, outputDir, path, fs)
+    if !isWithin {
+      Error({path: outputPath, reason: "output path outside output tree during rollback"})
+    } else {
+      switch backupByOutput->Dict.get(outputPath) {
+      | Some(backup) => {
+          try {
+            await fs.cp(backup.backupPath, outputPath, ~options={recursive: false})
+            Ok()
+          } catch {
+          | JsExn(obj) =>
+            let msg = switch JsExn.message(obj) {
+            | Some(m) => m
+            | None => "unknown error"
+            }
+            Error({path: outputPath, reason: msg})
+          | _ => Error({path: outputPath, reason: "unknown error"})
           }
-          Error({path: outputPath, reason: msg})
-        | _ => Error({path: outputPath, reason: "unknown error"})
         }
-      }
-    | None => {
-        try {
-          await fs.rm(outputPath, ~options={recursive: false})
-          Ok()
-        } catch {
-        | JsExn(obj) =>
-          let msg = switch JsExn.message(obj) {
-          | Some(m) => m
-          | None => "unknown error"
+      | None => {
+          try {
+            await fs.rm(outputPath, ~options={recursive: false})
+            Ok()
+          } catch {
+          | JsExn(obj) =>
+            let msg = switch JsExn.message(obj) {
+            | Some(m) => m
+            | None => "unknown error"
+            }
+            Error({path: outputPath, reason: msg})
+          | _ => Error({path: outputPath, reason: "unknown error"})
           }
-          Error({path: outputPath, reason: msg})
-        | _ => Error({path: outputPath, reason: "unknown error"})
         }
       }
     }
