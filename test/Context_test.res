@@ -132,4 +132,107 @@ suite("Context", () => {
     // (the type no longer has those fields).
     let _ = renderCtx
   })
+
+  // ---------- Hook attributes integration ----------
+
+  test("mergeAttributes: hook attributes are merged", () => {
+    let cli = Dict.make()
+    let prompts = Dict.make()
+    let defaults = Dict.make()
+    let nv = Context.makeNameVariants("BaseName")
+    let hook = Dict.fromArray([("packageName", Context.Scalar("my-pkg"))])
+
+    let merged = Context.mergeAttributes(
+      ~cliAttributes=cli,
+      ~promptAnswers=prompts,
+      ~manifestDefaults=defaults,
+      ~nameVariants=nv,
+      ~hookAttributes=hook,
+    )
+
+    switch Dict.get(merged, "packageName") {
+    | Some(Context.Scalar(s)) => assert_eq(s, "my-pkg")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("mergeAttributes: name variants win over hook attributes", () => {
+    let cli = Dict.make()
+    let prompts = Dict.make()
+    let defaults = Dict.make()
+    let nv = Context.makeNameVariants("BaseName")
+    // Hook tries to override 'name' — should be dropped
+    let hook = Dict.fromArray([
+      ("name", Context.Scalar("hookName")),
+      ("packageName", Context.Scalar("my-pkg")),
+    ])
+
+    let merged = Context.mergeAttributes(
+      ~cliAttributes=cli,
+      ~promptAnswers=prompts,
+      ~manifestDefaults=defaults,
+      ~nameVariants=nv,
+      ~hookAttributes=hook,
+    )
+
+    // 'name' should be the name variant, not the hook value
+    assert_eq(Dict.get(merged, "name"), Some(Context.Scalar("base_name")))
+    // 'packageName' from hook should be present
+    switch Dict.get(merged, "packageName") {
+    | Some(Context.Scalar(s)) => assert_eq(s, "my-pkg")
+    | _ => assert_false(true)
+    }
+  })
+
+  test("mergeAttributes: prompt answer overrides hook attribute", () => {
+    let cli = Dict.make()
+    let prompts = Dict.fromArray([("k", Context.Scalar("answer"))])
+    let defaults = Dict.make()
+    let nv = Context.makeNameVariants("BaseName")
+    let hook = Dict.fromArray([("k", Context.Scalar("hook"))])
+
+    let merged = Context.mergeAttributes(
+      ~cliAttributes=cli,
+      ~promptAnswers=prompts,
+      ~manifestDefaults=defaults,
+      ~nameVariants=nv,
+      ~hookAttributes=hook,
+    )
+
+    assert_eq(Dict.get(merged, "k"), Some(Context.Scalar("answer")))
+  })
+
+  test("mergeAttributes: CLI attribute overrides hook attribute", () => {
+    let cli = Dict.fromArray([("k", Context.Scalar("cli"))])
+    let prompts = Dict.make()
+    let defaults = Dict.make()
+    let nv = Context.makeNameVariants("BaseName")
+    let hook = Dict.fromArray([("k", Context.Scalar("hook"))])
+
+    let merged = Context.mergeAttributes(
+      ~cliAttributes=cli,
+      ~promptAnswers=prompts,
+      ~manifestDefaults=defaults,
+      ~nameVariants=nv,
+      ~hookAttributes=hook,
+    )
+
+    assert_eq(Dict.get(merged, "k"), Some(Context.Scalar("cli")))
+  })
+
+  test("build: accepts hookAttributes parameter", () => {
+    let hook = Dict.fromArray([("pkgName", Context.Scalar("test-pkg"))])
+    let ctx = Context.build(
+      ~cwd="/workspace",
+      ~actionfolder="/workspace/_templates",
+      ~name="MyComp",
+      ~hookAttributes=hook,
+      (),
+    )
+
+    switch Dict.get(ctx.attributes, "pkgName") {
+    | Some(Context.Scalar(s)) => assert_eq(s, "test-pkg")
+    | _ => assert_false(true)
+    }
+  })
 })

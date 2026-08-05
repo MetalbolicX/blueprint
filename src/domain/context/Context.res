@@ -1,5 +1,6 @@
 // Context — template rendering context with name variants and attributes
-// Merge priority: CLI attrs > prompt answers > defaults > name variants
+// Merge priority: CLI attrs > prompt answers > hook attrs > name variants > manifest defaults
+// Hook attrs are inserted between name variants and prompt answers.
 // Mirrors Go version's context.go
 
 open FuncMap
@@ -19,8 +20,11 @@ type context = {
   cwd: string,
   actionfolder: string, // absolute path to manifest directory
   nameVariants: nameVariants,
-  attributes: dict<attrValue>, // CLI --key value + prompt answers
+  attributes: dict<attrValue>, // CLI --key value + prompt answers + hook attributes
 }
+
+// Reserved keys that hooks may not override (defense-in-depth)
+let _reservedKeys = ["name", "Name", "names", "Names", "h"]
 
 // Generate name variants from base name
 let makeNameVariants: string => nameVariants = baseName => {
@@ -32,17 +36,18 @@ let makeNameVariants: string => nameVariants = baseName => {
   }
 }
 
-// Merge CLI attributes with prompt answers and defaults
-// Priority: CLI > prompt answers > manifest defaults > name variants
+// Merge CLI attributes with prompt answers, hook attributes, and defaults
+// Priority: CLI > prompt answers > hook attributes > name variants > manifest defaults
 let mergeAttributes: (
   ~cliAttributes: dict<attrValue>,
   ~promptAnswers: dict<attrValue>,
   ~manifestDefaults: dict<attrValue>,
   ~nameVariants: nameVariants,
-) => dict<attrValue> = (~cliAttributes, ~promptAnswers, ~manifestDefaults, ~nameVariants) => {
+  ~hookAttributes: dict<attrValue>=?,
+) => dict<attrValue> = (~cliAttributes, ~promptAnswers, ~manifestDefaults, ~nameVariants, ~hookAttributes=?) => {
   let merged = Dict.make()
 
-  // Seed with manifest defaults
+  // Seed with manifest defaults (lowest priority)
   manifestDefaults
   ->Dict.toArray
   ->Array.forEach(((k, v)) => {
@@ -54,6 +59,17 @@ let mergeAttributes: (
   Dict.set(merged, "Name", Scalar(nameVariants.pascalName))
   Dict.set(merged, "names", Scalar(nameVariants.names))
   Dict.set(merged, "Names", Scalar(nameVariants.pluralPascalName))
+
+  // Override with hook attributes (second-to-last defense; filter reserved keys)
+  switch hookAttributes {
+  | Some(h) =>
+    h->Dict.toArray->Array.forEach(((k, v)) => {
+      if !Belt.Array.some(_reservedKeys, r => r == k) {
+        Dict.set(merged, k, v)
+      }
+    })
+  | None => ()
+  }
 
   // Override with prompt answers
   promptAnswers
@@ -80,6 +96,7 @@ let build: (
   ~cliAttributes: dict<attrValue>=?,
   ~promptAnswers: dict<attrValue>=?,
   ~manifestDefaults: dict<attrValue>=?,
+  ~hookAttributes: dict<attrValue>=?,
   unit,
 ) => context = (
   ~cwd,
@@ -88,6 +105,7 @@ let build: (
   ~cliAttributes=?,
   ~promptAnswers=?,
   ~manifestDefaults=?,
+  ~hookAttributes=?,
   (),
 ) => {
   let nv = makeNameVariants(name)
@@ -116,6 +134,7 @@ let build: (
       ~promptAnswers=prompts,
       ~manifestDefaults=defaults,
       ~nameVariants=nv,
+      ~hookAttributes?,
     ),
   }
 }

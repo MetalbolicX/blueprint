@@ -8,7 +8,10 @@ let runPreHook: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
-) => promise<result<unit, string>>
+  ~scriptRoot: string=?,
+  ~cwd: string=?,
+  ~preHook: option<Config.hookCommand>=?,
+) => promise<result<Hooks.hookResult, string>>
 
 let runPostHook: (
   ~config: option<Config.config>,
@@ -18,4 +21,7 @@ let runPostHook: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~scriptRoot: string=?,
+  ~cwd: string=?,
+  ~postHook: option<Config.hookCommand>=?,
 ) => promise<result<generateResult, string>>

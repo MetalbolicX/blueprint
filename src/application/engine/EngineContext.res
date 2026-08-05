@@ -20,7 +20,8 @@ let buildMergedContext: (
   ~name: string,
   ~cliAttributes: dict<Context.attrValue>,
   ~promptAnswers: dict<string>,
-) => Context.context = (~initialContext, ~name, ~cliAttributes, ~promptAnswers) => {
+  ~hookAttributes: dict<Context.attrValue>=?,
+) => Context.context = (~initialContext, ~name, ~cliAttributes, ~promptAnswers, ~hookAttributes=?) => {
   let wrappedAnswers = Dict.make()
   promptAnswers->Dict.toArray->Array.forEach(((k, v)) => {
     Dict.set(wrappedAnswers, k, Context.Scalar(v))
@@ -32,6 +33,7 @@ let buildMergedContext: (
     ~name,
     ~cliAttributes,
     ~promptAnswers=wrappedAnswers,
+    ~hookAttributes?,
     (),
   )
 }

@@ -13,4 +13,5 @@ let buildMergedContext: (
   ~name: string,
   ~cliAttributes: dict<Context.attrValue>,
   ~promptAnswers: dict<string>,
+  ~hookAttributes: dict<Context.attrValue>=?,
 ) => Context.context

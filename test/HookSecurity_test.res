@@ -421,4 +421,85 @@ suite("HookSecurity", () => {
     })
     ->ignore
   })
+
+  // --- plan 031: scriptRoot containment ---
+
+  testAsync("executeHook: path validated against scriptRoot not cwd", resolve => {
+    // scriptRoot=/safe, cwd=/other — script at /safe/inner.sh should be allowed
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let safeDir = NodeJs.Path.join(tmpDir, "safe")
+    let innerScript = NodeJs.Path.join(safeDir, "inner.sh")
+    NodeJs.Fs.mkdir(safeDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(innerScript, "#!/bin/sh\necho ok\n"))
+    ->Promise.then(_ => {
+      let hook: Config.hookCommand = {command: "./inner.sh"}
+      Hooks.executeHook(
+        ~hook,
+        ~scriptRoot=safeDir,
+        ~cwd=tmpDir,  // cwd is different from scriptRoot
+        ~timeout=5000,
+        ~hookType=Hooks.PreGenerate,
+        ~shellEnv=None,
+        ~shell=makeShell(~execAsyncResult=Ok({stdout: "ok", stderr: "", status: Some(0), signalCode: None, killed: false})),
+        ~process=makeProcess(),
+        ~path=NodeJsPath.make(),
+        ~fs=NodeJsFileSystem.make(),
+      )
+      ->Promise.then(result => {
+        switch result {
+        | Ok(r) => assert_eq(r.exitCode, 0)
+        | Error(e) => {
+            Console.error(e)
+            assert_false(true)
+          }
+        }
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeHook: script outside scriptRoot is rejected", resolve => {
+    // scriptRoot=/safe, cwd=/safe — script at /evil.sh should be rejected
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let safeDir = NodeJs.Path.join(tmpDir, "safe")
+    NodeJs.Fs.mkdir(safeDir, ~options={recursive: true})
+    ->Promise.then(_ => {
+      let hook: Config.hookCommand = {command: "/evil.sh"}
+      Hooks.executeHook(
+        ~hook,
+        ~scriptRoot=safeDir,
+        ~cwd=safeDir,
+        ~timeout=5000,
+        ~hookType=Hooks.PreGenerate,
+        ~shellEnv=None,
+        ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
+        ~process=makeProcess(),
+        ~path=NodeJsPath.make(),
+        ~fs=NodeJsFileSystem.make(),
+      )
+      ->Promise.then(result => {
+        switch result {
+        | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
+        | Ok(_) => assert_false(true)
+        }
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
 })

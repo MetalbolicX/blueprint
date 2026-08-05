@@ -526,4 +526,117 @@ suite("Manifest", () => {
     | Error(_) => assert_false(true)
     }
   })
+
+  // --- generator-level hook declarations (plan 031) ---
+
+  test("parse: pre_generate relative path parses and is preserved", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: scripts/read-package-name.mjs\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) =>
+      switch m.hooks {
+      | Some(gh) =>
+        switch gh.preGenerate {
+        | Some(p) => assert_eq(p, "scripts/read-package-name.mjs")
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(e) => {
+        Console.log(e)
+        assert_false(true)
+      }
+    }
+  })
+
+  test("parse: post_generate relative path parses and is preserved", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  post_generate: scripts/setup-rescript.mjs\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) =>
+      switch m.hooks {
+      | Some(gh) =>
+        switch gh.postGenerate {
+        | Some(p) => assert_eq(p, "scripts/setup-rescript.mjs")
+        | None => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: both hooks declared parses both paths", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: scripts/pre.mjs\n  post_generate: scripts/post.mjs\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) =>
+      switch m.hooks {
+      | Some(gh) =>
+        switch (gh.preGenerate, gh.postGenerate) {
+        | (Some(p), Some(q)) => {
+            assert_eq(p, "scripts/pre.mjs")
+            assert_eq(q, "scripts/post.mjs")
+          }
+        | _ => assert_false(true)
+        }
+      | None => assert_false(true)
+      }
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: no hooks is backward-compatible", () => {
+    let yaml = "name: x\nclassification: y\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(m) => assert_true(m.hooks == None)
+    | Error(_) => assert_false(true)
+    }
+  })
+
+  test("parse: absolute path in pre_generate is rejected", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: /tmp/evil.sh\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "absolute paths are not allowed"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: parent-segment path in pre_generate is rejected", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: ../evil.sh\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "'..' segments are not allowed"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: absolute path in post_generate is rejected", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  post_generate: /abs/evil.sh\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "absolute paths are not allowed"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: hooks value must be an object", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  - not an object\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "hooks must be an object"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: pre_generate must be a string", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate:\n    command: echo\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Error(msg) => assert_true(String.includes(msg, "pre_generate must be a string"))
+    | Ok(_) => assert_false(true)
+    }
+  })
 })

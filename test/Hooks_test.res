@@ -53,7 +53,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(postResult => {
         switch postResult {
-        | Ok() =>
+        | Ok(_) =>
           let cfgNoPre: Config.config = {
             hooks: {
               postGenerate: {command: "echo post-ok"},
@@ -63,7 +63,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
           Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
           ->Promise.then(preResult => {
             switch preResult {
-            | Ok() => assert_true(true)
+            | Ok(_) => assert_true(true)
             | Error(_) => assert_false(true)
             }
             resolve()
@@ -90,7 +90,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
-        | Ok() => assert_true(true)
+        | Ok(_) => assert_true(true)
         | Error(_) => {
             assert_false(true)
           }
@@ -162,6 +162,29 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
         switch result {
         | Error(_msg) => assert_true(true) 
         | Ok(_) => assert_false(true)
+        }
+        resolve()
+        Promise.resolve()
+      })
+      ->ignore
+    })
+
+    testAsync("run: pre_generate returns hookResult with stdout preserved", resolve => {
+      let cfg: Config.config = {
+        hooks: {
+          preGenerate: {command: "printf", args: ["%s", "{\"k\":\"hello\"}"]},
+          timeout: 5,
+        },
+      }
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      ->Promise.then(r => {
+        switch r {
+        | Ok(hookResult) => {
+            assert_eq(hookResult.hookType, Hooks.PreGenerate)
+            assert_true(String.includes(hookResult.output, "\"k\""))
+            assert_true(String.includes(hookResult.output, "hello"))
+          }
+        | Error(_) => assert_false(true)
         }
         resolve()
         Promise.resolve()

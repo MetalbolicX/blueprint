@@ -21,6 +21,7 @@ let mergeAttributes: (
   ~promptAnswers: dict<attrValue>,
   ~manifestDefaults: dict<attrValue>,
   ~nameVariants: nameVariants,
+  ~hookAttributes: dict<attrValue>=?,
 ) => dict<attrValue>
 
 let build: (
@@ -30,6 +31,7 @@ let build: (
   ~cliAttributes: dict<attrValue>=?,
   ~promptAnswers: dict<attrValue>=?,
   ~manifestDefaults: dict<attrValue>=?,
+  ~hookAttributes: dict<attrValue>=?,
   unit,
 ) => context
 

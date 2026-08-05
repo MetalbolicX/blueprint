@@ -29,7 +29,7 @@ let run: (
   ~config=?,
   ~deps,
 ) => {
-  let {fs, path, process: proc, shell, interactiveIO: io, ejs} = deps
+  let {fs, path, process: proc, shell, interactiveIO: io, ejs, yamlParser} = deps
 
   // Compute tmpRoot for rollback containment check
   let tmpRoot = {
@@ -51,19 +51,66 @@ let run: (
     ~cliAttributes,
   )
 
-  // Pre-hook
-  let preResult = switch await EngineHooks.runPreHook(
+  // Pre-hook — resolve generator vs project hook precedence; generator wins
+  // Generator hook: scriptRoot=generator.path, cwd=outputDir
+  // Project hook: scriptRoot=projectRoot, cwd=outputDir
+  let (preHookCmd, preScriptRoot, preCwd) = switch generator.manifest {
+  | Some(m) =>
+    switch m.hooks {
+    | Some(gh) =>
+      switch gh.preGenerate {
+      | Some(s) =>
+        // Generator declares pre-hook: use it, log if project hook is shadowed
+        switch config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate) {
+        | Some(_) => Console.info("Generator pre-hook shadows project .blueprint.yaml pre_generate hook")
+        | None => ()
+        }
+        let hookCmd: Config.hookCommand = {command: s}
+        (Some(hookCmd), generator.path, outputDir)
+      | None =>
+        let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
+        (projectHook, context.cwd, outputDir)
+      }
+    | None =>
+      let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
+      (projectHook, context.cwd, outputDir)
+    }
+  | None =>
+    let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
+    (projectHook, context.cwd, outputDir)
+  }
+
+  let preHookResult = switch await EngineHooks.runPreHook(
     ~config,
     ~projectRoot=context.cwd,
     ~shell,
     ~process=proc,
     ~path,
     ~fs,
+    ~scriptRoot=preScriptRoot,
+    ~cwd=preCwd,
+    ~preHook=preHookCmd,
   ) {
   | Error(e) =>
     io.close()
     Error({Commit.message: e})
-  | Ok() => Ok(io)
+  | Ok(hookRes) => Ok(hookRes)
+  }
+
+  // Parse hook stdout into attributes (fail-closed on malformed output)
+  let hookAttributes: result<option<dict<Context.attrValue>>, Commit.phase2Error> = switch preHookResult {
+  | Error(_) => Ok(None)
+  | Ok(hookRes) =>
+    switch HookContext.parse(~stdout=hookRes.output, ~yamlParser) {
+    | Ok(attrs) => Ok(Some(attrs))
+    | Error(e) => io.close(); Error({Commit.message: e})
+    }
+  }
+
+  // For bindPhase, we pass io if preHook succeeded (errors already handled above)
+  let preResult: result<Ports.interactiveIO, Commit.phase2Error> = switch preHookResult {
+  | Error(e) => Error(e) // already closed above
+  | Ok(_) => Ok(io)
   }
 
   // Phase 0: prompt resolution + conflict detection
@@ -94,11 +141,17 @@ let run: (
   let phase1Result = await bindPhase(
     ~prev=phase0Result,
     ~next=(async ((p0, decisions)) => {
+      // Extract hookAttributes from the result (errors already handled above)
+      let hookAttrs = switch hookAttributes {
+      | Error(_) => None
+      | Ok(attrs) => attrs
+      }
       let mergedContext = EngineContext.buildMergedContext(
         ~initialContext=context,
         ~name,
         ~cliAttributes,
         ~promptAnswers=p0.resolvedAttributes,
+        ~hookAttributes=?hookAttrs,
       )
 
       let shellConfig = config->Option.flatMap(c => c.shell)
@@ -172,6 +225,31 @@ let run: (
               classification: generator.name,
               shellErrors: ?p2.shellErrors,
             }
+            // Post-hook: same precedence logic as pre-hook
+            let (postHookCmd, postScriptRoot, postCwd) = switch generator.manifest {
+            | Some(m) =>
+              switch m.hooks {
+              | Some(gh) =>
+              switch gh.postGenerate {
+              | Some(s) =>
+                switch config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate) {
+                | Some(_) => Console.info("Generator post-hook shadows project .blueprint.yaml post_generate hook")
+                | None => ()
+                }
+                let hookCmd: Config.hookCommand = {command: s}
+                (Some(hookCmd), generator.path, outputDir)
+              | None =>
+                  let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
+                  (projectHook, context.cwd, outputDir)
+                }
+              | None =>
+                let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
+                (projectHook, context.cwd, outputDir)
+              }
+            | None =>
+              let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
+              (projectHook, context.cwd, outputDir)
+            }
             let finalResult = await EngineHooks.runPostHook(
               ~config,
               ~projectRoot=context.cwd,
@@ -180,6 +258,9 @@ let run: (
               ~process=proc,
               ~path,
               ~fs,
+              ~scriptRoot=postScriptRoot,
+              ~cwd=postCwd,
+              ~postHook=postHookCmd,
             )
             io.close()
             switch finalResult {
