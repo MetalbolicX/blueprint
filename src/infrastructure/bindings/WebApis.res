@@ -1,5 +1,5 @@
 /**
- * Typed bindings to Web APIs (browsers, Deno, Node.js 22+).
+ * Typed bindings to Web APIs (browsers, Node.js 22+).
  */
 
 module AbortSignal = {
@@ -7,7 +7,7 @@ module AbortSignal = {
 
   /**
    * Creates an AbortSignal that auto-aborts after `ms` milliseconds.
-   * Available in browsers, Deno, and Node.js 22+.
+   * Available in browsers and Node.js 22+.
    */
   @val
   external timeout: int => t = "AbortSignal.timeout"

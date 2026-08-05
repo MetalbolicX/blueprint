@@ -136,7 +136,6 @@ let runTests = (label, pathAdapter) => {
 }
 
 runTests("Node.js", NodeJsPath.make())
-runTests("Deno", DenoPath.make())
 
 // Real filesystem test: symlink bypass detection
 suite("PathSecurity Symlink", () => {

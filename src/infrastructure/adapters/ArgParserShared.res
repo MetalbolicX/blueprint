@@ -1,6 +1,6 @@
 /**
  * ArgParserShared — runtime-agnostic argument parsing logic.
- * Shared between NodeJsArgParser and DenoArgParser adapters.
+ * Shared between NodeJsArgParser adapters.
  * Takes raw argv array + option definitions, returns parsed result.
  */
 

@@ -2,91 +2,8 @@
 
 open TestHelpers
 
-let setupDenoMock = %raw(`
-  async function() {
-    if (typeof globalThis.Deno === 'undefined') {
-      const cp = await import('node:child_process');
-      globalThis.Deno = {
-        env: { toObject: () => process.env },
-        Command: class {
-          constructor(exe, opts) {
-            this.exe = exe;
-            this.opts = opts || {};
-          }
-          async output() {
-            return new Promise((resolve, reject) => {
-              const args = this.opts.args || [];
-              const cwd = this.opts.cwd;
-              const env = this.opts.env;
-              // Add a fake timeout if command is "sleep 10" just for this test
-              if (args.includes("sleep 10") || this.exe.includes("sleep")) {
-                setTimeout(() => {
-                  resolve({
-                    code: 1,
-                    signal: "SIGTERM",
-                    stdout: new Uint8Array(),
-                    stderr: new TextEncoder().encode("Timeout")
-                  });
-                }, 50);
-                return;
-              }
-              
-              cp.execFile(this.exe, args, { cwd, env }, (err, stdout, stderr) => {
-                const encoder = new TextEncoder();
-                if (err) {
-                  resolve({
-                    code: err.code || 1,
-                    signal: err.signal || null,
-                    stdout: encoder.encode(stdout || ""),
-                    stderr: encoder.encode(stderr || err.message)
-                  });
-                } else {
-                  resolve({
-                    code: 0,
-                    signal: null,
-                    stdout: encoder.encode(stdout || ""),
-                    stderr: encoder.encode(stderr || "")
-                  });
-                }
-              });
-            });
-          }
-        }
-      };
-      return true;
-    }
-    return false;
-  }
-`)
-
-let teardownDenoMock = %raw(`
-  function(wasMocked) {
-    if (wasMocked) {
-      delete globalThis.Deno;
-    }
-  }
-`)
-
 let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => {
   suite(`Hooks [${label}]`, () => {
-    let wasMocked = ref(false)
-
-    testAsync("setup mock", resolve => {
-      if label == "Deno" {
-        setupDenoMock()
-        ->Promise.then(result => {
-          wasMocked := result
-          assert_true(true)
-          resolve()
-          Promise.resolve()
-        })
-        ->ignore
-      } else {
-        assert_true(true)
-        resolve()
-      }
-    })
-
     testAsync("executeHook: preserves provided hookType", resolve => {
       let hook: Config.hookCommand = {
         command: "echo hello",
@@ -251,16 +168,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       })
       ->ignore
     })
-
-    testAsync("teardown mock", resolve => {
-      if label == "Deno" {
-        teardownDenoMock(wasMocked.contents)
-      }
-      assert_true(true)
-      resolve()
-    })
   })
 }
 
 runTests("Node.js", NodeJsProcess.make(), NodeJsShell.make(), NodeJsPath.make(), NodeJsFileSystem.make())
-runTests("Deno", DenoProcess.make(), DenoShell.make(), DenoPath.make(), DenoFileSystem.make())

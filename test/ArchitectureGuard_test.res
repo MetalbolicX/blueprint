@@ -2,7 +2,7 @@
 //
 // Enforces the architectural rule that domain and application layers must
 // not contain direct references to infrastructure bindings (Bindings.*,
-// NodeJs.*, Deno.*). Introduced as part of the
+// NodeJs.*, Ejs.*). Introduced as part of the
 // restore-hexagonal-domain-and-app-layer change.
 //
 // Implementation: recursively walks the target directories using node:fs /
@@ -31,7 +31,6 @@ external pathJoin: (string, string) => string = "join"
 let checkLine: string => bool = line => {
   String.includes(line, "Bindings.") ||
   String.includes(line, "NodeJs.") ||
-  String.includes(line, "Deno.") ||
   String.includes(line, "Ejs.")
 }
 
@@ -75,12 +74,12 @@ let scanForForbiddenRefs: string => array<string> = scanRoot => {
 open TestHelpers
 
 suite("Architecture guard", () => {
-  test("domain layer contains no Bindings/NodeJs/Deno/Ejs references", () => {
+  test("domain layer contains no Bindings/NodeJs/Ejs references", () => {
     let violations = scanForForbiddenRefs("src/domain")
     assert_eq(Array.length(violations), 0)
   })
 
-  test("application layer contains no Bindings/NodeJs/Deno/Ejs references", () => {
+  test("application layer contains no Bindings/NodeJs/Ejs references", () => {
     let violations = scanForForbiddenRefs("src/application")
     assert_eq(Array.length(violations), 0)
   })
