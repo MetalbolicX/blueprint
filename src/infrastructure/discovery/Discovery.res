@@ -75,7 +75,31 @@ let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports
       switch Manifest.parse(~yamlParser, ~yaml=content) {
       | Ok(m) =>
         switch Manifest.validate(m) {
-        | Ok() => Ok(Some(m))
+        | Ok() =>
+          // Validate declared hook files exist relative to the generator directory.
+          // Check preGenerate first, then postGenerate; short-circuit on first miss.
+          switch m.hooks {
+          | None => Ok(Some(m))
+          | Some(h) =>
+            switch h.preGenerate {
+            | None => Ok(Some(m))
+            | Some(hookPath) =>
+              let resolved = path.join(generatorPath, hookPath)
+              switch await fs.fileExists(resolved) {
+              | false => Error("Hook script not found: " ++ resolved)
+              | true =>
+                switch h.postGenerate {
+                | None => Ok(Some(m))
+                | Some(hookPath2) =>
+                  let resolved2 = path.join(generatorPath, hookPath2)
+                  switch await fs.fileExists(resolved2) {
+                  | false => Error("Hook script not found: " ++ resolved2)
+                  | true => Ok(Some(m))
+                  }
+                }
+              }
+            }
+          }
         | Error(errors) => {
             let details = Manifest.validationErrorsToString(errors)
             Error("manifest at " ++ manifestPath ++ " invalid: " ++ details)

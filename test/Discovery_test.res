@@ -316,4 +316,77 @@ suite("Discovery", () => {
       })
     })
   })
+
+  // --- hook-path discovery and load-guard tests ---
+
+  testAsync("discover: create-res-project generator carries both hook paths", resolve => {
+    let examplesPath = NodeJs.Path.resolve(NodeJs.Process.cwd(), "examples")
+    let _ = Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, examplesPath)
+    ->Promise.then(gens => {
+      switch Discovery.findByClassification(gens, "create-res-project") {
+      | Some(gen) =>
+        switch gen.manifest {
+        | Some(m) =>
+          switch m.hooks {
+          | Some(h) => {
+              assert_eq(h.preGenerate, Some("scripts/read-package-name.mjs"))
+              assert_eq(h.postGenerate, Some("scripts/setup-rescript.mjs"))
+              resolve()
+            }
+          | None => {
+              assert_false(true)
+              resolve()
+            }
+          }
+        | None => {
+            assert_false(true)
+            resolve()
+          }
+        }
+      | None => {
+          assert_false(true)
+          resolve()
+        }
+      }
+      Promise.resolve()
+    })
+    ->Promise.catch(exn => {
+      throw(exn)
+    })
+  })
+
+  testAsync("discover: manifest with nonexistent hook file returns error", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let genDir = NodeJs.Path.join(tmpDir, "testgen")
+    let newDir = NodeJs.Path.join(genDir, "new")
+
+    let _ = NodeJs.Fs.mkdir(genDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(newDir, ~options={recursive: true}))
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(genDir, "manifest.yaml"),
+        "name: test\nclassification: test\nhooks:\n  pre_generate: scripts/nonexistent.mjs\n",
+      )
+    )
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(newDir, "index.txt.ejs.t"),
+        "---\nto: out.txt\n---\nhello\n",
+      )
+    )
+    ->Promise.then(_ => Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, tmpDir))
+    ->Promise.then(gens => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        // Generator with missing hook script must be excluded
+        assert_eq(Array.length(gens), 0)
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(exn => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
+        throw(exn)
+      })
+    })
+  })
 })
