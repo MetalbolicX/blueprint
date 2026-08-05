@@ -161,3 +161,7 @@ dist
 /elm-stuff
 node_modules/
 .atl/
+
+# Generated output (regenerable)
+_output/
+generated/
