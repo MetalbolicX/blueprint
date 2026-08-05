@@ -8,6 +8,7 @@ type hookResult = {
 
 let executeHook: (
   ~hook: Config.hookCommand,
+  ~scriptRoot: string=?,
   ~cwd: string,
   ~timeout: int,
   ~hookType: hookType,
@@ -27,4 +28,6 @@ let run: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
-) => promise<result<unit, string>>
+  ~scriptRoot: string=?,
+  ~cwd: string=?,
+) => promise<result<hookResult, string>>

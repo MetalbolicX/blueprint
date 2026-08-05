@@ -40,16 +40,72 @@ type prompt = {
   validate?: promptValidation,
 }
 
+type generatorHooks = {
+  preGenerate?: string,
+  postGenerate?: string,
+}
+
 type manifest = {
   name: string,
   classification: string,
+  description?: string,
   metadata?: dict<JSON.t>,
   prompts?: array<prompt>,
+  hooks?: generatorHooks,
 }
 
 type validationError = {
   field: string,
   message: string,
+}
+
+// Validate a hook path: no absolute paths, no ".." segments
+let validateHookPath: (string, string) => option<string> = (hookName, path) => {
+  if path->String.includes("/") && path->String.startsWith("/") {
+    Some(hookName ++ ": absolute paths are not allowed: " ++ path)
+  } else if path->String.includes("..") {
+    Some(hookName ++ ": paths with '..' segments are not allowed: " ++ path)
+  } else {
+    None
+  }
+}
+
+// Parse a single generatorHooks object from JSON
+let parseGeneratorHooks: JSON.t => result<generatorHooks, string> = json => {
+  switch json {
+  | JSON.Object(dict) => {
+      // Parse pre_generate
+      let preResult: result<option<string>, string> = switch dict->Dict.get("pre_generate") {
+      | Some(JSON.String(s)) =>
+        switch validateHookPath("pre_generate", s) {
+        | Some(err) => Error(err)
+        | None => Ok(Some(s))
+        }
+      | Some(_) => Error("pre_generate must be a string")
+      | None => Ok(None)
+      }
+      // Parse post_generate
+      let postResult: result<option<string>, string> = switch dict->Dict.get("post_generate") {
+      | Some(JSON.String(s)) =>
+        switch validateHookPath("post_generate", s) {
+        | Some(err) => Error(err)
+        | None => Ok(Some(s))
+        }
+      | Some(_) => Error("post_generate must be a string")
+      | None => Ok(None)
+      }
+      // Combine results
+      switch preResult {
+      | Error(e) => Error(e)
+      | Ok(pre) =>
+        switch postResult {
+        | Error(e) => Error(e)
+        | Ok(post) => Ok({preGenerate: ?pre, postGenerate: ?post})
+        }
+      }
+    }
+  | _ => Error("hooks must be an object")
+  }
 }
 
 // Parse YAML string into manifest record
@@ -202,7 +258,7 @@ let parse: (~yamlParser: Ports.yamlParser, ~yaml: string) => result<manifest, st
   | Error(msg) => Error(msg)
   | Ok(json) => {
       // Reject unknown top-level manifest keys
-      let knownKeys = ["name", "classification", "metadata", "prompts"]
+      let knownKeys = ["name", "classification", "description", "metadata", "prompts", "hooks"]
       let unknownKeys = switch json {
       | JSON.Object(dict) => {
           let allKeys = dict->Dict.keysToArray
@@ -218,10 +274,28 @@ let parse: (~yamlParser: Ports.yamlParser, ~yaml: string) => result<manifest, st
         // Build manifest from JSON
         let name = getString(json, "name")->Option.getOr("")
         let classification = getString(json, "classification")->Option.getOr("")
+        let description = getString(json, "description")
         let metadata = getObject(json, "metadata")
         let prompts = getPromptsFromJson(json, "prompts")
 
-        Ok({name, classification, metadata: ?metadata, prompts: ?prompts})
+        // Parse optional hooks
+        let hooksResult: result<option<generatorHooks>, string> = switch json {
+        | JSON.Object(dict) =>
+          switch dict->Dict.get("hooks") {
+          | Some(hooksJson) =>
+            switch parseGeneratorHooks(hooksJson) {
+            | Ok(h) => Ok(Some(h))
+            | Error(e) => Error(e)
+            }
+          | None => Ok(None)
+          }
+        | _ => Ok(None)
+        }
+        switch hooksResult {
+        | Error(e) => Error(e)
+        | Ok(hooks) =>
+        Ok({name, classification, description: ?description, metadata: ?metadata, prompts: ?prompts, hooks: ?hooks})
+        }
       }
     }
   }

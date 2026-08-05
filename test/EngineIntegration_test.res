@@ -251,4 +251,102 @@ suite("Engine Integration", () => {
     })
     ->ignore
   })
+
+  testAsync("generate create-res-project: produces runnable project structure", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+
+    // Pre-create package.json in output dir (pre-hook reads it)
+    NodeJs.Fs.mkdir(outputDir, ~options={recursive: true})
+    ->Promise.then(_ =>
+      NodeJs.Fs.writeFile(
+        NodeJs.Path.join(outputDir, "package.json"),
+        "{\"name\": \"smoke-app\"}\n",
+      )
+    )
+    // Discover the real create-res-project generator from examples/
+    ->Promise.then(_ =>
+      Discovery.discoverIn(
+        ~fs=deps.fs,
+        ~path=NodeJsPath.make(),
+        ~yamlParser=deps.yamlParser,
+        "examples",
+      )
+    )
+    ->Promise.then(gens => {
+      switch Discovery.findByClassification(gens, "create-res-project") {
+      | None =>
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        assert_false(true)
+        resolve()
+        Promise.resolve()
+      | Some(gen) =>
+        EngineOrchestrator.run(
+          ~generator=gen,
+          ~name="smoke-app",
+          ~cliAttributes=Dict.make(),
+          ~outputDir,
+          ~force=true,
+          ~deps,
+        )
+        ->Promise.then(result => {
+          switch result {
+          | Error(e) => {
+              NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+              Console.error("Engine error: " ++ e.message)
+              assert_false(true)
+              resolve()
+              Promise.resolve()
+            }
+          | Ok(r) => {
+              // Assert Main.res greeting
+              let mainResPath = NodeJs.Path.join(outputDir, "src/Main.res")
+              NodeJs.Fs.readFile(mainResPath, ~options={encoding: "utf8"})
+              ->Promise.then(mainContent => {
+                assert_true(String.includes(mainContent, "Hello, smoke-app!"))
+
+                // Assert rescript.json name
+                let rescriptJsonPath = NodeJs.Path.join(outputDir, "rescript.json")
+                NodeJs.Fs.readFile(rescriptJsonPath, ~options={encoding: "utf8"})
+                ->Promise.then(rjContent => {
+                  assert_true(String.includes(rjContent, "\"name\"") && String.includes(rjContent, "smoke-app"))
+
+                  // Assert rolldown.config.mjs is generic (no VanRs/vanrs)
+                  let rolldownPath = NodeJs.Path.join(outputDir, "rolldown.config.mjs")
+                  NodeJs.Fs.readFile(rolldownPath, ~options={encoding: "utf8"})
+                  ->Promise.then(rollContent => {
+                    assert_false(String.includes(rollContent, "VanRs") || String.includes(rollContent, "vanrs"))
+
+                    // Assert package.json post-hook mutations via string search
+                    // (setup-rescript.mjs adds deps.rescript, scripts.res:build,
+                    //  engines.node, bin.smoke-app)
+                    let pkgJsonPath = NodeJs.Path.join(outputDir, "package.json")
+                    NodeJs.Fs.readFile(pkgJsonPath, ~options={encoding: "utf8"})
+                    ->Promise.then(pkgContent => {
+                      let hasRescript = String.includes(pkgContent, "\"rescript\"")
+                      let hasResBuild = String.includes(pkgContent, "\"res:build\"")
+                      let hasNodeEngines = String.includes(pkgContent, "\"node\"")
+                      let hasBin = String.includes(pkgContent, "\"smoke-app\"") &&
+                        String.includes(pkgContent, "dist/main.mjs")
+                      assert_true(hasRescript && hasResBuild && hasNodeEngines && hasBin)
+                      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+                      resolve()
+                      Promise.resolve()
+                    })
+                  })
+                })
+              })
+            }
+          }
+        })
+        ->Promise.catch(_ => {
+          NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+          assert_false(true)
+          resolve()
+          Promise.resolve()
+        })
+      }
+    })
+    ->ignore
+  })
 })

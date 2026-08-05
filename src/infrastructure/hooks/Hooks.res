@@ -19,8 +19,11 @@ let _isPath: string => bool = cmd => {
 }
 
 // Execute a single hook using structured hookCommand
+// scriptRoot: directory for path containment validation (defaults to cwd for backward compat)
+// cwd: working directory for execution (required)
 let executeHook: (
   ~hook: Config.hookCommand,
+  ~scriptRoot: string=?,
   ~cwd: string,
   ~timeout: int,
   ~hookType: hookType,
@@ -31,6 +34,7 @@ let executeHook: (
   ~fs: Ports.fileSystem,
 ) => promise<result<hookResult, string>> = async (
   ~hook,
+  ~scriptRoot as actualScriptRoot=".",
   ~cwd,
   ~timeout,
   ~hookType,
@@ -40,6 +44,7 @@ let executeHook: (
   ~path,
   ~fs,
 ) => {
+  let scriptRoot = actualScriptRoot
     let envFilterConfig = shellEnv->Option.map(ShellBuilder.buildEnvFilterConfig)
   let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
 
@@ -92,9 +97,9 @@ let executeHook: (
 
   let result = if isEmptyCommand {
     Ok({hookType, output: "", exitCode: 0})
-  } else if isPath {
-    let resolvedPath = path.resolve(cwd, hook.command)
-    let isWithin = await PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)
+    } else if isPath {
+    let resolvedPath = path.resolve(scriptRoot, hook.command)
+    let isWithin = await PathSecurity.isWithinTree(resolvedPath, scriptRoot, path, fs)
     if !isWithin {
       Error("Hook script outside project tree: " ++ hook.command)
     } else {
@@ -108,9 +113,19 @@ let executeHook: (
           }
         }
       | None => {
+          // Use node as interpreter for .mjs/.js scripts to avoid requiring
+          // OS-level execute permission on the script file. The shebang
+          // (#!/usr/bin/env node) requires execute permission at the OS level;
+          // invoking via "node <path>" works with only read permission.
+          let needsNode = String.endsWith(resolvedPath, ".mjs") || String.endsWith(resolvedPath, ".js")
           try {
-            let r = await shell.execFileAsync(hook.command, ~options=execFileOpts)
-            Ok(execResultToHookResult(r))
+            if needsNode {
+              let r = await shell.execFileAsync("node", ~args=[resolvedPath], ~options=execFileOpts)
+              Ok(execResultToHookResult(r))
+            } else {
+              let r = await shell.execFileAsync(hook.command, ~options=execFileOpts)
+              Ok(execResultToHookResult(r))
+            }
           } catch {
           | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
           }
@@ -153,6 +168,8 @@ let _buildShellEnv: option<Config.shellConfig> => option<Config.shellEnv> = shel
 }
 
 // Run hooks for a given hook type
+// scriptRoot: directory for path containment validation (generator.path or projectRoot)
+// cwd: working directory for execution (outputDir for generator hooks; projectRoot for config hooks)
 let run: (
   ~config: Config.config,
   ~projectRoot: string,
@@ -162,7 +179,9 @@ let run: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
-) => promise<result<unit, string>> = async (
+  ~scriptRoot: string=?,
+  ~cwd: string=?,
+) => promise<result<hookResult, string>> = async (
   ~config,
   ~projectRoot,
   ~hookType,
@@ -171,7 +190,11 @@ let run: (
   ~process,
   ~path,
   ~fs,
+  ~scriptRoot as actualScriptRoot=projectRoot,
+  ~cwd as actualCwd=projectRoot,
 ) => {
+  let scriptRoot = actualScriptRoot
+  let cwd = actualCwd
   let timeout = switch config.hooks {
   | Some(h) =>
     switch h.timeout {
@@ -191,15 +214,15 @@ let run: (
   }
 
   switch hookCmd {
-  | None => Ok()
+  | None => Ok({hookType, output: "", exitCode: 0})
   | Some(hook) =>
     if hook.command == "" {
-      Ok()
+      Ok({hookType, output: "", exitCode: 0})
     } else {
       let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~cwd=projectRoot, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs)
+      let result = await executeHook(~hook, ~scriptRoot, ~cwd, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs)
       switch result {
-      | Ok(_) => Ok()
+      | Ok(r) => Ok(r)
       | Error(e) =>
         switch hookType {
         | PreGenerate => Error("pre_generate hook failed: " ++ e)

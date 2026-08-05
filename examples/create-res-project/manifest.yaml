@@ -1,0 +1,6 @@
+name: create-res-project
+classification: generator
+description: Scaffold a runnable ReScript project with a generic Rolldown bundler config matching the repository standard.
+hooks:
+  pre_generate: scripts/read-package-name.mjs
+  post_generate: scripts/setup-rescript.mjs

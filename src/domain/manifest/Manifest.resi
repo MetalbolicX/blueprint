@@ -14,11 +14,18 @@ type prompt = {
   validate?: promptValidation,
 }
 
+type generatorHooks = {
+  preGenerate?: string,
+  postGenerate?: string,
+}
+
 type manifest = {
   name: string,
   classification: string,
+  description?: string,
   metadata?: dict<JSON.t>,
   prompts?: array<prompt>,
+  hooks?: generatorHooks,
 }
 
 type validationError = {
