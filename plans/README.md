@@ -10,7 +10,7 @@ honor its STOP conditions, and update your row when done.
 |------|-------|----------|--------|------------|--------|
 | 030  | Generic pre-hook context bridge — feed `pre_generate` hook output to templates | P1 | M | — | DONE |
 | 031  | `create-res-project` generator (consumer of the pre-hook bridge) | P2 | S | 030 | DONE |
-| 032  | Post-hook (`setup-rescript.mjs`) + Discovery load-guard + verify follow-ups | P3 | S | 031 | TODO |
+| 032  | Post-hook (`setup-rescript.mjs`) + Discovery load-guard + verify follow-ups | P3 | S | 031 | DONE |
 
 ## Dependency notes
 
