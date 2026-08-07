@@ -39,23 +39,31 @@ to: package.json
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
-    <% } %>
+    <% } %>,
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check ."
   },
   <% if (flavor === 'node' && lang === 'ts') { %>
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@biomejs/biome": "^2.2.3"
   }
   <% } else if (flavor === 'browser' && lang === 'js') { %>
   "devDependencies": {
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "@biomejs/biome": "^2.2.3"
   }
   <% } else if (flavor === 'browser' && lang === 'ts') { %>
   "devDependencies": {
     "vite": "^6.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@biomejs/biome": "^2.2.3"
   }
   <% } else { %>
-  "dependencies": {}
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.3"
+  }
   <% } %>
 }
