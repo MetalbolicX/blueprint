@@ -23,17 +23,18 @@ let writeGeneratorFixture = (~root: string, ~name: string) => {
 
 suite("TemplateRegistry", () => {
   test("buildGenerateSearchPaths: keeps project-local precedence", () => {
+    let testDeps: Ports.deps = {
+      fs: fsAdapter,
+      path: pathAdapter,
+      process: NodeJsProcess.make(),
+      shell: NodeJsShell.make(),
+      argParser: NodeJsArgParser.make(),
+      interactiveIO: NodeJsInteractiveIO.make(),
+      yamlParser: NodeJsYamlParser.make(),
+      ejs: NodeJsEjs.make(),
+    }
     let paths = Cli.buildGenerateSearchPaths(
-        ~deps={
-          fs: fsAdapter,
-          path: pathAdapter,
-          process: NodeJsProcess.make(),
-          shell: NodeJsShell.make(),
-          argParser: NodeJsArgParser.make(),
-          interactiveIO: NodeJsInteractiveIO.make(),
-          yamlParser: NodeJsYamlParser.make(),
-          ejs: NodeJsEjs.make(),
-        },
+        ~deps=testDeps,
       ~projectPaths=["_templates", "templates"],
       ~registry=[
         {
@@ -44,11 +45,13 @@ suite("TemplateRegistry", () => {
       ],
       ~globalTemplates=["/opt/company/templates"],
     )
+    let globalRoot = NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(testDeps.process.homedir(), ".config"), "blueprint"), "templates")
 
     assert_eq(paths[0], Some("_templates"))
     assert_eq(paths[1], Some("templates"))
     assert_eq(paths[2], Some("/home/user/.config/blueprint/templates"))
     assert_eq(paths[3], Some("/opt/company/templates"))
+    assert_eq(paths[4], Some(globalRoot))
   })
 
   testAsync("copyTemplateToRegistry: copies full generator and persists metadata", resolve => {

@@ -23,5 +23,11 @@ let buildGenerateSearchPaths: (
       acc->Array.concat([path])
     }
   )
-  projectPaths->Array.concat(registryPaths)->Array.concat(globalTemplates)
+  let globalRoot = globalTemplateRegistryRoot(~deps)
+  let base = projectPaths->Array.concat(registryPaths)->Array.concat(globalTemplates)
+  if base->Array.includes(globalRoot) {
+    base
+  } else {
+    base->Array.concat([globalRoot])
+  }
 }

@@ -35,11 +35,13 @@ suite("Utils", () => {
     
     let result = Utils.buildGenerateSearchPaths(~deps, ~projectPaths, ~registry, ~globalTemplates)
     
-    // Expected: project path, unique registry paths, global path
-    assert_eq(Array.length(result), 4)
+    // Expected: project path, unique registry paths, global path, globalRoot
+    let globalRoot = Utils.globalTemplateRegistryRoot(~deps)
+    assert_eq(Array.length(result), 5)
     assert_eq(result[0], Some("/project/.blueprint"))
     assert_eq(result[1], Some("/registry/a"))
     assert_eq(result[2], Some("/registry/b"))
     assert_eq(result[3], Some("/global/.blueprint"))
+    assert_eq(result[4], Some(globalRoot))
   })
 })
