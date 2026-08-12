@@ -1,9 +1,4 @@
 // NpmPack_test — end-to-end smoke for npm pack / local init-then-generate flow
-// NOTE: The local e2e test is excluded because runInit scaffolds hello-world without a
-// manifest.yaml, making it undiscoverable by Generate's discovery mechanism.
-// The global e2e test (below) proves Step 4's discovery change works: globally
-// scaffolded hello-world is found via the global templates root appended to search paths.
-// Init must create a manifest to make local generators discoverable — revisit with orchestrator.
 
 open TestHelpers
 
@@ -88,6 +83,54 @@ suite("NpmPack end-to-end", () => {
             ->Promise.catch(_ => {
               NodeJs.Fs.rm(tempHome, ~options={recursive: true})->ignore
               NodeJs.Fs.rm(tempCwd, ~options={recursive: true})->ignore
+              resolve()
+              Promise.resolve()
+            })
+          })
+        })
+      })
+    })
+    ->ignore
+  })
+
+  testAsync("local end-to-end: init + generate discovers local hello-world via manifest", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let exitCodes = ref([])
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~homedir="/tmp/test-home")
+    let fs = deps.fs
+    let path = NodeJsPath.make()
+
+    Commands.runInit(~deps)
+    ->Promise.then(_ => {
+      let templateFile = NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(tmpDir, "_templates"), "hello-world"), "manifest.yaml")
+      fs.fileExists(templateFile)
+      ->Promise.then(exists => {
+        assert_true(exists)
+        Commands.runGenerate(
+          ~deps,
+          ~fs,
+          ~path,
+          ~classification="hello-world",
+          ~name="world",
+          ~force=false,
+          ~outputDir=tmpDir,
+          ~cliAttributes=Dict.make(),
+        )
+        ->Promise.then(_ => {
+          assert_eq(exitCodes.contents->Array.length, 0)
+          let outputFile = NodeJs.Path.join(tmpDir, "hello-world.md")
+          fs.fileExists(outputFile)
+          ->Promise.then(outExists => {
+            assert_true(outExists)
+            fs.readFile(outputFile, ~options={encoding: "utf8"})
+            ->Promise.then(content => {
+              assert_true(String.includes(content, "# Hello, world!"))
+              NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+              resolve()
+              Promise.resolve()
+            })
+            ->Promise.catch(_ => {
+              NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
               resolve()
               Promise.resolve()
             })

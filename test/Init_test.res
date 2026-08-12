@@ -44,18 +44,22 @@ suite("Init", () => {
     let path = NodeJsPath.make()
     let configPath = path.join(tmpDir, ".blueprint.yaml")
     let examplePath = path.join(path.join(path.join(tmpDir, "_templates"), "hello-world/new"), "hello.ejs.t")
+    let manifestPath = path.join(path.join(tmpDir, "_templates"), "hello-world/manifest.yaml")
 
     Commands.runInit(~deps)
     ->Promise.then(_ => {
       let configExists = deps.fs.fileExists(configPath)
       let exampleExists = deps.fs.fileExists(examplePath)
-      Promise.all([configExists, exampleExists])
+      let manifestExists = deps.fs.fileExists(manifestPath)
+      Promise.all([configExists, exampleExists, manifestExists])
     })
     ->Promise.then(results => {
       let configExists = switch Array.get(results, 0) { | Some(v) => v | None => false }
       let exampleExists = switch Array.get(results, 1) { | Some(v) => v | None => false }
+      let manifestExists = switch Array.get(results, 2) { | Some(v) => v | None => false }
       assert_true(configExists)
       assert_true(exampleExists)
+      assert_true(manifestExists)
       deps.fs.readFile(configPath, ~options={encoding: "utf8"})
     })
     ->Promise.then(configContent => {
@@ -66,6 +70,11 @@ suite("Init", () => {
       assert_true(String.startsWith(exampleContent, "---"))
       assert_true(String.includes(exampleContent, "to: hello-<"))
       assert_true(String.includes(exampleContent, "Hello,"))
+      deps.fs.readFile(manifestPath, ~options={encoding: "utf8"})
+    })
+    ->Promise.then(manifestContent => {
+      assert_true(String.includes(manifestContent, "classification: hello-world"))
+      assert_true(String.includes(manifestContent, "name: hello-world"))
       assert_eq(exitCodes.contents->Array.length, 0)
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()

@@ -45,18 +45,22 @@ suite("InitGlobal", () => {
     let globalRoot = Utils.globalTemplateRegistryRoot(~deps)
     let globalConfigPath = path.join(path.join(tempHome, ".config"), "blueprint/config.yaml")
     let globalExamplePath = path.join(path.join(path.join(globalRoot, "hello-world"), "new"), "hello.ejs.t")
+    let globalManifestPath = path.join(path.join(globalRoot, "hello-world"), "manifest.yaml")
 
     Commands.runInitGlobal(~deps)
     ->Promise.then(_ => {
       let configExists = deps.fs.fileExists(globalConfigPath)
       let exampleExists = deps.fs.fileExists(globalExamplePath)
-      Promise.all([configExists, exampleExists])
+      let manifestExists = deps.fs.fileExists(globalManifestPath)
+      Promise.all([configExists, exampleExists, manifestExists])
     })
     ->Promise.then(results => {
       let configExists = switch Array.get(results, 0) { | Some(v) => v | None => false }
       let exampleExists = switch Array.get(results, 1) { | Some(v) => v | None => false }
+      let manifestExists = switch Array.get(results, 2) { | Some(v) => v | None => false }
       assert_true(configExists)
       assert_true(exampleExists)
+      assert_true(manifestExists)
       deps.fs.readFile(globalConfigPath, ~options={encoding: "utf8"})
     })
     ->Promise.then(configContent => {
@@ -68,6 +72,11 @@ suite("InitGlobal", () => {
       assert_true(String.startsWith(exampleContent, "---"))
       assert_true(String.includes(exampleContent, "to: hello-<"))
       assert_true(String.includes(exampleContent, "Hello,"))
+      deps.fs.readFile(globalManifestPath, ~options={encoding: "utf8"})
+    })
+    ->Promise.then(manifestContent => {
+      assert_true(String.includes(manifestContent, "classification: hello-world"))
+      assert_true(String.includes(manifestContent, "name: hello-world"))
       assert_eq(exitCodes.contents->Array.length, 0)
       NodeJs.Fs.rm(tempHome, ~options={recursive: true})->ignore
       resolve()
