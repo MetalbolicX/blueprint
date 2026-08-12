@@ -15,7 +15,8 @@
     "res:test:coverage": "c8 pnpm res:test",
     "res:test:coverage:check": "c8 --check-coverage --lines 50 --functions 50 --branches 40 pnpm res:test",
     "bundle": "rolldown -c",
-    "start": "node dist/main.mjs"
+    "start": "node dist/main.mjs",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@rescript/runtime": "^12.3.0",
@@ -37,5 +38,6 @@
       "brace-expansion": "^2.1.3"
     }
   },
-  "main": "dist/main.mjs"
+  "main": "dist/main.mjs",
+  "files": ["dist", "README.md", "LICENSE"]
 }
