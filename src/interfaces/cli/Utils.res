@@ -14,6 +14,13 @@ let buildGenerateSearchPaths: (
   ~registry: array<Config.templateSource>,
   ~globalTemplates: array<string>,
 ) => array<string> = (~deps: Ports.deps, ~projectPaths, ~registry, ~globalTemplates) => {
+  let resolvedProjectPaths = projectPaths->Array.map(p =>
+    if deps.path.isAbsolute(p) {
+      p
+    } else {
+      deps.path.resolve(deps.process.cwd(), p)
+    }
+  )
   let registryPaths = registry
   ->Array.map(src => deps.path.dirname(src.path))
   ->Array.reduce([], (acc, path) =>
@@ -24,7 +31,7 @@ let buildGenerateSearchPaths: (
     }
   )
   let globalRoot = globalTemplateRegistryRoot(~deps)
-  let base = projectPaths->Array.concat(registryPaths)->Array.concat(globalTemplates)
+  let base = resolvedProjectPaths->Array.concat(registryPaths)->Array.concat(globalTemplates)
   if base->Array.includes(globalRoot) {
     base
   } else {

@@ -14,9 +14,35 @@ npx blueprint generate react-component --name User --path src/components
 npm install -g blueprint
 ```
 
+For non-installed use:
+
+```bash
+npx blueprint <command>
+```
+
+## Onboarding
+
+Scaffold a runnable hello-world template in your project:
+
+```bash
+blueprint init
+blueprint generate hello-world myfirst
+```
+
+Produces `hello-myfirst.md` in the current directory.
+
+For global installation (templates stored in `~/.config/blueprint/`):
+
+```bash
+blueprint init --global
+blueprint generate hello-world myfirst
+```
+
+Both commands are idempotent — re-running is safe and produces no changes.
+
 ## Quick start
 
-1. **Init** — `blueprint init` scaffolds `.blueprint.yaml`
+1. **Init** — `blueprint init` scaffolds `.blueprint.yaml` and a hello-world example in `_templates/hello-world/`
 2. **Author** — create a manifest + template files:
 
 ```bash
@@ -290,6 +316,20 @@ Supported interpreters: `bash`, `sh`, `node`, `python3`, `pwsh`.
 - `blueprint template list` shows installed templates and their originating paths.
 - `blueprint template remove <classification>` deletes the registry directory and removes the associated config entry.
 - Discovery automatically appends registry paths after the project’s `_templates/templates/generators` stack, so local generators still win when a name conflicts.
+
+## Local release
+
+Publish from a clean worktree to avoid shipping unintended files:
+
+```bash
+git stash                 # or git checkout -- .
+pnpm build                # ReScript compile + rolldown bundle
+pnpm res:test             # full test suite
+npm pack --dry-run        # inspect the exact file list
+npm publish --access public
+git tag v<version>
+git push --tags
+```
 
 ## Docs
 

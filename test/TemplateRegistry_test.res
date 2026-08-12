@@ -47,8 +47,8 @@ suite("TemplateRegistry", () => {
     )
     let globalRoot = NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(testDeps.process.homedir(), ".config"), "blueprint"), "templates")
 
-    assert_eq(paths[0], Some("_templates"))
-    assert_eq(paths[1], Some("templates"))
+    assert_eq(paths[0], Some(NodeJs.Path.resolve(testDeps.process.cwd(), "_templates")))
+    assert_eq(paths[1], Some(NodeJs.Path.resolve(testDeps.process.cwd(), "templates")))
     assert_eq(paths[2], Some("/home/user/.config/blueprint/templates"))
     assert_eq(paths[3], Some("/opt/company/templates"))
     assert_eq(paths[4], Some(globalRoot))
