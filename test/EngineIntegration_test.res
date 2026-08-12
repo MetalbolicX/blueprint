@@ -298,7 +298,7 @@ suite("Engine Integration", () => {
               resolve()
               Promise.resolve()
             }
-          | Ok(r) => {
+          | Ok(_r) => {
               // Assert Main.res greeting
               let mainResPath = NodeJs.Path.join(outputDir, "src/Main.res")
               NodeJs.Fs.readFile(mainResPath, ~options={encoding: "utf8"})

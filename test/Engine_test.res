@@ -40,7 +40,7 @@ let makeCleanupFs = (
       isFile: () => !(directoryPaths->Array.some(path => path == target)),
       isSymbolicLink: () => false,
     }: Ports.statResult),
-  lstat: target =>
+  lstat: _target =>
     Promise.resolve({
       isDirectory: () => false,
       isFile: () => false,

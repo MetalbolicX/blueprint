@@ -59,7 +59,7 @@ let scanForForbiddenRefs: string => array<string> = scanRoot => {
             let line = Array.getUnsafe(lines, li.contents)
             li := li.contents + 1
             if checkLine(line) {
-              acc := Array.concat(acc.contents, [full ++ ":" ++ Js.Int.toString(li.contents)])
+              acc := Array.concat(acc.contents, [full ++ ":" ++ Int.toString(li.contents)])
             }
           }
         }

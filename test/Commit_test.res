@@ -1,7 +1,6 @@
 // Commit_test — unit tests for Commit module rollback containment
 
 open TestHelpers
-open Commit
 
 // Step 3: rollbackOutput must re-check containment before rm/cp
 let testRollbackOutputDeniesOutOfTree = () => {
@@ -75,7 +74,7 @@ let testRollbackOutputAllowsInTree = () => {
         rmCalls.contents->Array.push(target)->ignore
         Promise.resolve()
       },
-      cp: (src, dst, ~options as _=?) => Promise.resolve(),
+      cp: (_src, _dst, ~options as _=?) => Promise.resolve(),
       readdir: baseFs.readdir,
       fileExists: _ => Promise.resolve(false),
       stat: _path => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
