@@ -14,9 +14,6 @@ importers:
       ejs:
         specifier: ^6.0.1
         version: 6.0.1
-      rescript:
-        specifier: ^12.3.0
-        version: 12.3.0
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -24,6 +21,9 @@ importers:
       c8:
         specifier: ^12.0.0
         version: 12.0.0
+      rescript:
+        specifier: ^12.3.0
+        version: 12.3.0
       rescript-test:
         specifier: ^8.0.1
         version: 8.0.1(rescript@12.3.0)
