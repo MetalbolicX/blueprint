@@ -331,6 +331,33 @@ git tag v<version>
 git push --tags
 ```
 
+## Publishing
+
+The package is published as **@metalbolicx/blueprint** (scoped).
+
+### Pre-publish checklist
+
+```bash
+git stash                 # or git checkout -- .
+pnpm build                # ReScript compile + rolldown bundle
+pnpm res:test             # full test suite — must be 675/675 green
+npm pack --dry-run        # verify clean tarball (only LICENSE, README.md, dist/main.mjs, package.json)
+npm publish --dry-run --access public
+```
+
+Run `pnpm release:smoke` for a single-command readiness check (build → pack → install → invoke → cleanup).
+
+### After publish
+
+```bash
+git tag v<version>
+git push --tags
+```
+
+### Note
+
+The bin name stays `"blueprint"` even though the package is scoped — users run `npx blueprint`, not `npx @metalbolicx/blueprint`.
+
 ## Docs
 
 Full documentation at [/docs](/docs), including architecture, API reference, and tutorials.
