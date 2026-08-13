@@ -26,7 +26,8 @@
     "res:test:coverage:check": "c8 --check-coverage --lines 50 --functions 50 --branches 40 pnpm res:test",
     "bundle": "rolldown -c",
     "start": "node dist/main.mjs",
-    "prepublishOnly": "node ./scripts/prepublish.mjs"
+    "prepublishOnly": "node ./scripts/prepublish.mjs",
+    "release:smoke": "node ./scripts/release-smoke.mjs"
   },
   "dependencies": {
     "@rescript/runtime": "^12.3.0",
