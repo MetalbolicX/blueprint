@@ -1489,8 +1489,6 @@ snapshots:
       get-tsconfig: 4.14.0
       rollup: 4.60.4
       unplugin-utils: 0.2.5
-    transitivePeerDependencies:
-      - supports-color
 
   rollup@4.60.4:
     dependencies:
