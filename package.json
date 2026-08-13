@@ -1,8 +1,18 @@
 {
-  "name": "blueprint",
+  "name": "@metalbolicx/blueprint",
   "version": "0.1.0",
   "description": "Transactional code generator with Hygen-compatible templates",
   "type": "module",
+  "license": "MIT",
+  "author": "José Martínez Santana <jose.martinez.santana.1@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MetalbolicX/blueprint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MetalbolicX/blueprint/issues"
+  },
+  "homepage": "https://github.com/MetalbolicX/blueprint#readme",
   "bin": {
     "blueprint": "dist/main.mjs"
   },
