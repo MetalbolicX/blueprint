@@ -45,5 +45,8 @@
     "node": ">=22.0.0"
   },
   "main": "dist/main.mjs",
-  "files": ["dist", "README.md", "LICENSE"]
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  }
 }
