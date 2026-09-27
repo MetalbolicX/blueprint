@@ -40,30 +40,28 @@ to: package.json
     "build": "vite build",
     "preview": "vite preview"
     <% } %>,
-    "format": "biome format --write .",
-    "lint": "biome lint .",
-    "check": "biome check ."
+    "lint": "oxlint ."
   },
   <% if (flavor === 'node' && lang === 'ts') { %>
   "devDependencies": {
     "typescript": "^5.0.0",
     "@types/node": "^22.0.0",
-    "@biomejs/biome": "^2.2.3"
+    "oxlint": "^1.85.0"
   }
   <% } else if (flavor === 'browser' && lang === 'js') { %>
   "devDependencies": {
     "vite": "^6.0.0",
-    "@biomejs/biome": "^2.2.3"
+    "oxlint": "^1.85.0"
   }
   <% } else if (flavor === 'browser' && lang === 'ts') { %>
   "devDependencies": {
     "vite": "^6.0.0",
     "typescript": "^5.0.0",
-    "@biomejs/biome": "^2.2.3"
+    "oxlint": "^1.85.0"
   }
   <% } else { %>
   "devDependencies": {
-    "@biomejs/biome": "^2.2.3"
+    "oxlint": "^1.85.0"
   }
   <% } %>
 }
