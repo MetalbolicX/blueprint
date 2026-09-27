@@ -30,22 +30,26 @@
     "release:smoke": "node ./scripts/release-smoke.mjs"
   },
   "dependencies": {
-    "@rescript/runtime": "^12.3.0",
+    "@rescript/runtime": "^12.3.1",
     "ejs": "^6.0.1",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "c8": "^12.0.0",
-    "rescript": "^12.3.0",
+    "rescript": "^12.3.1",
     "rescript-test": "^8.0.1",
-    "rolldown": "^1.2.3",
+    "rolldown": "^1.2.11",
     "rollup-plugin-esbuild": "^6.2.1"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "main": "dist/main.mjs",
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   }
