@@ -17,9 +17,16 @@ let runTemplateCopy: (
       Console.error("Error: template not found: " ++ name)
       deps.process.exit(1)
     }
-  | Some(generator) => {
+    | Some(generator) => {
       let registryRoot = Utils.globalTemplateRegistryRoot(~deps)
       let configPath = Utils.globalConfigPath(~deps)
+      let confirmed = await deps.interactiveIO.askConfirm(
+        ~question="Install template " ++ name ++ " from " ++ generator.path ++ " into the global registry?",
+        ~defaultYes=false,
+      )
+      if !confirmed {
+        Console.log("Template installation cancelled")
+      } else {
       let result = await TemplateRegistry.copyTemplateToRegistry(
         ~deps,
         ~fs,
@@ -42,7 +49,8 @@ let runTemplateCopy: (
       | Error(e) => {
           Console.error("Error: " ++ e)
           deps.process.exit(1)
-        }
+      }
+      }
       }
     }
   }

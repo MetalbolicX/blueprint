@@ -38,6 +38,12 @@ let copyTemplateToRegistry: (
         let _ = await deps.fs.rm(targetPath, ~options={recursive: true})
         let _ = await deps.fs.mkdir(registryRoot, ~options={recursive: true})
         let _ = await deps.fs.cp(sourceAbs, targetPath, ~options={recursive: true})
+        let markerPath = deps.path.join(targetPath, ".blueprint-provenance")
+        let _ = await deps.fs.writeFile(
+          markerPath,
+          "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Js.Date.toISOString(Js.Date.make()) ++ "\n",
+          ~options={encoding: "utf8"},
+        )
 
         let withoutCurrent = globalConfig.registry->Array.filter(entry => entry.name != name)
         let updated: Config.globalConfig = {
@@ -56,6 +62,12 @@ let copyTemplateToRegistry: (
       }
       let _ = await deps.fs.mkdir(registryRoot, ~options={recursive: true})
       let _ = await deps.fs.cp(sourceAbs, targetPath, ~options={recursive: true})
+      let markerPath = deps.path.join(targetPath, ".blueprint-provenance")
+      let _ = await deps.fs.writeFile(
+        markerPath,
+        "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Js.Date.toISOString(Js.Date.make()) ++ "\n",
+        ~options={encoding: "utf8"},
+      )
 
       let withoutCurrent = globalConfig.registry->Array.filter(entry => entry.name != name)
       let updated: Config.globalConfig = {

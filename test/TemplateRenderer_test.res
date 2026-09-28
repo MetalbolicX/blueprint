@@ -37,3 +37,65 @@ suite("TemplateRenderer.resolveTargetPath — error propagation", () => {
     }
   })
 })
+
+suite("TemplateRenderer provenance gate", () => {
+  let renderBody = (~sourcePath, ~body) => {
+    let ctx = Context.build(~cwd="/workspace", ~actionfolder="/workspace/_templates", ~name="Hello", ())
+    TemplateRenderer.render(
+      ~template={sourcePath, directives: [Template.To("out.txt")], body},
+      ~context=ctx,
+      ~outputDir="/workspace/out",
+      ~conflictDecisions=None,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~ejs=NodeJsEjs.make(),
+      ~process=NodeJsProcess.make(),
+    )
+  }
+
+  testAsync("marked template with control-flow EJS is blocked", resolve => {
+    let dir = NodeJs.Os.makeStagingDir()
+    let templatePath = NodeJs.Path.join(dir, "action.ejs.t")
+    NodeJs.Fs.writeFile(NodeJs.Path.join(dir, ".blueprint-provenance"), "source: test\n")
+    ->Promise.then(_ => renderBody(~sourcePath=templatePath, ~body="<% if (name) { %>hello<% } %>"))
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) =>
+        assert_true(String.includes(msg, "provenance gate"))
+        assert_true(String.includes(msg, templatePath))
+      | Ok(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("unmarked template with control-flow EJS renders unchanged", resolve => {
+    let dir = NodeJs.Os.makeStagingDir()
+    let result = renderBody(~sourcePath=NodeJs.Path.join(dir, "action.ejs.t"), ~body="<% if (name) { %>hello<% } %>")
+    result->Promise.then(value => {
+      switch value {
+      | Ok(Some(output)) => assert_eq(output.renderedBody, "hello")
+      | _ => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("marked template with interpolation renders", resolve => {
+    let dir = NodeJs.Os.makeStagingDir()
+    NodeJs.Fs.writeFile(NodeJs.Path.join(dir, ".blueprint-provenance"), "source: test\n")
+    ->Promise.then(_ => renderBody(~sourcePath=NodeJs.Path.join(dir, "action.ejs.t"), ~body="hello <%= name %>"))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(Some(output)) => assert_eq(output.renderedBody, "hello hello")
+      | _ => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+})

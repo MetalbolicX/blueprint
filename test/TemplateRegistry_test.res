@@ -112,6 +112,10 @@ suite("TemplateRegistry", () => {
           })
           ->Promise.then(templateExists => {
             assert_true(templateExists)
+            NodeJs.Fs.readFile(NodeJs.Path.join(installedGeneratorDir, ".blueprint-provenance"), ~options={encoding: "utf8"})
+          })
+          ->Promise.then(provenance => {
+            assert_true(String.includes(provenance, NodeJs.Path.join(sourceRoot, name)))
             assert_eq(Array.length(updated.registry), 1)
             switch updated.registry[0] {
             | Some(entry) => {
@@ -162,6 +166,7 @@ suite("TemplateRegistry", () => {
     NodeJs.Fs.mkdir(sourceRoot, ~options={recursive: true})
     ->Promise.then(_ => writeGeneratorFixture(~root=sourceRoot, ~name))
     ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.join(registryRoot, name), ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(NodeJs.Path.join(registryRoot, name), ".blueprint-provenance"), "source: untrusted copied marker\n"))
     ->Promise.then(_ => {
       Cli.copyTemplateToRegistry(
         ~deps={
@@ -190,6 +195,11 @@ suite("TemplateRegistry", () => {
     })
     ->Promise.then(_ => {
       assert_eq(promptCalls.contents, 0)
+      NodeJs.Fs.readFile(NodeJs.Path.join(NodeJs.Path.join(registryRoot, name), ".blueprint-provenance"), ~options={encoding: "utf8"})
+    })
+    ->Promise.then(marker => {
+      assert_true(String.includes(marker, NodeJs.Path.join(sourceRoot, name)))
+      assert_false(String.includes(marker, "untrusted copied marker"))
       resolve()
       Promise.resolve()
     })

@@ -311,6 +311,8 @@ Hooks run through `execFile` without shell interpretation. They retain their con
 - **Rollback**: on any failure (render error, shell error), staged files are cleaned up
 - **Conflict resolution**: bulk prompt — `[y]es to all, [n]o to all, [s]elect individually, [a]bort`
 
+Local templates remain fully trusted. Registry templates require install-time confirmation and receive a `.blueprint-provenance` marker; marked templates are rendered only when they use safe EJS interpolation tags (`<%= %>`). The marker is advisory state, not protection against a local attacker: after reviewing a template, remove the marker to opt out of the gate.
+
 ## Global template registry
 
 - Template registry entries are stored in `~/.config/blueprint/config.yaml` under the `registry` array. Each entry records `name`, `source` (absolute path to the original project generator), and `path` (the installed `~/.config/blueprint/templates/<name>/` location).

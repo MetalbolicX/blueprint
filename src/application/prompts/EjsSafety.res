@@ -6,13 +6,16 @@
 // NOTE: The blocklist is allowlist-equivalent in practice — the only EJS tag
 // that passes is <%= ... %> (since <% followed by - or = is excluded).
 // Any <% not clearly <%- or <%= is conservatively treated as unsafe.
-let _hasUnsafeEjsTags: string => bool = template => {
+let isUnsafe: string => bool = template => {
   // Match any <% that is NOT followed by =
   let controlFlowPattern = RegExp.fromString("<%(?![-=])")
   // Match <%- (unescaped output)
   let unescapedPattern = RegExp.fromString("<%-")
   RegExp.test(controlFlowPattern, template) || RegExp.test(unescapedPattern, template)
 }
+
+// Kept as an alias so existing prompt-expression callers remain unchanged.
+let _hasUnsafeEjsTags = isUnsafe
 
 // EJS render wrapper: the injected port's renderString is typed as
 // `dict<string>`, but our eval context is a structured object

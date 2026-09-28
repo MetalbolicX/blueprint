@@ -3,6 +3,14 @@
 open TestHelpers
 
 suite("EjsSafety", () => {
+  test("isUnsafe: public API rejects control-flow tags", () => {
+    assert_true(EjsSafety.isUnsafe("<% if (name) %>"))
+  })
+
+  test("isUnsafe: public API rejects ReScript-slurp tags", () => {
+    assert_true(EjsSafety.isUnsafe("<%_ code %>"))
+  })
+
   // --- Safe: expect false ---
 
   test("_hasUnsafeEjsTags: plain interpolation is safe", () => {

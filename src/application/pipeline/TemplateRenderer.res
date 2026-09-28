@@ -240,6 +240,15 @@ let render: (
     | Error(e) => Error(e)
     | Ok(resolvedBody) =>
       // 3. Render the template body with context
+      let provenancePath = path.join(path.dirname(template.sourcePath), ".blueprint-provenance")
+      let hasProvenance = await fs.fileExists(provenancePath)
+      let unsafe = hasProvenance && EjsSafety.isUnsafe(resolvedBody)
+      if unsafe {
+        Error(
+          "Registry-installed template was blocked by the provenance gate: " ++ template.sourcePath ++
+          ". Unsafe EJS tags (<% or <%-) are not allowed; inspect the template before removing its .blueprint-provenance marker.",
+        )
+      } else {
       let renderCtx = Context.toRenderContext(context)
       switch Renderer.render({...template, body: resolvedBody}, renderCtx) {
       | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
@@ -275,6 +284,7 @@ let render: (
             }
           }
         }
+      }
       }
     }
     }
