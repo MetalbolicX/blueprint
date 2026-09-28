@@ -14,8 +14,8 @@ let makeMockFs = (): Ports.fileSystem => {
   cp: (_, _, ~options as _=?) => Promise.resolve(),
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
-  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
-  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult),
+  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.lstatResult),
   realpath: path => Promise.resolve(path),
   makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
@@ -139,6 +139,26 @@ runTests("Node.js", NodeJsPath.make())
 
 // Real filesystem test: symlink bypass detection
 suite("PathSecurity Symlink", () => {
+  testAsync("isWithinTree: symlinked ancestor to outside with missing leaf is rejected", resolve => {
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let linkPath = pathAdapter.join(tmpDir, "link")
+    NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
+    ->Promise.then(_ => {
+      let shell: Ports.shell = NodeJsShell.make()
+      shell.execShellCommand(~command="ln -s /etc " ++ linkPath)
+    })
+    ->Promise.then(_ => PathSecurity.isWithinTree(pathAdapter.join(linkPath, "missing-blueprint-leaf"), tmpDir, pathAdapter, fs))
+    ->Promise.then(result => {
+      assert_false(result)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => { NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore; resolve(); Promise.resolve() })->ignore
+  })
+
   testAsync("isWithinTree: symlink to outside is rejected", resolve => {
     let fs = NodeJsFileSystem.make()
     let pathAdapter = NodeJsPath.make()

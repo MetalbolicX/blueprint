@@ -83,6 +83,21 @@ suite("NodeJsFileSystem adapter", () => {
     ->ignore
   })
 
+  testAsync("lstat identifies a symbolic link", resolve => {
+    let dir = NodeJs.Os.makeStagingDir()
+    let linkPath = NodeJs.Path.join(dir, "link")
+    let shell: Ports.shell = NodeJsShell.make()
+    shell.execShellCommand(~command="ln -s /etc " ++ linkPath)
+    ->Promise.then(_ => fs.lstat(linkPath))
+    ->Promise.then(result => {
+      assert_true(result.isSymbolicLink())
+      NodeJs.Fs.rm(dir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->Promise.catch(_ => { NodeJs.Fs.rm(dir, ~options={recursive: true})->ignore; resolve(); Promise.resolve() })->ignore
+  })
+
   testAsync("rm deletes file", resolve => {
     let dir = NodeJs.Os.makeStagingDir()
     let filePath = NodeJs.Path.join(dir, "delete_me.txt")

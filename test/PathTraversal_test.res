@@ -11,8 +11,8 @@ let makeMockFs = (): Ports.fileSystem => {
   cp: (_, _, ~options as _=?) => Promise.resolve(),
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
-  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
-  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult),
+  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.lstatResult),
   realpath: path => Promise.resolve(path),
   makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
@@ -36,8 +36,8 @@ let makeRecordingFs = (~cpCalls: ref<int>): Ports.fileSystem => {
   },
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
-  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
-  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult),
+  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.lstatResult),
   realpath: path => Promise.resolve(path),
   makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }
@@ -121,6 +121,16 @@ suite("PathTraversal", () => {
       Promise.resolve()
     })
     ->Promise.catch(_ => { resolve(); Promise.resolve() })->ignore
+  })
+
+  testAsync("isWithinTree: deep non-existent path under real directory is allowed", resolve => {
+    runIsWithinTree("/home/user/project/a/b/c/newfile", "/home/user/project", NodeJsPath.make())
+    ->Promise.then(result => {
+      assert_true(result)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   // ---------- WS1: end-to-end "before write" enforcement ----------

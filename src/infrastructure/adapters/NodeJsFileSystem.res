@@ -54,13 +54,9 @@ let make: unit => Ports.fileSystem = () => {
     let s = await NodeJs.Fs.stat(path)
     let isDir = s.isDirectory()
     let isF = s.isFile()
-    // isSymbolicLink is not in our thin binding type; stat follows symlinks
-    // so the target is never a symlink. Use Obj.magic to read it safely.
-    let isSym: bool = Obj.magic(s)["isSymbolicLink"]()
     let res: Ports.statResult = {
       isDirectory: () => isDir,
       isFile: () => isF,
-      isSymbolicLink: () => isSym,
     }
     res
   },
@@ -71,7 +67,7 @@ let make: unit => Ports.fileSystem = () => {
     // isSymbolicLink is on Node.js Stats but not in our thin binding type;
     // use Obj.magic to read it since we know Node's lstat result always has it.
     let isSym: bool = Obj.magic(s)["isSymbolicLink"]()
-    let res: Ports.statResult = {
+    let res: Ports.lstatResult = {
       isDirectory: () => isDir,
       isFile: () => isF,
       isSymbolicLink: () => isSym,

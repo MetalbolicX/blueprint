@@ -110,8 +110,8 @@ let makeRollbackFs = (
     },
   readdir: (_, ~options as _=?) => Promise.resolve([]),
   fileExists: _ => Promise.resolve(false),
-  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.statResult),
-  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.statResult),
+  stat: _ => Promise.resolve({isDirectory: () => false, isFile: () => true}: Ports.statResult),
+  lstat: _ => Promise.resolve({isDirectory: () => false, isFile: () => false, isSymbolicLink: () => false}: Ports.lstatResult),
   realpath: path => Promise.resolve(path),
   makeStagingDir: prefix => Promise.resolve("/tmp/" ++ prefix ++ "-test"),
 }

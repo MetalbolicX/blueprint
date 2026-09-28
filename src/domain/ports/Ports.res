@@ -18,6 +18,10 @@ type readdirOptions = {withFileTypes: bool}
 type statResult = {
   isDirectory: unit => bool,
   isFile: unit => bool,
+}
+type lstatResult = {
+  isDirectory: unit => bool,
+  isFile: unit => bool,
   isSymbolicLink: unit => bool,
 }
 
@@ -39,7 +43,7 @@ type fileSystem = {
   readdir: (string, ~options: readdirOptions=?) => promise<array<string>>,
   fileExists: string => promise<bool>,
   stat: string => promise<statResult>,
-  lstat: string => promise<statResult>,
+  lstat: string => promise<lstatResult>,
   realpath: string => promise<string>,
   makeStagingDir: string => promise<string>,
 }

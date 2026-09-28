@@ -8,7 +8,7 @@
 // (file doesn't exist yet — correct to fall back).
 // Returns Error(msg) for any other failure (EACCES, ELOOP, etc.) so the
 // caller can deny rather than silently bypass the symlink check.
-let _resolveRealPath: (string, Ports.fileSystem) => promise<result<string, string>> = async (path, fs) => {
+let _resolveRealPath: (string, Ports.fileSystem, Ports.path) => promise<result<string, string>> = async (path, fs, pathAdapter) => {
   try {
     let resolved = await fs.realpath(path)
     Ok(resolved)
@@ -23,7 +23,27 @@ let _resolveRealPath: (string, Ports.fileSystem) => promise<result<string, strin
     | None => ""
     }
     if code == "ENOENT" || code == "ENOTDIR" {
-      Ok(path)
+      let rec walk = async (candidate, tail) => {
+        try {
+          let resolved = await fs.realpath(candidate)
+          Ok(Array.reduce(tail, resolved, (base, component) => pathAdapter.join(base, component)))
+        } catch {
+        | JsExn(parentErr) =>
+          let parentCode = Obj.magic(parentErr)["code"]->Option.getOr("")
+          if parentCode == "ENOENT" || parentCode == "ENOTDIR" {
+            let parent = pathAdapter.dirname(candidate)
+            if parent == candidate {
+              Ok(path)
+            } else {
+              await walk(parent, [pathAdapter.basename(candidate), ...tail])
+            }
+          } else {
+            Error("realpath failed for " ++ candidate ++ ": " ++ JsExn.message(parentErr)->Option.getOr("unknown error") ++ " (code: " ++ parentCode ++ ")")
+          }
+        | _ => Error("realpath failed for " ++ candidate ++ ": unknown exception")
+        }
+      }
+      await walk(path, [])
     } else {
       Error("realpath failed for " ++ path ++ ": " ++ msg ++ " (code: " ++ code ++ ")")
     }
@@ -46,8 +66,8 @@ let isWithinTree: (string, string, Ports.path, Ports.fileSystem) => promise<bool
   // If realpath fails with ENOENT/ENOTDIR (path doesn't exist yet),
   // fall back to the resolved path. Any other error (EACCES, ELOOP, etc.)
   // is a hard denial — deny rather than silently bypass containment.
-  let resolvedPathP = _resolveRealPath(realResolvedPath, fs)
-  let resolvedRootP = _resolveRealPath(realResolvedRoot, fs)
+  let resolvedPathP = _resolveRealPath(realResolvedPath, fs, pathAdapter)
+  let resolvedRootP = _resolveRealPath(realResolvedRoot, fs, pathAdapter)
 
   resolvedPathP->Promise.then(resolvedPath => {
     switch resolvedPath {
