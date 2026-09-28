@@ -40,7 +40,8 @@ let runPreHook: (
   switch effectiveHook {
   | None => Ok({hookType: Hooks.PreGenerate, output: "", exitCode: 0})
   | Some(hook) =>
-    let shellConfig = config->Option.flatMap(c => c.shell)
+     let shellConfig = config->Option.flatMap(c => c.shell)
+     let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
     let timeout = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.timeout)
     // Build hooks config with explicit preGenerate
     let hooksCfg: Config.hooksConfig = {
@@ -51,7 +52,7 @@ let runPreHook: (
       hooks: hooksCfg,
       shell: ?shellConfig,
     }
-    await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd)
+     await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
   }
 }
 
@@ -92,7 +93,8 @@ let runPostHook: (
   switch effectiveHook {
   | None => Ok(result)
   | Some(hook) =>
-    let shellConfig = config->Option.flatMap(c => c.shell)
+     let shellConfig = config->Option.flatMap(c => c.shell)
+     let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
     let timeout = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.timeout)
     let hooksCfg: Config.hooksConfig = {
       postGenerate: hook,
@@ -102,7 +104,7 @@ let runPostHook: (
       hooks: hooksCfg,
       shell: ?shellConfig,
     }
-    let hookResult = await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd)
+     let hookResult = await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
     switch hookResult {
     | Error(e) => Error(e)
     | Ok(_) => Ok(result)

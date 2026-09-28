@@ -12,7 +12,10 @@ let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shel
     | Error(message) => rejectError(message)
     },
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+    switch execAsyncResult {
+    | Ok(result) => Promise.resolve(result)
+    | Error(message) => rejectError(message)
+    },
 }
 
 // Records the (cmd, args) tuple every time execFileAsync is invoked so
@@ -42,20 +45,20 @@ let makeProcess = (): Ports.process => {
   homedir: () => "/home/test",
 }
 
-// Captures the env Dict that execAsync receives in its options, so a test
+// Captures the env Dict that execFileAsync receives in its options, so a test
 // can assert that filtered safeEnv (not raw process.env) is what reaches
 // the child process. Used by the WS3 env-leak guard test below.
 let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.shell => {
   execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
-  execAsync: (_cmd, ~options=?) => {
+  execAsync: (_cmd, ~options as _=?) =>
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+  execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
     let _ = capturedEnv.contents = switch options {
     | Some(o) => o.env
     | None => None
     }
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))
   },
-  execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
 }
 
 suite("HookSecurity", () => {
@@ -287,7 +290,7 @@ suite("HookSecurity", () => {
               assert_false(Dict.has(env, "AWS_SECRET_ACCESS_KEY"))
               assert_false(Dict.has(env, "API_TOKEN"))
             }
-          | None => assert_true(false) // execAsync wasn't called with options
+            | None => assert_true(false) // execFileAsync wasn't called with options
           }
         }
       | Error(_msg) => assert_true(false)

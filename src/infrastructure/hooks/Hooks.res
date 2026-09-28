@@ -18,6 +18,13 @@ let _isPath: string => bool = cmd => {
   Js.String.includes("/", cmd)
 }
 
+// Local duplicate: ShellExecutor's matching tokenizer is not exported.
+let tokenizeCommand: string => option<array<string>> = %raw(`command => {
+  if (/[&;|$()<>\x60"'\n]/.test(command)) return undefined;
+  const tokens = command.trim().split(/\s+/).filter(Boolean);
+  return tokens.length === 0 ? undefined : tokens;
+}`)
+
 // Execute a single hook using structured hookCommand
 // scriptRoot: directory for path containment validation (defaults to cwd for backward compat)
 // cwd: working directory for execution (required)
@@ -32,6 +39,7 @@ let executeHook: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~toolsAllowlist: option<array<string>>=?,
 ) => promise<result<hookResult, string>> = async (
   ~hook,
   ~scriptRoot as actualScriptRoot=".",
@@ -43,6 +51,7 @@ let executeHook: (
   ~process,
   ~path,
   ~fs,
+  ~toolsAllowlist=?,
 ) => {
   let scriptRoot = actualScriptRoot
     let envFilterConfig = shellEnv->Option.map(ShellBuilder.buildEnvFilterConfig)
@@ -51,37 +60,18 @@ let executeHook: (
   // Check for path restriction on any command that looks like a path
   let isPath = _isPath(hook.command)
 
-  // Helper to build execFile options
-  // WS2: bind timeout so path-based hooks can't run unbounded. Non-path
-  // hooks without args still use execWithTimeout below for the same reason.
+  // Preserve the original 30s bound for path-based hooks.
   let execFileOpts: Ports.shellOptions = {
     cwd: cwd,
     env: safeEnv,
     encoding: "utf8",
     timeout: ExecPolicy.defaultTimeout,
   }
-
-  // Use shell port for proper timeout handling
-  let execWithTimeout: (string, int, Dict.t<string>) => promise<result<Ports.execResult, string>> = async (
-    cmd,
-    timeoutMs,
-    envDict,
-  ) => {
-    try {
-      let options: Ports.shellOptions = {
-        timeout: timeoutMs,
-        env: envDict,
-      }
-      let result = await shell.execAsync(cmd, ~options)
-      Ok(result)
-    } catch {
-    | JsExn(e) =>
-      let msg = switch JsExn.message(e) {
-      | Some(m) => m
-      | None => "unknown error"
-      }
-      Error(msg)
-    }
+  // Non-path tokenized commands retain the hook-specific timeout.
+  let tokenizedExecFileOpts: Ports.shellOptions = {
+    env: safeEnv,
+    encoding: "utf8",
+    timeout: timeout,
   }
 
   // Check if hook command is empty - skip execution
@@ -143,10 +133,26 @@ let executeHook: (
         }
       }
     | None => {
-        let r = await execWithTimeout(hook.command, timeout, safeEnv)
-        switch r {
-        | Ok(r2) => Ok(execResultToHookResult(r2))
-        | Error(e) => Error(e)
+        switch tokenizeCommand(hook.command) {
+        | None => Error("Hook " ++ hook.command ++ " must be a non-empty command without shell metacharacters; use a script path or the structured args field for complex commands")
+        | Some(tokens) => {
+            let command = tokens->Array.get(0)->Option.getOr("")
+            let args = tokens->Array.slice(~start=1, ~end=tokens->Array.length)
+            let allowed = switch toolsAllowlist {
+            | Some(Some(tools)) if tools->Array.length > 0 => tools->Array.some(tool => tool == command)
+            | _ => true
+            }
+            if !allowed {
+              Error("Hook command not in tools allowlist: " ++ command)
+            } else {
+              try {
+                let r = await shell.execFileAsync(command, ~args, ~options=tokenizedExecFileOpts)
+                Ok(execResultToHookResult(r))
+              } catch {
+              | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
+              }
+            }
+          }
         }
       }
     }
@@ -181,6 +187,7 @@ let run: (
   ~fs: Ports.fileSystem,
   ~scriptRoot: string=?,
   ~cwd: string=?,
+  ~toolsAllowlist: option<array<string>>=?,
 ) => promise<result<hookResult, string>> = async (
   ~config,
   ~projectRoot,
@@ -192,6 +199,7 @@ let run: (
   ~fs,
   ~scriptRoot as actualScriptRoot=projectRoot,
   ~cwd as actualCwd=projectRoot,
+  ~toolsAllowlist=?,
 ) => {
   let scriptRoot = actualScriptRoot
   let cwd = actualCwd
@@ -220,7 +228,7 @@ let run: (
       Ok({hookType, output: "", exitCode: 0})
     } else {
       let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~scriptRoot, ~cwd, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs)
+      let result = await executeHook(~hook, ~scriptRoot, ~cwd, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs, ~toolsAllowlist=?toolsAllowlist)
       switch result {
       | Ok(r) => Ok(r)
       | Error(e) =>

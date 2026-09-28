@@ -17,6 +17,7 @@ let executeHook: (
   ~process: Ports.process,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~toolsAllowlist: option<array<string>>=?,
 ) => promise<result<hookResult, string>>
 
 let run: (
@@ -30,4 +31,5 @@ let run: (
   ~fs: Ports.fileSystem,
   ~scriptRoot: string=?,
   ~cwd: string=?,
+  ~toolsAllowlist: option<array<string>>=?,
 ) => promise<result<hookResult, string>>

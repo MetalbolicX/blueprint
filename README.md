@@ -296,12 +296,14 @@ Lifecycle hooks in `.blueprint.yaml`:
 
 ```yaml
 hooks:
-  pre_generate: echo "Starting generation..."
+  pre_generate: echo Starting generation...
   post_generate: prettier --write generated/
   timeout: 30s
 ```
 
-Supported interpreters: `bash`, `sh`, `node`, `python3`, `pwsh`.
+Commands, including interpreters such as `bash script.sh` and `node setup.mjs`, run as binaries with whitespace-tokenized arguments. Shell syntax (quotes, `&&`, pipes, and `$` expansion) is not interpreted. Use the structured `args` field when arguments must be passed literally to `execFile`.
+
+Hooks run through `execFile` without shell interpretation. They retain their configured timeout and filtered environment; script paths are restricted to the project tree. When `shell.tools` is configured, the command binary must be in that allowlist; without a configured allowlist, hooks remain permitted but shell-free. Use a script path for shell syntax.
 
 ## Safety
 

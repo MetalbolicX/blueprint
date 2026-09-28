@@ -2,8 +2,10 @@
  * ExecPolicy — pure decision module for shell and binary execution.
  * Decides between ExecFile(command, args), ShellExact(command), or Reject(reason).
  *
- * Used by ShellExecutor (tool calls, scripts) and Hooks (path-based hooks) so the
- * same hybrid policy is enforced at every execution boundary.
+ * Boundaries apply distinct rules: inline commands use an allowlisted binary
+ * with execFile; hooks tokenize and use execFile, checking the tools allowlist
+ * when configured; ToolCalls without args use ShellExact, while structured
+ * ToolCall args use execFile and bypass the allowlist by design.
  */
 
 /**
