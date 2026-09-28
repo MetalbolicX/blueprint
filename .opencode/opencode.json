@@ -11,7 +11,7 @@
   },
   "lsp": {
     "rescript-lsp": {
-      "command": ["rescript-language-server", "--stdio"],
+      "command": ["node_modules/.bin/rescript-language-server", "--stdio"],
       "extensions": [".res", ".resi"]
     }
   }
