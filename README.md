@@ -361,3 +361,4 @@ The bin name stays `"blueprint"` even though the package is scoped — users run
 ## Docs
 
 Full documentation at [/docs](/docs), including architecture, API reference, and tutorials.
+Allowlisted inline shell commands are split on whitespace and run as the allowlisted binary plus argument tokens via `execFile`; no shell interpretation is performed. Quoting, interpolation, or other complex arguments must use a ToolCall with structured args.

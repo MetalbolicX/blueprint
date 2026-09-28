@@ -493,6 +493,77 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     ->ignore
   })
 
+  testAsync("rejects trailing shell operators after an allowlisted command", resolve => {
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("git status && curl evil"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "git", command: "git"}]})
+    runShellCommands(~commands, ~shellConfig, ~shell=makeShell())
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "tools allowlist"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("runs whitespace-separated args with execFile", resolve => {
+    let tracking = makeTrackingShell()
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("git status"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "git", command: "git"}]})
+    runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)
+    ->Promise.then(result => {
+      assert_eq(tracking.execFileAsyncCalls->Array.length, 1)
+      assert_eq(tracking.execFileAsyncCalls[0]->Option.getOr(""), "git|status")
+      switch result {
+      | Ok(_) => assert_true(true)
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rejects command when first token is not allowlisted", resolve => {
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("git status"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "eslint", command: "eslint"}]})
+    runShellCommands(~commands, ~shellConfig, ~shell=makeShell())
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "tools allowlist"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rejects quoted inline arguments", resolve => {
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("echo \"a b\""), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "echo", command: "echo"}]})
+    runShellCommands(~commands, ~shellConfig, ~shell=makeShell())
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(msg) => assert_true(String.includes(msg, "tools allowlist"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("command path outside project tree returns Error mentioning 'outside project tree'", resolve => {
     // /bin/ls is absolute and outside /workspace/project.
     let commands: array<Template.shellCommand> = [
@@ -542,7 +613,7 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     ->ignore
   })
 
-  testAsync("execShellCommand returning Error surfaces as 'Shell command failed'", resolve => {
+  testAsync("execFile failure surfaces as an execution error", resolve => {
     let commands: array<Template.shellCommand> = [
       {
         target: InlineCommand("echo hi"),
@@ -553,14 +624,13 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
       enabled: true,
       tools: [{name: "echo", command: "echo"}],
     })
-    let shell = makeShell(~execShellCommandResult=Error("boom"))
+    let shell = makeShell(~execFileAsyncStatus=1)
     runShellCommands(~commands, ~shellConfig, ~shell)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
       | Error(msg) => {
-          assert_true(String.includes(msg, "Shell command failed"))
-          assert_true(String.includes(msg, "boom"))
+           assert_true(String.includes(msg, "exited with code"))
         }
       }
       resolve()
@@ -569,7 +639,7 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     ->ignore
   })
 
-  testAsync("executeShellCommands resolves Error when shell port rejects", resolve => {
+  testAsync("executeShellCommands resolves Error when execFile port rejects", resolve => {
     let commands: array<Template.shellCommand> = [
       {target: InlineCommand("echo hi"), sourcePath: "/src/t.ejs.t"},
     ]
@@ -577,7 +647,11 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
       enabled: true,
       tools: [{name: "echo", command: "echo"}],
     })
-    runShellCommands(~commands, ~shellConfig, ~shell=makeShell(~execShellCommandRejects="port exploded"))
+    let shell: Ports.shell = {
+      ...makeShell(),
+      execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => rejectError("port exploded"),
+    }
+    runShellCommands(~commands, ~shellConfig, ~shell)
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -589,15 +663,15 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     ->ignore
   })
 
-  testAsync("inline command passes ExecPolicy timeout to execShellCommand", resolve => {
-    let timeoutSeen: ref<option<option<int>>> = ref(None)
+  testAsync("inline command passes ExecPolicy timeout to execFileAsync", resolve => {
+    let timeoutSeen: ref<option<int>> = ref(None)
     let shell: Ports.shell = {
-      execShellCommand: (~command as _, ~cwd as _=?, ~timeout=?) => {
-        timeoutSeen.contents = timeout
-        Promise.resolve(Ok(""))
-      },
+      execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
       execAsync: (_cmd, ~options as _=?) => Promise.resolve(mkExecResult()),
-      execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.resolve(mkExecResult()),
+      execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
+        timeoutSeen.contents = options->Option.flatMap(opts => opts.timeout)
+        Promise.resolve(mkExecResult())
+      },
     }
     let commands: array<Template.shellCommand> = [
       {target: InlineCommand("echo hi"), sourcePath: "/src/t.ejs.t"},
@@ -612,7 +686,7 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
       | Ok(count) => assert_eq(count, 1)
       | Error(_) => assert_false(true)
       }
-      assert_eq(timeoutSeen.contents, Some(Some(ExecPolicy.defaultTimeout)))
+      assert_eq(timeoutSeen.contents, Some(ExecPolicy.defaultTimeout))
       resolve()
       Promise.resolve()
     })

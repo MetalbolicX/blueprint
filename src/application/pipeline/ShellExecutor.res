@@ -125,7 +125,7 @@ let executeToolCall = (
 }
 
 // Handler: InlineCommand — validates shell enabled, allowlist, and path security,
-// then executes via execShellCommand. Increments count on success.
+// then executes tokenized arguments without shell interpretation.
 let executeInlineCommand = (
   ~command: string,
   ~cwd: string,
@@ -142,7 +142,8 @@ let executeInlineCommand = (
   if !shellEnabled {
     Promise.resolve(Error("Shell execution disabled"))
   } else {
-    let baseCmd = command->String.split(" ")->Array.get(0)->Option.getOr(command)
+    let tokens = command->String.trim->String.split(" ")->Array.filter(token => token != "")
+    let baseCmd = tokens->Array.get(0)->Option.getOr(command)
     let isAllowed = switch shellConfig {
     | Some(cfg) =>
       switch cfg.tools {
@@ -154,24 +155,30 @@ let executeInlineCommand = (
     if !isAllowed {
       Promise.resolve(Error("Command not in tools allowlist: " ++ command))
     } else {
-      let resolvedCmd = path.resolve(cwd, baseCmd)
-      PathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
-        if !isWithin {
-          Promise.resolve(Error("Command path outside project tree: " ++ baseCmd))
-        } else {
-          shell.execShellCommand(~command, ~cwd, ~timeout=Some(ExecPolicy.defaultTimeout))->Promise.then(result => {
-            switch result {
-              | Ok(_) => {
-                  countRef.contents = countRef.contents + 1
-                  Promise.resolve(Ok())
-                }
-              | Error(e) => {
-                  Promise.resolve(Error("Shell command failed: " ++ e))
-                }
-              }
-          })
-        }
-      })
+      let hasShellSyntax = tokens->Array.some(token =>
+        ["&", ";", "|", "$", "(", ")", "<", ">", "`", "\"", "'", "\n"]
+        ->Array.some(metachar => String.includes(token, metachar))
+      )
+      if hasShellSyntax {
+        Promise.resolve(Error("Command contains shell syntax; use a ToolCall with structured args instead (tools allowlist): " ++ command))
+      } else {
+        let resolvedCmd = path.resolve(cwd, baseCmd)
+        PathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
+          if !isWithin {
+            Promise.resolve(Error("Command path outside project tree: " ++ baseCmd))
+          } else {
+            let args = tokens->Array.slice(~start=1)
+            execToolAsync(
+              ~run=(~options) => shell.execFileAsync(baseCmd, ~args, ~options),
+              ~cwd,
+              ~safeEnv=Dict.make(),
+              ~timeout=ExecPolicy.defaultTimeout,
+              ~name=baseCmd,
+              ~countRef,
+            )
+          }
+        })
+      }
     }
   }
 }
