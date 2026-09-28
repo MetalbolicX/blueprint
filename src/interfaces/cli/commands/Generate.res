@@ -96,11 +96,6 @@ let runGenerate: (
               deps.process.exit(1)
             }
           | Ok(r) => {
-              switch r.shellErrors {
-              | Some(errs) if errs->Array.length > 0 =>
-                errs->Array.forEach(err => Console.warn("Shell warning: " ++ err))
-              | _ => ()
-              }
               Console.log(
                 "Blueprint: generated " ++
                 Int.toString(r.filesCreated) ++

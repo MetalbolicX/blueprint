@@ -2,7 +2,6 @@ type phase2Result = {
   filesCreated: int,
   filesInjected: int,
   commandsExecuted: int,
-  shellErrors?: array<string>,
 }
 
 let executeShellCommands: (
@@ -14,7 +13,7 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
-) => promise<result<(int, array<string>), string>>
+) => promise<result<int, string>>
 
 let run: (
   ~stagingDir: string,

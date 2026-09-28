@@ -12,4 +12,4 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
-) => promise<result<(int, array<string>), string>>
+) => promise<result<int, string>>

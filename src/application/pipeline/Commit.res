@@ -18,6 +18,7 @@ type phase2Error = {
   partialCommit?: array<string>,
   catastrophic?: bool,
   failedRollbackFiles?: array<string>,
+  backups?: array<backupEntry>,
 }
 
 let backupDirName = ".blueprint-backup"
@@ -137,8 +138,18 @@ let commitFiles: (
     let firstError = errors[0]->Option.getOr("Unknown error")
     let err: phase2Error = {message: firstError}
     switch partialCommit->Array.length {
-    | 0 => Error(err)
-    | _ => Error({...err, partialCommit: partialCommit})
+    | 0 =>
+      if backups->Array.length > 0 {
+        Error({...err, backups: ?Some(backups)})
+      } else {
+        Error(err)
+      }
+    | _ =>
+      if backups->Array.length > 0 {
+        Error({...err, partialCommit: ?Some(partialCommit), backups: ?Some(backups)})
+      } else {
+        Error({...err, partialCommit: ?Some(partialCommit)})
+      }
     }
   } else {
     Ok((partialCommit->Array.length, backups))

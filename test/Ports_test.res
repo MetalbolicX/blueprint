@@ -62,7 +62,7 @@ suite("Ports", () => {
 
   test("shell: has execShellCommand, execAsync, execFileAsync", () => {
     let _shell: Ports.shell = {
-      execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+      execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
       execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
       execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
     }
@@ -134,7 +134,7 @@ suite("Ports", () => {
         homedir: () => "/home/user",
       },
       shell: {
-        execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+        execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
         execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
         execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
       },

@@ -25,7 +25,7 @@ let makeProcess = (): Ports.process => {
 }
 
 let makeShell = (~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
@@ -127,22 +127,6 @@ suite("Phase2", () => {
     assert_eq(result.filesCreated, 5)
     assert_eq(result.filesInjected, 2)
     assert_eq(result.commandsExecuted, 1)
-  })
-
-  test("phase2Result: shellErrors present when commands fail", () => {
-    let errs: option<array<string>> = Some(["Script exited with code 1: /path/script.sh"])
-    let result: Phase2.phase2Result = {
-      filesCreated: 5,
-      filesInjected: 0,
-      commandsExecuted: 0,
-      shellErrors: ?errs,
-    }
-
-    assert_eq(result.commandsExecuted, 0)
-    switch result.shellErrors {
-    | Some(e) => assert_true(e->Array.length > 0)
-    | None => assert_false(true)
-    }
   })
 
   test("phase2Error: structure", () => {
@@ -929,6 +913,75 @@ suite("Phase2", () => {
     ->ignore
   })
 
+  testAsync("run: commit failure restores overwritten files and removes partial output", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let path = NodeJsPath.make()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedKeep = NodeJs.Path.join(stagingDir, "keep.txt")
+    let stagedNew = NodeJs.Path.join(stagingDir, "new.txt")
+    let outputKeep = NodeJs.Path.join(outputDir, "keep.txt")
+    let outputNew = NodeJs.Path.join(outputDir, "new.txt")
+    let renderedFiles = [("keep.t.ejs", "keep.txt"), ("new.t.ejs", "new.txt")]
+    let fs = makeFsWithFailures(
+      ~cpFailure=(fromPath, toPath) =>
+        fromPath == stagedNew && toPath == outputNew ? Some("copy blocked") : None,
+    )
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputKeep, "original-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedKeep, "updated-content"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedNew, "brand-new-content"))
+    ->Promise.then(_ =>
+      Phase2.run(
+        ~stagingDir,
+        ~outputDir,
+        ~renderedFiles,
+        ~shellCommands=[],
+        ~shellConfig=None,
+        ~fs,
+        ~path,
+        ~process=makeProcess(),
+        ~shell=NodeJsShell.make(),
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => switch err.partialCommit {
+        | Some(files) => {
+            assert_eq(Array.length(files), 1)
+            assert_true(String.endsWith(files[0]->Option.getOr(""), "keep.txt"))
+          }
+        | None => assert_false(true)
+        }
+      }
+      NodeJs.Fs.readFile(outputKeep)
+      ->Promise.then(content => {
+        assert_true(String.includes(content, "original-content"))
+        NodeJs.Fs.fileExists(outputNew)
+      })
+      ->Promise.then(newExists => {
+        assert_false(newExists)
+        NodeJs.Fs.fileExists(stagingDir)
+      })
+      ->Promise.then(stagingExists => {
+        assert_false(stagingExists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("executeShellCommands: successful fetch removes fetch tmp files", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let commands = [
@@ -950,7 +1003,7 @@ suite("Phase2", () => {
     )
     ->Promise.then(result => {
       switch result {
-      | Ok((count, _)) => assert_eq(count, 1)
+      | Ok(count) => assert_eq(count, 1)
       | Error(msg) => assert_true(String.length(msg) > 0)
       }
       NodeJs.Fs.readdir(tmpDir)->Promise.then(entries => {

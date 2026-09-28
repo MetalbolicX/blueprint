@@ -9,7 +9,6 @@ type phase2Result = {
   filesCreated: int,
   filesInjected: int,
   commandsExecuted: int,
-  shellErrors?: array<string>,
 }
 
 let executeShellCommands = ShellExecutor.executeShellCommands
@@ -71,15 +70,13 @@ let run: (
       )
 
       switch shellResult {
-      | Ok((cmdsExec, shellErrors)) => {
+      | Ok(cmdsExec) => {
           let _ = await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs)
 
-          let shellErrs: option<array<string>> = shellErrors->Array.length > 0 ? Some(shellErrors) : None
           let result: phase2Result = {
             filesCreated: count,
             filesInjected: 0,
             commandsExecuted: cmdsExec,
-            shellErrors: ?shellErrs,
           }
           Ok(result)
         }
@@ -124,16 +121,37 @@ let run: (
       }
     }
   | Error(err) => {
-      // Commit failed — rollback
-      switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
-      | Ok() => Error(err)
-      | Error(rollbackMessage) => {
-          let e: phase2Error = {
-            ...err,
-            message: err.message ++ " | rollback failed: " ++ rollbackMessage,
-            catastrophic: true,
+      switch await Commit.rollbackOutput(
+        ~committedFiles=err.partialCommit->Option.getOr([]),
+        ~backups=err.backups->Option.getOr([]),
+        ~outputDir,
+        ~path,
+        ~fs,
+      ) {
+      | Ok() =>
+        switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+        | Ok() => Error(err)
+        | Error(rollbackMessage) => {
+            let e: phase2Error = {
+              ...err,
+              message: err.message ++ " | rollback failed: " ++ rollbackMessage,
+              catastrophic: true,
+            }
+            Error(e)
           }
-          Error(e)
+        }
+      | Error(failedRollbackFiles) => {
+          let failedPaths = failedRollbackFiles->Array.map(f => f.path)
+          let catastrophicError: phase2Error = {
+            ...err,
+            catastrophic: true,
+            failedRollbackFiles: ?Some(failedPaths),
+          }
+          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+          | Ok() => Error(catastrophicError)
+          | Error(rollbackMessage) =>
+            Error({...catastrophicError, message: err.message ++ " | rollback failed: " ++ rollbackMessage})
+          }
         }
       }
     }

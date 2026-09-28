@@ -113,11 +113,16 @@ let execFileAsync: (
 let execShellCommand: (
   ~command: string,
   ~cwd: string=?,
-) => promise<result<string, string>> = async (~command, ~cwd=?) => {
+  ~timeout: option<int>=?,
+) => promise<result<string, string>> = async (~command, ~cwd=?, ~timeout=?) => {
   try {
     let options: execOptions = {
       ?cwd,
       encoding: "utf8",
+    }
+    let options = switch timeout {
+    | Some(Some(t)) => {...options, timeout: t}
+    | Some(None) | None => options
     }
     let result = await execAsync(command, ~options)
     if result.killed {

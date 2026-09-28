@@ -18,12 +18,18 @@ let mkExecResult = (~status: int = 0, ~killed: bool = false): Ports.execResult =
 
 let makeShell = (
   ~execShellCommandResult: result<string, string> = Ok(""),
+  ~execShellCommandRejects: string = "",
   ~execAsyncStatus: int = 0,
   ~execAsyncKilled: bool = false,
   ~execFileAsyncStatus: int = 0,
   ~execFileAsyncKilled: bool = false,
 ): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(execShellCommandResult),
+  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) =>
+    if execShellCommandRejects == "" {
+      Promise.resolve(execShellCommandResult)
+    } else {
+      rejectError(execShellCommandRejects)
+    },
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(mkExecResult(~status=execAsyncStatus, ~killed=execAsyncKilled)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
@@ -40,7 +46,7 @@ let makeTrackingShell = (): trackingShell => {
   let execFileAsyncCalls: array<string> = []
   let execAsyncCalls: array<string> = []
   let shell: Ports.shell = {
-    execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+    execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
     execAsync: (cmd, ~options as _=?) => {
       let _ = execAsyncCalls->Array.push(cmd)
       Promise.resolve(mkExecResult())
@@ -186,7 +192,7 @@ let runShellCommands = (
   ~shellConfig: option<Config.shellConfig>,
   ~shell: Ports.shell,
   ~fs: Ports.fileSystem = makeFs(),
-): promise<result<(int, array<string>), string>> => {
+): promise<result<int, string>> => {
   ShellExecutor.executeShellCommands(
     ~commands,
     ~cwd="/workspace/project",
@@ -254,7 +260,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     runShellCommands(~commands, ~shellConfig, ~shell)
     ->Promise.then(result => {
       switch result {
-      | Ok((count, _logs)) => assert_eq(count, 1)
+      | Ok(count) => assert_eq(count, 1)
       | Error(_) => assert_false(true)
       }
       resolve()
@@ -349,7 +355,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
       assert_eq(tracking.execAsyncCalls[0]->Option.getOr(""), "ls")
       assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
       switch result {
-      | Ok((count, _)) => assert_eq(count, 1)
+      | Ok(count) => assert_eq(count, 1)
       | Error(_msg) => assert_true(false)
       }
       resolve()
@@ -527,7 +533,7 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)
     ->Promise.then(result => {
       switch result {
-      | Ok((count, _logs)) => assert_eq(count, 1)
+      | Ok(count) => assert_eq(count, 1)
       | Error(_msg) => assert_true(false) // should not error
       }
       resolve()
@@ -557,6 +563,56 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
           assert_true(String.includes(msg, "boom"))
         }
       }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeShellCommands resolves Error when shell port rejects", resolve => {
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("echo hi"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({
+      enabled: true,
+      tools: [{name: "echo", command: "echo"}],
+    })
+    runShellCommands(~commands, ~shellConfig, ~shell=makeShell(~execShellCommandRejects="port exploded"))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(message) => assert_true(String.includes(message, "port exploded"))
+      }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("inline command passes ExecPolicy timeout to execShellCommand", resolve => {
+    let timeoutSeen: ref<option<option<int>>> = ref(None)
+    let shell: Ports.shell = {
+      execShellCommand: (~command as _, ~cwd as _=?, ~timeout=?) => {
+        timeoutSeen.contents = timeout
+        Promise.resolve(Ok(""))
+      },
+      execAsync: (_cmd, ~options as _=?) => Promise.resolve(mkExecResult()),
+      execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.resolve(mkExecResult()),
+    }
+    let commands: array<Template.shellCommand> = [
+      {target: InlineCommand("echo hi"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({
+      enabled: true,
+      tools: [{name: "echo", command: "echo"}],
+    })
+    runShellCommands(~commands, ~shellConfig, ~shell)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(count) => assert_eq(count, 1)
+      | Error(_) => assert_false(true)
+      }
+      assert_eq(timeoutSeen.contents, Some(Some(ExecPolicy.defaultTimeout)))
       resolve()
       Promise.resolve()
     })
@@ -629,9 +685,34 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
         "/workspace/project/scripts/setup.sh|",
       )
       switch result {
-      | Ok((count, _logs)) => assert_eq(count, 1)
+      | Ok(count) => assert_eq(count, 1)
       | Error(_) => assert_false(true)
       }
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("script command resolves relative to project cwd", resolve => {
+    let tracking = makeTrackingShell()
+    let commands: array<Template.shellCommand> = [
+      {target: ScriptFile("scripts/run.sh"), sourcePath: "/src/t.ejs.t"},
+    ]
+    let cwd = "/workspace/project"
+    let fs = makeFs(~fileExistsResult=true)
+    ShellExecutor.executeShellCommands(
+      ~commands,
+      ~cwd,
+      ~stagingDir=cwd,
+      ~shellConfig=None,
+      ~fs,
+      ~path,
+      ~process=makeProcess(),
+      ~shell=tracking.shell,
+    )
+    ->Promise.then(_ => {
+      assert_true(String.startsWith(tracking.execFileAsyncCalls[0]->Option.getOr(""), cwd ++ "/"))
       resolve()
       Promise.resolve()
     })

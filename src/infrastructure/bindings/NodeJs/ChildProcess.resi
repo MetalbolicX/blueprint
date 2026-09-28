@@ -22,4 +22,4 @@ type execOptions = {
 let execWithCallback: (string, ~options: execOptions=?, ~callback: (Nullable.t<JsExn.t>, string, string) => unit) => childProcess
 let execAsync: (string, ~options: execOptions=?) => promise<execResult>
 let execFileAsync: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult>
-let execShellCommand: (~command: string, ~cwd: string=?) => promise<result<string, string>>
+let execShellCommand: (~command: string, ~cwd: string=?, ~timeout: option<int>=?) => promise<result<string, string>>

@@ -223,7 +223,6 @@ let run: (
               filesInjected: p2.filesInjected,
               commandsExecuted: p2.commandsExecuted,
               classification: generator.name,
-              shellErrors: ?p2.shellErrors,
             }
             // Post-hook: same precedence logic as pre-hook
             let (postHookCmd, postScriptRoot, postCwd) = switch generator.manifest {

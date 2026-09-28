@@ -5,7 +5,8 @@
 open NodeJs.ChildProcess
 
 let make: unit => Ports.shell = () => {
-  execShellCommand: execShellCommand,
+  execShellCommand: (~command, ~cwd=?, ~timeout=?) =>
+    execShellCommand(~command, ~cwd?, ~timeout?),
   execAsync: (cmd, ~options=?) => {
     let opts = switch options {
     | Some(o) => Some((o :> NodeJs.ChildProcess.execOptions))

@@ -5,7 +5,7 @@ open TestHelpers
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
 let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     switch execAsyncResult {
     | Ok(result) => Promise.resolve(result)
@@ -19,7 +19,7 @@ let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shel
 // structured-args tests can prove that shell metacharacters in args do NOT
 // get rewritten (no shell interpretation).
 let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (cmd, ~args=?, ~options as _=?) => {
@@ -46,7 +46,7 @@ let makeProcess = (): Ports.process => {
 // can assert that filtered safeEnv (not raw process.env) is what reaches
 // the child process. Used by the WS3 env-leak guard test below.
 let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options=?) => {
     let _ = capturedEnv.contents = switch options {
     | Some(o) => o.env
@@ -406,7 +406,7 @@ suite("HookSecurity", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell={
-        execShellCommand: (~command as _, ~cwd as _=?) => Promise.resolve(Ok("")),
+        execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
         execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
         execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },

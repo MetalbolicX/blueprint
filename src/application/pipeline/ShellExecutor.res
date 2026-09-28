@@ -159,7 +159,7 @@ let executeInlineCommand = (
         if !isWithin {
           Promise.resolve(Error("Command path outside project tree: " ++ baseCmd))
         } else {
-          shell.execShellCommand(~command, ~cwd)->Promise.then(result => {
+          shell.execShellCommand(~command, ~cwd, ~timeout=Some(ExecPolicy.defaultTimeout))->Promise.then(result => {
             switch result {
               | Ok(_) => {
                   countRef.contents = countRef.contents + 1
@@ -187,7 +187,7 @@ let executeScriptFile = (
   ~shell: Ports.shell,
   ~countRef: ref<int>,
 ) => {
-  let resolvedPath = path.resolve(cmdPath, "")
+  let resolvedPath = path.resolve(cwd, cmdPath)
   PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
     if !isWithin {
       Promise.resolve(Error("Script path outside project tree: " ++ cmdPath))
@@ -236,7 +236,7 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
-) => promise<result<(int, array<string>), string>> = (
+  ) => promise<result<int, string>> = (
   ~commands,
   ~cwd,
   ~stagingDir,
@@ -298,12 +298,15 @@ let executeShellCommands: (
       }
     })
   })
-  promise->Promise.then(r => {
-    cleanupFetchTmpFiles(tmpFiles, ~fs)->Promise.then(_ => {
-      Promise.resolve(switch r {
-      | Ok(_) => Ok((count.contents, []))
-      | Error(e) => Error(e)
-      })
+  let finish = r =>
+    Promise.resolve(switch r {
+    | Ok(_) => Ok(count.contents)
+    | Error(e) => Error(e)
     })
+  promise
+  ->Promise.then(r => cleanupFetchTmpFiles(tmpFiles, ~fs)->Promise.then(_ => finish(r)))
+  ->Promise.catch(e => {
+    let msg = Errors.extractErrorMessage(e)
+    cleanupFetchTmpFiles(tmpFiles, ~fs)->Promise.then(_ => finish(Error(msg)))
   })
 }

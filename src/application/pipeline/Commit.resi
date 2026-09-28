@@ -13,6 +13,7 @@ type phase2Error = {
   partialCommit?: array<string>,
   catastrophic?: bool,
   failedRollbackFiles?: array<string>,
+  backups?: array<backupEntry>,
 }
 
 let commitFiles: (
