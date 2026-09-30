@@ -33,32 +33,42 @@ let parseIpv4 = (ip: string): array<int> => {
   )
 }
 
-/// Expand :: notation and return all 8 groups as strings.
+/// Expand only an explicit :: gap; embedded IPv4 tails occupy two groups.
 let parseIpv6 = (ip: string): array<string> => {
-  let parts = ip->String.split(":")
-  let nonEmpty = parts->Array.filter(s => s != "")
-  let zerosToAdd = 8 - nonEmpty->Array.length
-  if zerosToAdd <= 0 {
-    parts
+  let normalized = ip->String.toLowerCase
+  let dottedParts = normalized->String.split(":")
+  let last = dottedParts->Array.get(dottedParts->Array.length - 1)->Option.getOr("")
+  let parts = if String.includes(last, ".") {
+    let octets = parseIpv4(last)
+    let high = (octets[0]->Option.getOr(0) * 256) + octets[1]->Option.getOr(0)
+    let low = (octets[2]->Option.getOr(0) * 256) + octets[3]->Option.getOr(0)
+    let hexGroups: array<int> => array<string> = %raw(`
+      values => values.map(value => value.toString(16))
+    `)
+    let prefix = dottedParts->Array.slice(~start=0, ~end=dottedParts->Array.length - 1)
+    Array.concat(prefix, hexGroups([high, low]))
   } else {
-    let zeros = Array.make(~length=zerosToAdd, "0")
+    dottedParts
+  }
+  let hasGap = String.includes(normalized, "::")
+  let groups = parts->Array.filter(s => s != "")
+  if hasGap {
+    let zerosToAdd = 8 - groups->Array.length
     let before = ref([])
     let after = ref([])
     let gapFound = ref(false)
     parts->Array.forEach(part => {
       if part == "" {
-        if !gapFound.contents {
-          gapFound := true
-        }
+        if !gapFound.contents { gapFound := true }
+      } else if gapFound.contents {
+        after := Array.concat(after.contents, [part])
       } else {
-        if gapFound.contents {
-          after := Array.concat(after.contents, [part])
-        } else {
-          before := Array.concat(before.contents, [part])
-        }
+        before := Array.concat(before.contents, [part])
       }
     })
-    Array.concat(Array.concat(before.contents, zeros), after.contents)
+    Array.concat(Array.concat(before.contents, Array.make(~length=zerosToAdd, "0")), after.contents)
+  } else {
+    groups
   }
 }
 
@@ -88,12 +98,33 @@ let classifyIpv4 = (octets: array<int>): ipClass => {
     Private
   } else if o0 >= 169 && o0 <= 169 && o1 >= 254 && o1 <= 254 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
     LinkLocal
+  } else if o0 == 100 && o1 >= 64 && o1 <= 127 {
+    Private
+  } else if o0 >= 224 && o0 <= 239 {
+    Multicast
+  } else if o0 >= 240 && o0 <= 255 || (o0 == 255 && o1 == 255 && o2 == 255 && o3 == 255) {
+    Multicast
   } else if o0 >= 0 && o0 <= 0 && o1 >= 0 && o1 <= 255 && o2 >= 0 && o2 <= 255 && o3 >= 0 && o3 <= 255 {
     Unspecified
   } else {
     Public
   }
 }
+
+let mappedIpv4: array<string> => option<string> = %raw(`
+  function(parts) {
+    if (parts.length !== 8 || parts.slice(0, 5).some(part => parseInt(part, 16) !== 0) || parseInt(parts[5], 16) !== 65535) return undefined;
+    const upper = parseInt(parts[6], 16), lower = parseInt(parts[7], 16);
+    return [upper >> 8, upper & 255, lower >> 8, lower & 255].join(".");
+  }
+`)
+
+let isSiteLocalPrefix: string => bool = %raw(`
+  function(firstGroup) {
+    const value = parseInt(firstGroup, 16);
+    return value >= 0xfec0 && value <= 0xfeff;
+  }
+`)
 
 /// Classify an IPv6 address (as expanded 8-group parts).
 let classifyIpv6 = (parts: array<string>): ipClass => {
@@ -125,6 +156,8 @@ let classifyIpv6 = (parts: array<string>): ipClass => {
          String.startsWith(first, "fea") || String.startsWith(first, "feb") {
         LinkLocal
       } else if String.startsWith(first, "fc") || String.startsWith(first, "fd") {
+        Private
+      } else if isSiteLocalPrefix(first) {
         Private
       } else if String.startsWith(first, "ff") {
         Multicast
@@ -166,7 +199,13 @@ let isIpAllowed: string => bool = ip => {
   let normalized = normalizeIpv6(ip)
   switch Net.isIP(normalized) {
   | 4 => parseIpv4(normalized)->classifyIpv4->isClassAllowed
-  | 6 => parseIpv6(normalized)->classifyIpv6->isClassAllowed
+  | 6 => {
+      let groups = parseIpv6(normalized)
+      switch mappedIpv4(groups) {
+      | Some(mapped) => parseIpv4(mapped)->classifyIpv4->isClassAllowed
+      | None => groups->classifyIpv6->isClassAllowed
+      }
+    }
   | _ => false
   }
 }

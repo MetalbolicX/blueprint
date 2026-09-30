@@ -34,14 +34,14 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 
 ## Checklist
 
-### T1 — Conflict abort trap (WU1) — pending
+### T1 — Conflict abort trap (WU1) — done (commit 84b42b7)
 - `parseChoice`: `"a" | "abort"` → `Abort`; `"all"` → `YesAll`; remove unadvertised `"q"` alias; keep y/yes, n/no, s/select.
 - `ConflictRunner` bulk prompt spells out the exact contract (advertises `[a]bort`; documents typing `all` = overwrite everything).
 - Select mode: unrecognized input re-prompts with feedback; `abort` aborts mid-select.
 - Tests: fix enshrined `a → YesAll` assertion; add prompt-contract test covering every advertised key.
 - Acceptance: focused tests green; full suite no new failures. Commit: `fix(conflicts): make 'a' abort instead of overwrite-all`.
 
-### T2 — SSRF hardening (WU2) — pending
+### T2 — SSRF hardening (WU2) — done (commit pending below)
 - `Fetcher.httpGetOnce`: `redirect: "manual"` + explicit redirect loop that re-runs `SsrfGuard.isUrlAllowed` on every `Location` hop (cap hops ≤5, reject non-http(s)).
 - Response body size cap (e.g. 10 MiB) — fail closed.
 - `SsrfGuard`: fix `parseIpv6` end-padding bug; classify `::ffff:`/`0:0:...:ffff:` mapped forms as IPv4-equivalent; add 100.64/10, 224/4, 240/4, 255.255.255.255, fec0::/10.
@@ -85,13 +85,15 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 - 2025 audit completed (read-only); verdict: not production ready. Memory id 632.
 - Branch `fix/production-readiness-hardening` created off `main` @ `991fdbf`.
 - Delivery strategy resolved: stacked-to-main (user). TDD: strict (user mandate).
+- T1 committed 84b42b7 (+136/-18) after strict TDD; feature doc committed 6dda58b.
+- Native review blocked: `gentle-ai sync --agent pi` v3.7.0 fails verification (expects `~/.pi/agent/mcp.json` the package never ships) → assets stale → `managed_assets_outdated` stop. Known upstream: gentle-ai #5103 (fix closed 2026-09-30, unreleased > v3.7.0) and #5043 (rollback snapshot). Occurrence comment permission-blocked (no gh/token on machine); user chose report-and-continue. Fallback per unassessable plan: writer self-verification + gentle-ai-verify subagent per commit.
 
 ## Per-task evidence record
 
 | Task | Commit | Assess tier | Outcome |
 |------|--------|-------------|---------|
-| T1 | — | — | — |
-| T2 | — | — | — |
+| T1 | 84b42b7 | unassessable (native blocked) | TDD RED 4→GREEN 14/14; full 698/699 (known baseline only); parent rerun 14/14; independent verify bg task muok4mls-6-eifi |
+| T2 | (this commit) | unassessable (native blocked) | TDD RED 12→GREEN 97/97, fix-back RED 2→101/101 (fec0::/10 full range); full 719/720 (known baseline only); parent rerun 101/101; fallback verify bg in flight |
 | T3 | — | — | — |
 | T4 | — | — | — |
 | T5 | — | — | — |
@@ -99,4 +101,4 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 
 ## Next step
 
-Delegate T1 to gentle-ai-worker (strict TDD), verify, commit, assess.
+Delegate T3 to gentle-ai-worker (strict TDD). Follow-ups ledger: parseChoice case/whitespace variant tests (from T1 verify, fold into T6).

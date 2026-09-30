@@ -96,6 +96,58 @@ suite("SsrfGuard.isIpAllowed", () => {
     assert_true(SsrfGuard.isIpAllowed("2001:4860:4860::8888"))
   })
 
+  test("fully expanded IPv4-mapped metadata address → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("0:0:0:0:0:ffff:a9fe:a9fe"))
+  })
+
+  test("compressed IPv4-mapped metadata address → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("::ffff:169.254.169.254"))
+  })
+
+  test("expanded IPv4-mapped dotted-tail metadata address → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("0:0:0:0:0:ffff:169.254.169.254"))
+  })
+
+  test("uncompressed IPv6 with embedded IPv4 tail remains positionally public", () => {
+    assert_true(SsrfGuard.isIpAllowed("2001:4860:4860:0:0:ffff:8.8.8.8"))
+  })
+
+  test("100.64.0.0/10 carrier-grade NAT → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("100.64.0.1"))
+  })
+
+  test("224.0.0.0/4 multicast → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("224.0.0.1"))
+  })
+
+  test("240.0.0.0/4 reserved → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("240.0.0.1"))
+  })
+
+  test("255.255.255.255 limited broadcast → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("255.255.255.255"))
+  })
+
+  test("fec0::1 (site-local lower boundary) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("fec0::1"))
+  })
+
+  test("fed0::1 (site-local interior) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("fed0::1"))
+  })
+
+  test("feff::1 (site-local upper boundary) → false", () => {
+    assert_false(SsrfGuard.isIpAllowed("feff::1"))
+  })
+
+  test("fe7f:: (outside link-local range) → true", () => {
+    assert_true(SsrfGuard.isIpAllowed("fe7f::"))
+  })
+
+  test("fe00:: (outside site-local range) → true", () => {
+    assert_true(SsrfGuard.isIpAllowed("fe00::"))
+  })
+
   // Unparseable addresses are treated as not-allowed.
   test("not-an-ip → false", () => {
     assert_false(SsrfGuard.isIpAllowed("not-an-ip"))

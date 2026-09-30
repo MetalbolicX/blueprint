@@ -97,6 +97,58 @@ let path = NodeJsPath.make()
 
 // ---------- cleanupFetchTmpFiles ----------
 
+suite("ShellExecutor fetch staging names", () => {
+  testAsync("distinct fetched URLs receive distinct staging filenames", resolve => {
+    Fetcher.clearCache()
+    let installFetchMock: unit => unit = %raw(`
+      function() {
+        globalThis.__SHELL_ORIGINAL_FETCH__ = globalThis.fetch;
+        globalThis.fetch = async function() {
+          return {ok: true, status: 200, statusText: "OK", text: async () => "body"};
+        };
+      }
+    `)
+    let restoreFetchMock: unit => unit = %raw(`
+      function() { globalThis.fetch = globalThis.__SHELL_ORIGINAL_FETCH__; delete globalThis.__SHELL_ORIGINAL_FETCH__; }
+    `)
+    installFetchMock()
+    let writtenPaths: ref<array<string>> = ref([])
+    let base = NodeJsFileSystem.make()
+    let fs: Ports.fileSystem = {
+      ...base,
+      writeFile: (target, content, ~options=?) => {
+        let _ = writtenPaths.contents->Array.push(target)
+        base.writeFile(target, content, ~options?)
+      },
+    }
+    let stagingDir = NodeJs.Os.makeStagingDir()
+    let commands: array<Template.shellCommand> = [
+      {target: Template.Fetch("http://8.8.8.8/first"), sourcePath: "first"},
+      {target: Template.Fetch("http://8.8.8.8/second"), sourcePath: "second"},
+    ]
+    ShellExecutor.executeShellCommands(
+      ~commands,
+      ~cwd=stagingDir,
+      ~stagingDir,
+      ~shellConfig=None,
+      ~fs,
+      ~path,
+      ~process=makeProcess(),
+      ~shell=makeShell(),
+    )->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_eq(writtenPaths.contents->Array.length, 2)
+      | Error(_) => assert_false(true)
+      }
+      assert_true(writtenPaths.contents[0] != writtenPaths.contents[1])
+      restoreFetchMock()
+      NodeJs.Fs.rm(stagingDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+})
+
 suite("ShellExecutor.cleanupFetchTmpFiles", () => {
   testAsync("empty list resolves without invoking rm", resolve => {
     let (fs, rmCalls) = makeFsWithRmTracking()

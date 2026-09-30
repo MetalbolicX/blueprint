@@ -47,6 +47,21 @@ let execToolAsync = (
   })
 }
 
+// FNV-1a 64-bit gives URL-derived staging names a much larger collision space.
+let fnv1a64: string => string = %raw(`
+  function(value) {
+    let hash = 0xcbf29ce484222325n;
+    const prime = 0x100000001b3n;
+    for (let index = 0; index < value.length; index++) {
+      hash ^= BigInt(value.charCodeAt(index));
+      hash = BigInt.asUintN(64, hash * prime);
+    }
+    return hash.toString(16).padStart(16, "0");
+  }
+`)
+
+let fetchStagingFileName: string => string = url => "fetch-" ++ fnv1a64(url) ++ ".tmp"
+
 // Handler: Fetch — downloads URL content and writes to staging with hashed filename.
 // Tracks the staging path in tmpFiles for cleanup and increments count on success.
 let executeFetch = (
@@ -60,17 +75,7 @@ let executeFetch = (
   Fetcher.fetch(url)->Promise.then(result => {
     switch result {
     | Ok(content) => {
-        let fetchFileName = {
-          let hashVal = url->String.split("")->Array.reduce(0, (acc, c) => {
-            let code = switch String.charCodeAt(c, 0) {
-            | Some(n) => n
-            | None => 0
-            }
-            Math.Int.imul(acc, 31) + code
-          })
-          let hash = hashVal < 0 ? Int.toString(-hashVal) : Int.toString(hashVal)
-          "fetch-" ++ hash ++ ".tmp"
-        }
+        let fetchFileName = fetchStagingFileName(url)
         let fetchPath = path.join(stagingDir, fetchFileName)
         fs.writeFile(fetchPath, content)->Promise.then(_ => {
           let _ = tmpFiles->Array.push(fetchPath)

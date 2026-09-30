@@ -14,8 +14,14 @@ type jsUrl
 @new
 external makeUrl: string => jsUrl = "URL"
 
+@new
+external resolveUrl: (string, string) => jsUrl = "URL"
+
 @get
 external protocol: jsUrl => string = "protocol"
+
+@get
+external href: jsUrl => string = "href"
 
 let validateUrl: string => result<unit, string> = url => {
   try {
@@ -54,16 +60,86 @@ module Impl = {
     | _ => 400
     }
 
+  let getHeader: ('response, string) => option<string> = %raw(`
+    (response, name) => response.headers && response.headers.get(name) || undefined
+  `)
+
+  let readBoundedBody: 'response => promise<string> = %raw(`
+    async function(response) {
+      const limit = 10 * 1024 * 1024;
+      const declared = response.headers && response.headers.get("content-length");
+      if (declared !== null && declared !== undefined && Number(declared) > limit) {
+        throw new Error("Response body exceeds 10 MiB limit");
+      }
+      if (!response.body || typeof response.body.getReader !== "function") {
+        const text = await response.text();
+        if (new TextEncoder().encode(text).length > limit) throw new Error("Response body exceeds 10 MiB limit");
+        return text;
+      }
+      const reader = response.body.getReader();
+      const chunks = [];
+      let size = 0;
+      while (true) {
+        const item = await reader.read();
+        if (item.done) break;
+        size += item.value.byteLength;
+        if (size > limit) {
+          await reader.cancel().catch(() => {});
+          throw new Error("Response body exceeds 10 MiB limit");
+        }
+        chunks.push(item.value);
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      return new TextDecoder().decode(bytes);
+    }
+  `)
+
+  let redirectStatus: int => bool = status => status >= 300 && status <= 399
+
+  let rec httpGetHop: (string, int, 'signal) => promise<result<string, string>> = async (
+    url,
+    redirects,
+    signal,
+  ) => {
+    let guarded = await SsrfGuard.isUrlAllowed(url)
+    switch guarded {
+    | Error(message) => Error(message)
+    | Ok() => {
+        let response = await _nativeFetch(url, {"method": "GET", "signal": signal, "redirect": "manual"})
+        let status: int = response["status"]
+        if redirectStatus(status) {
+          switch getHeader(response, "location") {
+          | None => Error("HTTP " ++ Int.toString(status) ++ ": " ++ response["statusText"])
+          | Some(location) =>
+              if redirects >= 5 {
+                Error("Too many redirects (maximum 5)")
+              } else {
+                try {
+                  let nextUrl = href(resolveUrl(location, url))
+                  switch validateUrl(nextUrl) {
+                  | Error(message) => Error(message)
+                  | Ok() => await httpGetHop(nextUrl, redirects + 1, signal)
+                  }
+                } catch {
+                | JsExn(_) => Error("Invalid redirect Location: " ++ location)
+                }
+              }
+          }
+        } else if response["ok"] {
+          Ok(await readBoundedBody(response))
+        } else {
+          Error("HTTP " ++ Int.toString(status) ++ ": " ++ response["statusText"])
+        }
+      }
+    }
+  }
+
   let httpGetOnce: (string, int) => promise<result<string, string>> = async (url, timeout) => {
     try {
       let signal = Bindings.WebApis.AbortSignal.timeout(timeout * 1000)
-      let response = await _nativeFetch(url, {"method": "GET", "signal": signal})
-      if (response["ok"]) {
-        let content = await response["text"]()
-        Ok(content)
-      } else {
-        Error("HTTP " ++ Int.toString(response["status"]) ++ ": " ++ response["statusText"])
-      }
+      await httpGetHop(url, 0, signal)
     } catch {
     | JsExn(obj) =>
       let msg = switch JsExn.message(obj) {
@@ -133,9 +209,10 @@ let fetch: (string, ~timeout: int=?) => promise<result<string, string>> = (url, 
   switch validateUrl(url) {
   | Error(message) => Promise.resolve(Error(message))
   | Ok() =>
-    // WS3: SSRF guard — only allow public-IP destinations. Runs BEFORE any
-    // network IO so an attacker never gets a connection to loopback/private/
-    // link-local/metadata regardless of DNS. Cache the rejected promise too
+    // WS3: SSRF guard — only allow public-IP destinations before network IO.
+    // DNS is checked once per hop, leaving a rebinding TOCTOU before connect;
+    // connect-time pinning via a custom undici dispatcher is a follow-up.
+    // Cache the rejected promise too
     // so a flood of identical rejected requests still costs only one lookup.
     SsrfGuard.isUrlAllowed(url)
     ->Promise.then(guard => switch guard {
