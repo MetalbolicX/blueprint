@@ -53,7 +53,25 @@ let run: (
       ~outputDir,
       ~path,
       ~fs,
-    )->Promise.then(_ => Promise.resolve()))
+    )->Promise.then(result => {
+        // A failed signal-time rollback must not exit silently: the output
+        // tree may be partially committed with its backups about to be
+        // deleted alongside staging, so surface every failed path.
+        switch result {
+        | Ok(_) => ()
+        | Error(failures) => {
+            let paths = failures->Array.map(f => f.path)
+            Console.error(
+              "Signal rollback failed — output may be partially committed: "
+              ++ Js.Array.joinWith(", ", paths),
+            )
+          }
+        }
+        Promise.resolve()
+      })->Promise.catch(_ => {
+      Console.error("Signal rollback failed — output may be partially committed")
+      Promise.resolve()
+    }))
   | None => ()
   }
 

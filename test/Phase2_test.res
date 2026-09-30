@@ -283,6 +283,87 @@ suite("Phase2", () => {
     })
     ->ignore
   })
+
+  testAsync("signal rollback failure during commit surfaces a diagnostic", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let outputDir = NodeJs.Path.join(root, "output")
+    let stagedFile = NodeJs.Path.join(stagingDir, "file.txt")
+    let base = NodeJsFileSystem.make()
+    let handler = ref(None)
+    let exitCodes = ref([])
+    let process = makeSignalProcess(~handler, ~exitCodes)
+    // Restore copies read from the backup dir; make them throw so the
+    // signal-time rollback cannot restore the output tree.
+    let signalFs: Ports.fileSystem = {
+      readFile: base.readFile,
+      writeFile: base.writeFile,
+      mkdir: base.mkdir,
+      rm: base.rm,
+      cp: (src, dst, ~options=?) =>
+        if String.includes(src, ".blueprint-backup") {
+          rejectError("restore failed")
+        } else if src == stagedFile {
+          switch handler.contents {
+          | Some(callback) =>
+            callback()
+            base.cp(src, dst, ~options?)
+          | None => base.cp(src, dst, ~options?)
+          }
+        } else {
+          base.cp(src, dst, ~options?)
+        },
+      readdir: base.readdir,
+      fileExists: base.fileExists,
+      stat: base.stat,
+      lstat: base.lstat,
+      realpath: base.realpath,
+      makeStagingDir: base.makeStagingDir,
+    }
+    let stagingRef = ref(Some(stagingDir))
+    let rollbackRef: ref<option<unit => promise<unit>>> = ref(None)
+    let _ = %raw("globalThis.__testMessages = []")
+    let _ = %raw("globalThis.__signalOriginalError = console.error")
+    let _ = %raw("console.error = function(msg) { globalThis.__testMessages.push(String(msg)); }")
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "new"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(outputDir, "file.txt"), "original"))
+    ->Promise.then(_ => {
+      EngineLifecycle.registerSignalHandlers(~process, ~stagingDirRef=stagingRef, ~commitRollbackRef=rollbackRef, ~fs=signalFs)
+      Promise.resolve()
+    })
+    ->Promise.then(_ => Phase2.run(
+      ~stagingDir,
+      ~outputDir,
+      ~renderedFiles=[("template", "file.txt")],
+      ~shellCommands=[],
+      ~shellConfig=None,
+      ~fs=signalFs,
+      ~path=NodeJsPath.make(),
+      ~process,
+      ~shell=NodeJsShell.make(),
+      ~tmpRoot=NodeJs.Os.tmpdir(),
+      ~commitRollbackRef=rollbackRef,
+    ))
+    ->Promise.then(_ => {
+      let _ = %raw("console.error = globalThis.__signalOriginalError")
+      let joined: string = %raw("globalThis.__testMessages.join('\\n')")
+      assert_true(String.includes(joined, "Signal rollback failed"))
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->Promise.catch(_ => {
+      let _ = %raw("console.error = globalThis.__signalOriginalError")
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
   test("phase2Result: structure", () => {
     let result: Phase2.phase2Result = {
       filesCreated: 5,
