@@ -26,6 +26,45 @@ type cliResult = {
 
 external runNodeAs: array<string> => promise<cliResult> = "%identity"
 
+type lifecycleResult = {
+  initCode: int,
+  eofCode: int,
+  pipedCode: int,
+  eofOutput: string,
+  pipedOutput: string,
+}
+
+let runLifecycleChecks = %raw(`
+  async function() {
+    const [{default: fs}, {default: os}, {default: path}, {spawnSync}] = await Promise.all([
+      import('node:fs'), import('node:os'), import('node:path'), import('node:child_process')
+    ]);
+    const binary = path.resolve('dist/main.mjs');
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'blueprint-eof-'));
+    const run = (args, input = '') => spawnSync(process.execPath, [binary, ...args], {
+      cwd, input, encoding: 'utf8', timeout: 5000
+    });
+    try {
+      const init = run(['init']);
+      fs.mkdirSync(path.join(cwd, '_templates', 'demo'), {recursive: true});
+      fs.writeFileSync(path.join(cwd, '_templates', 'demo', 'manifest.yaml'), 'name: demo\nclassification: demo\n');
+      const eof = run(['generator', 'add-file', 'demo']);
+      const piped = run(['generator', 'add-file', 'demo'], 'new\nindex.ejs.t\nhello.txt\n\n\n');
+      return {
+        initCode: init.status ?? -1,
+        eofCode: eof.status ?? -1,
+        pipedCode: piped.status ?? -1,
+        eofOutput: (eof.stderr || '') + (eof.stdout || ''),
+        pipedOutput: (piped.stderr || '') + (piped.stdout || ''),
+      };
+    } finally {
+      fs.rmSync(cwd, {recursive: true, force: true});
+    }
+  }
+`)
+
+external runLifecycleChecksTyped: unit => promise<lifecycleResult> = "%identity"
+
 let runCliNodeTyped = args => runNodeAs(runCliNode(args))
 
 suite("CLI Integration", () => {
@@ -122,6 +161,19 @@ suite("CLI Integration", () => {
         resolve()
         Promise.resolve()
       })
+    })->ignore
+  })
+
+  testAsync("stdin EOF exits cleanly while piped prompt answers remain supported", resolve => {
+    runLifecycleChecksTyped(runLifecycleChecks())->Promise.then(result => {
+      assert_eq(result.initCode, 0)
+      assert_eq(result.eofCode, 1)
+      assert_true(String.includes(result.eofOutput, "input ended before an answer was provided"))
+      assert_true(String.includes(result.eofOutput, "use --force"))
+      assert_eq(result.pipedCode, 0)
+      assert_true(String.includes(result.pipedOutput, "Created template:"))
+      resolve()
+      Promise.resolve()
     })->ignore
   })
 

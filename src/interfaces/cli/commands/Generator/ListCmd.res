@@ -74,6 +74,7 @@ let runList: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = async
           } else {
             templatePaths->Array.forEach(templatePath => Console.log("  - " ++ templatePath))
           }
+          deps.interactiveIO.close()
         }
       }
     }

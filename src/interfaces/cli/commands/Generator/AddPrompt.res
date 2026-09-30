@@ -68,6 +68,7 @@ let runAddPrompt: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = 
               | Ok(updated) => {
                   await deps.fs.writeFile(manifestPath, updated)
                   Console.log("Added prompt '" ++ promptName ++ "' to " ++ manifestPath)
+                  deps.interactiveIO.close()
                 }
               }
             }

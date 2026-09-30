@@ -5,16 +5,23 @@ let make: (
     ~input: Readline.streamReadable,
     ~output: Readline.streamWritable=?,
     unit,
-  ) => Readline.readlineInterface=?,
+  ) => Readline.readlineInterface=? ,
   unit,
 ) => Ports.interactiveIO = (~createInterface=Readline.createInterface, ()) => {
-  let rl = createInterface(~input=Readline.stdin, ~output=Readline.stdout, ())
-  
+  let rl = ref(None)
+  let getInterface = () => switch rl.contents {
+  | Some(interface) => interface
+  | None => {
+      let interface = createInterface(~input=Readline.stdin, ~output=Readline.stdout, ())
+      rl := Some(interface)
+      interface
+    }
+  }
   {
-    ask: question => rl.question(question),
+    ask: question => (getInterface()).question(question),
     askConfirm: async (~question, ~defaultYes=true) => {
       let suffix = defaultYes ? " [Y/n] " : " [y/N] "
-      let answer = await rl.question(question ++ suffix)
+      let answer = await (getInterface()).question(question ++ suffix)
       let normalized = String.trim(answer)->String.toLowerCase
       if normalized == "" {
         defaultYes
@@ -22,6 +29,14 @@ let make: (
         normalized == "y" || normalized == "yes"
       }
     },
-    close: () => rl.close(),
+    close: () => {
+      switch rl.contents {
+      | Some(interface) => {
+          rl := None
+          interface.close()
+        }
+      | None => ()
+      }
+    },
   }
 }

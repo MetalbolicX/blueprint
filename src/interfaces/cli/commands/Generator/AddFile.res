@@ -34,6 +34,7 @@ let runAddFile: (~deps: Ports.deps, ~name: option<string>) => promise<unit> = as
             let _ = await deps.fs.mkdir(actionDir, ~options={recursive: true})
             await deps.fs.writeFile(targetPath, templateContent)
             Console.log("Created template: " ++ targetPath)
+            deps.interactiveIO.close()
           }
         }
       }

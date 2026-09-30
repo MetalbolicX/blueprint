@@ -54,4 +54,5 @@ let runInitGlobal: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
   if skipped->Array.length > 0 {
     Console.log("Skipped (already exists): " ++ skipped->Array.join(", "))
   }
+  deps.interactiveIO.close()
 }

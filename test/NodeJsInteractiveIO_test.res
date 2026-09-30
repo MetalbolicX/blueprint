@@ -25,6 +25,64 @@ let mockCreateInterface: (
 `)
 
 suite("NodeJsInteractiveIO adapter", () => {
+  testAsync("ask opens the readline interface lazily", resolve => {
+    let createCalls = ref(0)
+    let create: (
+      ~input: Bindings.NodeJs.Readline.streamReadable,
+      ~output: Bindings.NodeJs.Readline.streamWritable=?,
+      unit,
+    ) => Bindings.NodeJs.Readline.readlineInterface = (~input, ~output=?, ()) => {
+      createCalls.contents = createCalls.contents + 1
+      mockCreateInterface(~input, ~output?, ())
+    }
+    let io = NodeJsInteractiveIO.make(~createInterface=create, ())
+    assert_eq(createCalls.contents, 0)
+    io.close()
+    assert_eq(createCalls.contents, 0)
+    setMockAnswers(["Alice"])
+    let _ = (async () => {
+      let answer = await io.ask("Name: ")
+      assert_eq(answer, "Alice")
+      assert_eq(createCalls.contents, 1)
+      io.close()
+      io.close()
+      resolve()
+    })()
+  })
+
+  testAsync("ask rejects when readline closes while waiting for input", resolve => {
+    let rejectQuestion: ref<option<exn => unit>> = ref(None)
+    let create: (
+      ~input: Bindings.NodeJs.Readline.streamReadable,
+      ~output: Bindings.NodeJs.Readline.streamWritable=?,
+      unit,
+    ) => Bindings.NodeJs.Readline.readlineInterface = (~input as _input, ~output as _output=?, ()) => {
+      {
+        question: (_, ~completer as _completer=?) => Promise.make((_, reject) => rejectQuestion := Some(reject)),
+        close: () => {
+          switch rejectQuestion.contents {
+          | Some(reject) => reject(Obj.magic("input ended before an answer was provided"))
+          | None => ()
+          }
+        },
+      }
+    }
+    let io = NodeJsInteractiveIO.make(~createInterface=create, ())
+    let _ = (async () => {
+      let question = io.ask("Name: ")
+      io.close()
+      io.close()
+      let rejected = try {
+        let _ = await question
+        false
+      } catch {
+      | _ => true
+      }
+      assert_true(rejected)
+      resolve()
+    })()
+  })
+
   testAsync("ask returns the user input", resolve => {
     let _ = (async () => {
       setMockAnswers(["Alice"])
