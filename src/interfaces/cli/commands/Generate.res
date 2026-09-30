@@ -26,6 +26,8 @@ let runGenerate: (
       deps.process.exit(1)
     }
   | Ok() => {
+      // Config and registry are loaded and validated; the generate engine is ready for work.
+      ProbeState.setReady()
       // Discovery runs AFTER validation (test asserts invalid config exits before discovery)
       let projectPaths = ["_templates", "templates", "generators"]
       let allPaths = Utils.buildGenerateSearchPaths(

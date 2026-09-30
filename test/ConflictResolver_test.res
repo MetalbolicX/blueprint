@@ -38,6 +38,14 @@ suite("ConflictResolver", () => {
     assert_eq(ConflictResolver.parseChoice("abort"), Some(ConflictResolver.Abort))
   })
 
+  test("parseChoice: normalizes case and surrounding whitespace", () => {
+    assert_eq(ConflictResolver.parseChoice("ALL"), Some(ConflictResolver.YesAll))
+    assert_eq(ConflictResolver.parseChoice("  A "), Some(ConflictResolver.Abort))
+    assert_eq(ConflictResolver.parseChoice("Abort"), Some(ConflictResolver.Abort))
+    assert_eq(ConflictResolver.parseChoice("all "), Some(ConflictResolver.YesAll))
+    assert_eq(ConflictResolver.parseChoice(""), None)
+  })
+
   test("parseChoice: invalid input", () => {
     assert_eq(ConflictResolver.parseChoice("maybe"), None)
   })

@@ -1,5 +1,8 @@
 open Context
 
+type packageMetadata = {version: string}
+@val external parsePackageMetadata: string => packageMetadata = "JSON.parse"
+
 // Known CLI flags that should NOT be collected as template attributes.
 let knownFlags: array<string> = ["name", "force", "output", "help"]
 
@@ -66,6 +69,16 @@ let extractAttributes: (~args: array<string>) => dict<Context.attrValue> = (~arg
 }
 
 // ─── Per-command handlers ─────────────────────────────────────────────────────
+
+let routeVersion: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
+  // The bundled entry point lives in dist/, so resolve package.json from its location, not cwd.
+  let entryPoint = deps.process.argv()->Array.get(1)->Option.getOr("dist/main.mjs")
+  let packagePath = deps.path.join(deps.path.dirname(entryPoint), "../package.json")
+  let packageJson = await deps.fs.readFile(packagePath, ~options={encoding: "utf8"})
+  let metadata = parsePackageMetadata(packageJson)
+  Console.log("Blueprint " ++ metadata.version)
+  deps.process.exit(0)
+}
 
 let routeReadyz: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
   let status = if ProbeState.isReady() {
@@ -215,13 +228,27 @@ let routeGenerator: (~deps: Ports.deps, ~args: array<string>) => promise<unit> =
   await CommandsGenerator.run(~deps, ~args=subArgs)
 }
 
+let isKnownHelpCommand = command =>
+  switch command {
+  | "generate" | "init" | "template" | "generator" | "help" => true
+  | _ => false
+  }
+
 let routeHelp: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~deps, ~args) => {
   let cmd = switch args[1] {
   | Some(c) if !String.startsWith(c, "-") => c
   | _ => ""
   }
-  if cmd == "" { Help.printUsage() } else { Help.printHelpFor(cmd) }
-  deps.process.exit(0)
+  if cmd == "" {
+    Help.printUsage()
+    deps.process.exit(0)
+  } else if !isKnownHelpCommand(cmd) {
+    Console.error("Unknown command: " ++ cmd)
+    deps.process.exit(1)
+  } else {
+    Help.printHelpFor(cmd)
+    deps.process.exit(0)
+  }
 }
 
 let routeUnknown: (~deps: Ports.deps, ~command: string) => promise<unit> = async (~deps, ~command) => {
@@ -233,7 +260,9 @@ let routeUnknown: (~deps: Ports.deps, ~command: string) => promise<unit> = async
 // ─── Main dispatcher ─────────────────────────────────────────────────────────
 
 let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~deps, ~args) => {
-  if Array.length(args) == 0 {
+  if args->Array.includes("--version") || args->Array.includes("-v") {
+    await routeVersion(~deps)
+  } else if Array.length(args) == 0 {
     Help.printUsage()
     deps.process.exit(0)
   } else {

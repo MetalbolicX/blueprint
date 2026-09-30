@@ -94,16 +94,12 @@ try {
   const binPath = join(tempDir, "node_modules", ".bin", "blueprint");
   const versionResult = runCapture(`"${binPath}" --version`, { timeout: 30000 });
   if (versionResult.exitCode !== 0) {
-    // Try --help as fallback
-    const helpResult = runCapture(`"${binPath}" --help`, { timeout: 30000 });
-    if (helpResult.exitCode !== 0) {
-      console.error(`release-smoke FAILED: blueprint --version/help exited ${helpResult.exitCode}`);
-      console.error(`stdout: ${helpResult.stdout}`);
-      console.error(`stderr: ${helpResult.stderr}`);
-      process.exit(1);
-    }
+    console.error(`release-smoke FAILED: blueprint --version exited ${versionResult.exitCode}`);
+    console.error(`stdout: ${versionResult.stdout}`);
+    console.error(`stderr: ${versionResult.stderr}`);
+    process.exit(1);
   }
-  console.log(` blueprint version/help check passed`);
+  console.log(` blueprint version check passed`);
 
   success = true;
   console.log("\nrelease-smoke PASSED — package is publish-ready");

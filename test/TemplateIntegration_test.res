@@ -17,16 +17,26 @@ let runCliIn = %raw(`
   async function(input) {
     const cp = await import('node:child_process');
     const path = await import('node:path');
-    const util = await import('node:util');
-    const execFile = util.promisify(cp.execFile);
     const mainJs = path.join(process.cwd(), 'dist/main.mjs');
     const env = {...process.env, HOME: input.homeDir};
     try {
-      const { stdout, stderr } = await execFile('node', [mainJs, ...input.args], {
-        cwd: input.cwd,
-        env,
+      const result = await new Promise((resolve, reject) => {
+        const child = cp.execFile('node', [mainJs, ...input.args], {
+          cwd: input.cwd,
+          env,
+        }, (error, stdout, stderr) => {
+          if (error) {
+            error.stdout = stdout;
+            error.stderr = stderr;
+            reject(error);
+          } else {
+            resolve({ stdout, stderr });
+          }
+        });
+        // Template copy asks for confirmation; only that command receives an affirmative answer.
+        child.stdin.end(input.args[0] === 'template' && input.args[1] === 'copy' ? 'y\n' : undefined);
       });
-      return { code: 0, stdout, stderr, skipped: false };
+      return { code: 0, stdout: result.stdout, stderr: result.stderr, skipped: false };
     } catch (e) {
       if (e.code === 'ENOENT') {
         return { code: -1, stdout: '', stderr: '', skipped: true };

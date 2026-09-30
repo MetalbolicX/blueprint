@@ -12,7 +12,7 @@ pnpm bundle          # rolldown -c (bundle only, assumes ReScript already compil
 
 - **Build is two-step**: ReScript compiles `.res` → `.res.mjs` in-source, then Rolldown bundles `dist/main.mjs` from `src/interfaces/cli/Main.res.mjs`.
 - **Run a focused test**: `pnpm res:test` runs ALL tests. To run a single test, add `--` or use `npx retest ./test/Some_test.res.mjs`.
-- **No CI detected** — no `.github/` workflows.
+- **CI**: `.github/workflows/ci.yml` compiles ReScript, bundles `dist/main.mjs`, then runs tests that execute the bundle. `prepack` runs the full build so `npm pack` includes the executable bundle.
 
 ## Architecture
 
@@ -57,7 +57,7 @@ pnpm bundle          # rolldown -c (bundle only, assumes ReScript already compil
 - **ReScript**: PascalCase modules, snake_case values. `//` for comments. `@as("...")` for YAML field aliases.
 - **Templates**: EJS `.ejs.t` files with YAML frontmatter (directives: `to`, `inject`, `after`, `before`, `prepend`, `append`, `force`, `sh`)
 - **Node >=22** required (import.meta.dirname usage)
-- **No npm scripts beyond build/test/bundle** — no lint, typecheck, or format scripts exist
+- **No lint, typecheck, or format scripts exist**
 
 <!-- OCR:START -->
 ## Open Code Review Instructions

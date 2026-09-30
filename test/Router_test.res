@@ -10,6 +10,25 @@ let installConsoleLogSpy: unit => unit = %raw(`
   }
 `)
 
+let installConsoleErrorSpy: unit => unit = %raw(`
+  function() {
+    globalThis.__testErrors = [];
+    globalThis.__originalConsoleError = console.error;
+    console.error = function(msg) { globalThis.__testErrors.push(msg); };
+  }
+`)
+
+let restoreConsoleError: unit => unit = %raw(`
+  function() {
+    if (globalThis.__originalConsoleError) {
+      console.error = globalThis.__originalConsoleError;
+      delete globalThis.__originalConsoleError;
+    }
+  }
+`)
+
+let parsePackageVersion: string => string = %raw("packageJson => JSON.parse(packageJson).version")
+
 let restoreConsoleLog: unit => unit = %raw(`
   function() {
     if (globalThis.__originalConsoleLog) {
@@ -25,7 +44,7 @@ let makeProbeDeps = (~exitCodes: ref<array<int>>): Ports.deps => {
   process: {
     cwd: () => ".",
     env: () => Dict.make(),
-    argv: () => ["node", "blueprint"],
+    argv: () => ["node", NodeJs.Path.resolve(".", "dist/main.mjs")],
     exit: code => exitCodes.contents = Array.concat(exitCodes.contents, [code]),
     onSignal: (_, _) => (),
     removeSignalListeners: () => (),
@@ -129,6 +148,53 @@ suite("Router extractAttributes", () => {
     assert_true(Array.some(msgs, msg => String.includes(msg, "healthz")))
     assert_true(Array.some(msgs, msg => String.includes(msg, "readyz")))
     restoreConsoleLog()
+  })
+
+  testAsync("--version and -v print the package version and exit 0", resolve => {
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    NodeJs.Fs.readFile("package.json", ~options={encoding: "utf8"})->Promise.then(packageJson => {
+      let expectedVersion = parsePackageVersion(packageJson)
+      Router.route(~deps, ~args=["--version"])->Promise.then(_ => {
+        let msgs: array<string> = %raw("globalThis.__testMessages")
+        assert_eq(Array.get(msgs, 0), Some("Blueprint " ++ expectedVersion))
+        assert_eq(exitCodes.contents, [0])
+        exitCodes := []
+        Router.route(~deps, ~args=["-v"])->Promise.then(_ => {
+          assert_eq(exitCodes.contents, [0])
+          restoreConsoleLog()
+          resolve()
+          Promise.resolve()
+        })
+      })
+    })->ignore
+  })
+
+  testAsync("help unknown reports to stderr and exits 1", resolve => {
+    installConsoleErrorSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    Router.route(~deps, ~args=["help", "missing"])->Promise.then(_ => {
+      let errors: array<string> = %raw("globalThis.__testErrors")
+      assert_eq(Array.get(errors, 0), Some("Unknown command: missing"))
+      assert_eq(exitCodes.contents, [1])
+      restoreConsoleError()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("generate initialization marks ProbeState ready", resolve => {
+    ProbeState.reset()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    Router.route(~deps, ~args=["generate", "missing-test-generator"])->Promise.then(_ => {
+      assert_true(ProbeState.isReady())
+      ProbeState.reset()
+      resolve()
+      Promise.resolve()
+    })->ignore
   })
 
   testAsync("healthz routes to liveness output and exits 0", resolve => {

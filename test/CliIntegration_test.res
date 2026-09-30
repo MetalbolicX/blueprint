@@ -151,7 +151,7 @@ suite("CLI Integration", () => {
     })->ignore
   })
 
-  testAsync("healthz and readyz print probe status", resolve => {
+  testAsync("healthz and readyz report status before generate initialization", resolve => {
     runCliNodeTyped(["healthz"])->Promise.then(nodeHealth => {
       assert_eq(nodeHealth.code, 0)
       assert_true(String.includes(nodeHealth.stdout, "\"status\":\"ok\""))

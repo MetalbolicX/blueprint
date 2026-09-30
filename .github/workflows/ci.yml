@@ -28,6 +28,9 @@ jobs:
       - name: Compile ReScript
         run: pnpm res:build
 
+      - name: Bundle
+        run: pnpm bundle
+
       - name: Run tests
         run: pnpm res:test
 
@@ -40,6 +43,3 @@ jobs:
           -v "$PWD:/repo"
           zricethezav/gitleaks:v8.24.2
           dir /repo --no-banner --redact --exit-code 1
-
-      - name: Bundle
-        run: pnpm bundle

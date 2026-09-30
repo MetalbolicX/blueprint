@@ -41,7 +41,7 @@ let copyTemplateToRegistry: (
         let markerPath = deps.path.join(targetPath, ".blueprint-provenance")
         let _ = await deps.fs.writeFile(
           markerPath,
-          "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Js.Date.toISOString(Js.Date.make()) ++ "\n",
+          "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Date.toISOString(Date.make()) ++ "\n",
           ~options={encoding: "utf8"},
         )
 
@@ -65,7 +65,7 @@ let copyTemplateToRegistry: (
       let markerPath = deps.path.join(targetPath, ".blueprint-provenance")
       let _ = await deps.fs.writeFile(
         markerPath,
-        "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Js.Date.toISOString(Js.Date.make()) ++ "\n",
+        "source: " ++ sourceAbs ++ "\ninstalled_at: " ++ Date.toISOString(Date.make()) ++ "\n",
         ~options={encoding: "utf8"},
       )
 

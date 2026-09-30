@@ -14,6 +14,7 @@ let printGenerateOptions = (~includeDefaults: bool) => {
 let printUsage = () => {
   Console.log("")
   Console.log("Usage: blueprint <command> [options]")
+  Console.log("  --version, -v          Print the installed package version")
   Console.log("")
   Console.log("Commands:")
   Console.log("  healthz                Report liveness status for the process")
@@ -114,7 +115,6 @@ let printHelpFor = (command: string) => {
     printUsage()
 
   | _ =>
-    Console.log("Unknown command: " ++ command)
-    Console.log("Available commands: init, generate, generator, template, help")
+    Console.error("Unknown command: " ++ command)
   }
 }
