@@ -75,7 +75,6 @@ type shellOptions = {
 }
 
 type shell = {
-  execShellCommand: (~command: string, ~cwd: string=?, ~timeout: option<int>=?) => promise<result<string, string>>,
   execAsync: (string, ~options: shellOptions=?) => promise<execResult>,
   execFileAsync: (string, ~args: array<string>=?, ~options: shellOptions=?) => promise<execResult>,
 }

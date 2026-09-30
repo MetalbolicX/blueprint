@@ -17,19 +17,11 @@ let mkExecResult = (~status: int = 0, ~killed: bool = false): Ports.execResult =
 }
 
 let makeShell = (
-  ~execShellCommandResult: result<string, string> = Ok(""),
-  ~execShellCommandRejects: string = "",
   ~execAsyncStatus: int = 0,
   ~execAsyncKilled: bool = false,
   ~execFileAsyncStatus: int = 0,
   ~execFileAsyncKilled: bool = false,
 ): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) =>
-    if execShellCommandRejects == "" {
-      Promise.resolve(execShellCommandResult)
-    } else {
-      rejectError(execShellCommandRejects)
-    },
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(mkExecResult(~status=execAsyncStatus, ~killed=execAsyncKilled)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
@@ -46,7 +38,6 @@ let makeTrackingShell = (): trackingShell => {
   let execFileAsyncCalls: array<string> = []
   let execAsyncCalls: array<string> = []
   let shell: Ports.shell = {
-    execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
     execAsync: (cmd, ~options as _=?) => {
       let _ = execAsyncCalls->Array.push(cmd)
       Promise.resolve(mkExecResult())
@@ -382,7 +373,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     ->ignore
   })
 
-  testAsync("ToolCall no-args + allowlist match routes to execAsync (ShellExact)", resolve => {
+  testAsync("ToolCall no-args + allowlist match routes to execFileAsync", resolve => {
     let tracking = makeTrackingShell()
     let commands: array<Template.shellCommand> = [
       {
@@ -403,9 +394,9 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     })
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)
     ->Promise.then(result => {
-      assert_eq(tracking.execAsyncCalls->Array.length, 1)
-      assert_eq(tracking.execAsyncCalls[0]->Option.getOr(""), "ls")
-      assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
+      assert_eq(tracking.execAsyncCalls->Array.length, 0)
+      assert_eq(tracking.execFileAsyncCalls->Array.length, 1)
+      assert_eq(tracking.execFileAsyncCalls[0]->Option.getOr(""), "ls|")
       switch result {
       | Ok(count) => assert_eq(count, 1)
       | Error(_msg) => assert_true(false)
@@ -416,7 +407,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     ->ignore
   })
 
-  testAsync("ToolCall no-args + tool absent from allowlist returns Reject Error", resolve => {
+  testAsync("ToolCall with args is rejected when the tool is absent from the allowlist", resolve => {
     let tracking = makeTrackingShell()
     let commands: array<Template.shellCommand> = [
       {
@@ -425,6 +416,7 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
           toolDef: {
             name: "rm",
             command: "rm",
+            args: ["danger"],
           },
           sourcePath: "/src/t.ejs.t",
         }),
@@ -450,6 +442,51 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
       Promise.resolve()
     })
     ->ignore
+  })
+
+  testAsync("allowlisted metacharacter ToolCall executes with execFile and never invokes a shell", resolve => {
+    let tracking = makeTrackingShell()
+    let dangerous = "echo hi; touch pwn"
+    let commands: array<Template.shellCommand> = [
+      {target: ToolCall({name: "danger", toolDef: {name: "danger", command: dangerous}, sourcePath: "test"}), sourcePath: "test"},
+    ]
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "danger", command: dangerous}]})
+    runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)->Promise.then(result => {
+      assert_eq(tracking.execAsyncCalls->Array.length, 0)
+      assert_eq(tracking.execFileAsyncCalls, [dangerous ++ "|"])
+      switch result {
+      | Ok(_) => assert_true(true)
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("metacharacter allowlist entry cannot create a shell side effect", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let dangerous = "echo hi; touch pwn"
+    let command: Template.shellCommand = {
+      target: ToolCall({name: "danger", toolDef: {name: "danger", command: dangerous}, sourcePath: "test"}),
+      sourcePath: "test",
+    }
+    ShellExecutor.executeShellCommands(
+      ~commands=[command], ~cwd=tmpDir, ~stagingDir=tmpDir,
+      ~shellConfig=Some({enabled: true, tools: [{name: "danger", command: dangerous}]}),
+      ~fs=NodeJsFileSystem.make(), ~path=NodeJsPath.make(), ~process=NodeJsProcess.make(),
+      ~shell=NodeJsShell.make(),
+    )->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(_) => ()
+      }
+      NodeJs.Fs.fileExists(NodeJs.Path.join(tmpDir, "pwn"))->Promise.then(exists => {
+        assert_false(exists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
   })
 })
 
@@ -718,7 +755,6 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
   testAsync("inline command passes ExecPolicy timeout to execFileAsync", resolve => {
     let timeoutSeen: ref<option<int>> = ref(None)
     let shell: Ports.shell = {
-      execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
       execAsync: (_cmd, ~options as _=?) => Promise.resolve(mkExecResult()),
       execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
         timeoutSeen.contents = options->Option.flatMap(opts => opts.timeout)

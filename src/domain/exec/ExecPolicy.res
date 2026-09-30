@@ -2,10 +2,8 @@
  * ExecPolicy — pure decision module for shell and binary execution.
  * Decides between ExecFile(command, args), ShellExact(command), or Reject(reason).
  *
- * Boundaries apply distinct rules: inline commands use an allowlisted binary
- * with execFile; hooks tokenize and use execFile, checking the tools allowlist
- * when configured; ToolCalls without args use ShellExact, while structured
- * ToolCall args use execFile and bypass the allowlist by design.
+ * Every ToolCall route requires an exact tools allowlist match and executes
+ * through execFile, so allowlist entries are never interpreted by a shell.
  */
 
 /**
@@ -28,21 +26,17 @@ type decision =
   | Reject(string)
 
 /**
- * Pure decision: structured args → ExecFile; no args + allowlist match →
- * ShellExact; no args + no match → Reject. No side effects, no IO.
+ * Pure decision: every route requires an allowlist match and executes with
+ * structured args through execFile. No side effects, no IO.
  */
 let decide: (
   ~command: string,
   ~args: option<array<string>>,
   ~allowlist: array<string>,
 ) => decision = (~command, ~args, ~allowlist) => {
-  switch args {
-  | Some(structuredArgs) => ExecFile(command, structuredArgs)
-  | None =>
-    if allowlist->Array.some(entry => entry == command) {
-      ShellExact(command)
-    } else {
-      Reject("Command not in tools allowlist: " ++ command)
-    }
+  if !(allowlist->Array.some(entry => entry == command)) {
+    Reject("Command not in tools allowlist: " ++ command)
+  } else {
+    ExecFile(command, args->Option.getOr([]))
   }
 }

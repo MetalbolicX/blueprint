@@ -104,10 +104,14 @@ let executeToolCall = (
   ~shell: Ports.shell,
   ~countRef: ref<int>,
 ) => {
-  let toolsAllowlist: array<string> = shellConfig
-    ->Option.flatMap(cfg => cfg.tools)
-    ->Option.getOr([])
-    ->Array.map(tool => tool.command)
+  let toolsAllowlist: array<string> = switch shellConfig {
+  | Some(cfg) =>
+    switch cfg.tools {
+    | Some(tools) => tools->Array.map(tool => tool.command)
+    | None => [toolDef.command]
+    }
+  | None => [toolDef.command]
+  }
   switch ExecPolicy.decide(~command=toolDef.command, ~args=toolDef.args, ~allowlist=toolsAllowlist) {
   | Reject(reason) => Promise.resolve(Error(reason))
   | ExecFile(command, args) => execToolAsync(
@@ -119,7 +123,7 @@ let executeToolCall = (
       ~countRef,
     )
   | ShellExact(command) => execToolAsync(
-      ~run=(~options) => shell.execAsync(command, ~options),
+      ~run=(~options) => shell.execFileAsync(command, ~options),
       ~cwd,
       ~safeEnv,
       ~timeout=ExecPolicy.defaultTimeout,

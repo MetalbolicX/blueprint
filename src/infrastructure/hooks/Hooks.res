@@ -1,8 +1,6 @@
 // Hooks — pre/post generate lifecycle hook execution
 // Mirrors Go version's hooks/hooks.go
 
-
-
 type hookType = PreGenerate | PostGenerate
 
 type hookResult = {
@@ -11,23 +9,15 @@ type hookResult = {
   exitCode: int,
 }
 
-// Check if a command looks like a path (needs path restriction)
-// Paths include: ./script.sh, ../script.sh, /etc/passwd, bin/echo
-// Non-paths (allowed without restriction): echo, exit, ls, npm, etc.
-let _isPath: string => bool = cmd => {
-  Js.String.includes("/", cmd)
-}
+let _isPath: string => bool = cmd => Js.String.includes("/", cmd)
 
-// Local duplicate: ShellExecutor's matching tokenizer is not exported.
+// Match ShellExecutor's deliberately conservative tokenization.
 let tokenizeCommand: string => option<array<string>> = %raw(`command => {
   if (/[&;|$()<>\x60"'\n]/.test(command)) return undefined;
   const tokens = command.trim().split(/\s+/).filter(Boolean);
   return tokens.length === 0 ? undefined : tokens;
 }`)
 
-// Execute a single hook using structured hookCommand
-// scriptRoot: directory for path containment validation (defaults to cwd for backward compat)
-// cwd: working directory for execution (required)
 let executeHook: (
   ~hook: Config.hookCommand,
   ~scriptRoot: string=?,
@@ -53,29 +43,15 @@ let executeHook: (
   ~fs,
   ~toolsAllowlist=?,
 ) => {
-  let scriptRoot = actualScriptRoot
-    let envFilterConfig = shellEnv->Option.map(ShellBuilder.buildEnvFilterConfig)
+  let scriptRoot = if actualScriptRoot == "." { cwd } else { actualScriptRoot }
+  let envFilterConfig = shellEnv->Option.map(ShellBuilder.buildEnvFilterConfig)
   let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
-
-  // Check for path restriction on any command that looks like a path
-  let isPath = _isPath(hook.command)
-
-  // Preserve the original 30s bound for path-based hooks.
-  let execFileOpts: Ports.shellOptions = {
+  let execOptions: Ports.shellOptions = {
     cwd: cwd,
-    env: safeEnv,
-    encoding: "utf8",
-    timeout: ExecPolicy.defaultTimeout,
-  }
-  // Non-path tokenized commands retain the hook-specific timeout.
-  let tokenizedExecFileOpts: Ports.shellOptions = {
     env: safeEnv,
     encoding: "utf8",
     timeout: timeout,
   }
-
-  // Check if hook command is empty - skip execution
-  let isEmptyCommand = hook.command == ""
 
   let execResultToHookResult: Ports.execResult => hookResult = execResult => {
     let exitCode = switch execResult.status {
@@ -85,68 +61,60 @@ let executeHook: (
     {hookType, output: execResult.stdout, exitCode}
   }
 
-  let result = if isEmptyCommand {
+  let result = if hook.command == "" {
     Ok({hookType, output: "", exitCode: 0})
-    } else if isPath {
-    let resolvedPath = path.resolve(scriptRoot, hook.command)
-    let isWithin = await PathSecurity.isWithinTree(resolvedPath, scriptRoot, path, fs)
-    if !isWithin {
-      Error("Hook script outside project tree: " ++ hook.command)
-    } else {
-      switch hook.args {
-      | Some(args) => {
-          try {
-            let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
-            Ok(execResultToHookResult(r))
-          } catch {
-          | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
-          }
-        }
-      | None => {
-          // Use node as interpreter for .mjs/.js scripts to avoid requiring
-          // OS-level execute permission on the script file. The shebang
-          // (#!/usr/bin/env node) requires execute permission at the OS level;
-          // invoking via "node <path>" works with only read permission.
-          let needsNode = String.endsWith(resolvedPath, ".mjs") || String.endsWith(resolvedPath, ".js")
-          try {
-            if needsNode {
-              let r = await shell.execFileAsync("node", ~args=[resolvedPath], ~options=execFileOpts)
-              Ok(execResultToHookResult(r))
-            } else {
-              let r = await shell.execFileAsync(hook.command, ~options=execFileOpts)
-              Ok(execResultToHookResult(r))
-            }
-          } catch {
-          | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
-          }
-        }
-      }
-    }
   } else {
-    switch hook.args {
-    | Some(args) => {
-        try {
-          let r = await shell.execFileAsync(hook.command, ~args, ~options=execFileOpts)
-          Ok(execResultToHookResult(r))
-        } catch {
-        | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
+    let explicitArgs = hook.args
+    let tokenized = switch explicitArgs {
+    | Some(_) => None
+    | None => tokenizeCommand(hook.command)
+    }
+    switch (explicitArgs, tokenized) {
+    | (None, None) => Error("Hook " ++ hook.command ++ " must be a non-empty command without shell metacharacters; use a script path or the structured args field for complex commands")
+    | _ => {
+        let rawExecutable = switch explicitArgs {
+        | Some(_) => hook.command
+        | None => tokenized->Option.getOr([])->Array.get(0)->Option.getOr("")
         }
-      }
-    | None => {
-        switch tokenizeCommand(hook.command) {
-        | None => Error("Hook " ++ hook.command ++ " must be a non-empty command without shell metacharacters; use a script path or the structured args field for complex commands")
-        | Some(tokens) => {
-            let command = tokens->Array.get(0)->Option.getOr("")
-            let args = tokens->Array.slice(~start=1, ~end=tokens->Array.length)
-            let allowed = switch toolsAllowlist {
-            | Some(Some(tools)) if tools->Array.length > 0 => tools->Array.some(tool => tool == command)
-            | _ => true
-            }
-            if !allowed {
-              Error("Hook command not in tools allowlist: " ++ command)
+        let isPath = _isPath(rawExecutable)
+        // Resolve path executables once; validation and execution share this value.
+        let resolvedExecutable = if isPath {
+          path.resolve(scriptRoot, rawExecutable)
+        } else {
+          rawExecutable
+        }
+        let allowed = switch toolsAllowlist {
+        | Some(Some(tools)) => tools->Array.some(tool => tool == rawExecutable || tool == resolvedExecutable)
+        | _ => true
+        }
+        if !allowed {
+          Error("Hook command not in tools allowlist: " ++ rawExecutable)
+        } else {
+          let pathIsSafe = if isPath {
+            await PathSecurity.isWithinTree(resolvedExecutable, scriptRoot, path, fs)
+          } else {
+            true
+          }
+          if !pathIsSafe {
+            Error("Hook script outside project tree: " ++ rawExecutable)
+          } else {
+            let pathExists = if isPath {
+              await fs.fileExists(resolvedExecutable)
             } else {
+              true
+            }
+            if !pathExists {
+              Error("Hook script not found: " ++ resolvedExecutable)
+            } else {
+              let args = switch explicitArgs {
+              | Some(args) => args
+              | None => tokenized->Option.getOr([])->Array.slice(~start=1)
+              }
+              let needsNode = isPath && Option.isNone(explicitArgs) && (String.endsWith(resolvedExecutable, ".mjs") || String.endsWith(resolvedExecutable, ".js"))
+              let executable = if needsNode { "node" } else { resolvedExecutable }
+              let execArgs = if needsNode { Array.concat([resolvedExecutable], args) } else { args }
               try {
-                let r = await shell.execFileAsync(command, ~args, ~options=tokenizedExecFileOpts)
+                let r = await shell.execFileAsync(executable, ~args=execArgs, ~options=execOptions)
                 Ok(execResultToHookResult(r))
               } catch {
               | JsExn(e) => Error(JsExn.message(e)->Option.getOr("unknown error"))
@@ -168,14 +136,10 @@ let executeHook: (
   }
 }
 
-// Build shellEnv from shellConfig
 let _buildShellEnv: option<Config.shellConfig> => option<Config.shellEnv> = shellConfig => {
   shellConfig->Option.flatMap(s => s.env)
 }
 
-// Run hooks for a given hook type
-// scriptRoot: directory for path containment validation (generator.path or projectRoot)
-// cwd: working directory for execution (outputDir for generator hooks; projectRoot for config hooks)
 let run: (
   ~config: Config.config,
   ~projectRoot: string,
@@ -204,14 +168,12 @@ let run: (
   let scriptRoot = actualScriptRoot
   let cwd = actualCwd
   let timeout = switch config.hooks {
-  | Some(h) =>
-    switch h.timeout {
-    | Some(t) => t * 1000 // Convert seconds to ms
-    | None => 5000
+  | Some(h) => {
+      let seconds = h.timeout->Option.getOr(5)
+      (if seconds > 600 { 600 } else { seconds }) * 1000
     }
   | None => 5000
   }
-
   let hookCmd: option<Config.hookCommand> = switch config.hooks {
   | Some(h) =>
     switch hookType {
@@ -223,18 +185,31 @@ let run: (
 
   switch hookCmd {
   | None => Ok({hookType, output: "", exitCode: 0})
+  | Some(hook) if hook.command == "" => Ok({hookType, output: "", exitCode: 0})
   | Some(hook) =>
-    if hook.command == "" {
-      Ok({hookType, output: "", exitCode: 0})
-    } else {
-      let shellEnv = _buildShellEnv(shellConfig)
-      let result = await executeHook(~hook, ~scriptRoot, ~cwd, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs, ~toolsAllowlist=?toolsAllowlist)
-      switch result {
-      | Ok(r) => Ok(r)
-      | Error(e) =>
-        switch hookType {
-        | PreGenerate => Error("pre_generate hook failed: " ++ e)
-        | PostGenerate => Error("post_generate hook failed: " ++ e)
+    switch shellConfig {
+    | Some(cfg) if !cfg.enabled =>
+      let hookName = switch hookType {
+      | PreGenerate => "pre_generate"
+      | PostGenerate => "post_generate"
+      }
+      Error(hookName ++ " hook refused: shell execution disabled")
+    | _ => {
+        try {
+          // A declared execution cwd must exist for child_process.execFile.
+          let _ = await fs.mkdir(cwd, ~options={recursive: true})
+          let shellEnv = _buildShellEnv(shellConfig)
+          let result = await executeHook(~hook, ~scriptRoot, ~cwd, ~timeout, ~hookType, ~shellEnv, ~shell, ~process, ~path, ~fs, ~toolsAllowlist=?toolsAllowlist)
+          switch result {
+          | Ok(r) => Ok(r)
+          | Error(e) =>
+            switch hookType {
+            | PreGenerate => Error("pre_generate hook failed: " ++ e)
+            | PostGenerate => Error("post_generate hook failed: " ++ e)
+            }
+          }
+        } catch {
+        | JsExn(e) => Error("Hook working directory unavailable: " ++ JsExn.message(e)->Option.getOr("unknown error"))
         }
       }
     }

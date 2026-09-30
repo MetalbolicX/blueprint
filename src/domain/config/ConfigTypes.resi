@@ -30,6 +30,8 @@ type hooksConfig = {
 
 type shellConfig = {
   enabled: bool,
+  // Configured allowlists apply on every route; an empty list denies all.
+  // An absent allowlist permits execution for compatibility without per-run notices.
   tools?: array<shellTool>,
   scripts?: array<scriptDef>,
   env?: shellEnv,

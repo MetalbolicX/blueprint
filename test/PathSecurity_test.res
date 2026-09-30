@@ -146,8 +146,7 @@ suite("PathSecurity Symlink", () => {
     let linkPath = pathAdapter.join(tmpDir, "link")
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
     ->Promise.then(_ => {
-      let shell: Ports.shell = NodeJsShell.make()
-      shell.execShellCommand(~command="ln -s /etc " ++ linkPath)
+      NodeJs.ChildProcess.execFileAsync("ln", ~args=["-s", "/etc", linkPath])
     })
     ->Promise.then(_ => PathSecurity.isWithinTree(pathAdapter.join(linkPath, "missing-blueprint-leaf"), tmpDir, pathAdapter, fs))
     ->Promise.then(result => {
@@ -171,9 +170,8 @@ suite("PathSecurity Symlink", () => {
 
     NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
     ->Promise.then(_ => {
-      // Create symlink using shell command
-      let shell: Ports.shell = NodeJsShell.make()
-      shell.execShellCommand(~command="ln -s " ++ linkTarget ++ " " ++ linkPath)
+      // Create symlink using structured process arguments.
+      NodeJs.ChildProcess.execFileAsync("ln", ~args=["-s", linkTarget, linkPath])
     })
     ->Promise.then(_ => {
       // Try to access /etc/passwd via the symlink

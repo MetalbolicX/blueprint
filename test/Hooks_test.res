@@ -3,7 +3,6 @@
 open TestHelpers
 
 let makeRecordingShell = (recorded: ref<(string, array<string>, option<int>)>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("execAsync must not be used for hooks")),
   execFileAsync: (command, ~args=?, ~options=?) => {
     let args = args->Option.getOr([])
@@ -31,7 +30,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       ->ignore
     })
 
-    testAsync("executeHook: hook without args uses shell exec", resolve => {
+    testAsync("executeHook: hook without args uses execFile", resolve => {
       let hook: Config.hookCommand = {
         command: "echo hook-no-args",
       }

@@ -33,11 +33,10 @@ let makeSignalProcess = (~handler: ref<option<unit => unit>>, ~exitCodes: ref<ar
 }
 
 let makeShell = (~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+    Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
 }
 
 let makeFsWithFailures = (
@@ -521,7 +520,7 @@ suite("Phase2", () => {
   //   NodeJs.Fs.mkdir(tmpDir, ~options={recursive: true})
   //   ->Promise.then(_ => NodeJs.Fs.writeFile(scriptPath, scriptBody))
   //   ->Promise.then(_ => {
-  //     NodeJs.ChildProcess.execShellCommand(~command="chmod +x post.sh", ~cwd=tmpDir)
+  //     NodeJs.ChildProcess.execFileAsync("chmod", ~args=["+x", "post.sh"], ~options={cwd: tmpDir})
   //   })
   //   ->Promise.then(_ => {
   //     let commands = [
@@ -813,7 +812,7 @@ suite("Phase2", () => {
     ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedScript), ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
     ->Promise.then(_ => NodeJs.Fs.writeFile(stagedScript, "#!/bin/sh\nexit 9\n"))
-    ->Promise.then(_ => NodeJs.ChildProcess.execShellCommand(~command="chmod +x \"" ++ stagedScript ++ "\""))
+    ->Promise.then(_ => NodeJs.ChildProcess.execFileAsync("chmod", ~args=["+x", stagedScript]))
     ->Promise.then(_ =>
       Phase2.run(
         ~stagingDir,

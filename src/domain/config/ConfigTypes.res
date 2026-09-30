@@ -30,6 +30,8 @@ type hooksConfig = {
 
 type shellConfig = {
   enabled: bool,
+  // If configured, only listed tools are allowed (an empty list denies all).
+  // If absent, execution remains allowed for compatibility without per-run notices.
   tools?: array<shellTool>,
   scripts?: array<scriptDef>,
   env?: shellEnv,

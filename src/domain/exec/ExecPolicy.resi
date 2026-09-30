@@ -11,7 +11,7 @@ let defaultTimeout: int
 /**
  * Decision variants. The consumer is responsible for acting on each branch.
  *  - ExecFile: invoke via execFile with `args` (no shell interpretation).
- *  - ShellExact: invoke via exec with shell, only after an allowlist match.
+ *  - ShellExact: retained for compatibility; ToolCalls no longer select this route.
  *  - Reject: do not invoke — surface `reason` to the caller.
  */
 type decision =
@@ -20,8 +20,8 @@ type decision =
   | Reject(string)
 
 /**
- * Pure decision: structured args → ExecFile; no args + allowlist match →
- * ShellExact; no args + no match → Reject. No side effects, no IO.
+ * Every execution requires an exact allowlist match; allowed commands use
+ * ExecFile and rejected commands never reach a shell.
  */
 let decide: (
   ~command: string,

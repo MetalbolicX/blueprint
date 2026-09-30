@@ -466,7 +466,7 @@ suite("Phase2 Integration", () => {
     ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedScript), ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
     ->Promise.then(_ => NodeJs.Fs.writeFile(stagedScript, "#!/bin/sh\nexit 9\n"))
-    ->Promise.then(_ => NodeJs.ChildProcess.execShellCommand(~command="chmod +x \"" ++ stagedScript ++ "\""))
+    ->Promise.then(_ => NodeJs.ChildProcess.execFileAsync("chmod", ~args=["+x", stagedScript]))
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ =>
       Phase2.run(

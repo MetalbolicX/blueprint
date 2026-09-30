@@ -9,21 +9,14 @@ suite("ExecPolicy", () => {
     assert_eq(ExecPolicy.defaultTimeout, 30000)
   })
 
-  test("decide: args present → ExecFile (no shell interpretation)", () => {
+  test("decide: args present still require allowlist membership", () => {
     switch ExecPolicy.decide(~command="npm", ~args=Some(["install", "--save-dev"]), ~allowlist=[]) {
-    | ExecFile(cmd, args) => {
-        assert_eq(cmd, "npm")
-        assert_eq(args->Array.length, 2)
-        assert_eq(args[0]->Option.getOr(""), "install")
-        assert_eq(args[1]->Option.getOr(""), "--save-dev")
-      }
-    | ShellExact(_) => assert_false(true)
-    | Reject(_) => assert_false(true)
+    | Reject(reason) => assert_true(String.includes(reason, "tools allowlist"))
+    | _ => assert_false(true)
     }
   })
 
-  test("decide: args present overrides allowlist (ExecFile always wins on args)", () => {
-    // args present means we go through ExecFile regardless of allowlist membership.
+  test("decide: args require allowlist membership and use ExecFile", () => {
     switch ExecPolicy.decide(~command="whatever", ~args=Some(["x"]), ~allowlist=["whatever", "other"]) {
     | ExecFile(cmd, args) => {
         assert_eq(cmd, "whatever")
@@ -34,10 +27,31 @@ suite("ExecPolicy", () => {
     }
   })
 
-  test("decide: no args + allowlist match → ShellExact", () => {
+  test("decide: args absent from allowlist are rejected", () => {
+    switch ExecPolicy.decide(~command="whatever", ~args=Some(["x"]), ~allowlist=[]) {
+    | Reject(reason) => assert_true(String.includes(reason, "tools allowlist"))
+    | _ => assert_false(true)
+    }
+  })
+
+  test("decide: allowlisted metacharacter command is ExecFile", () => {
+    let command = "echo hi; touch pwn"
+    switch ExecPolicy.decide(~command, ~args=None, ~allowlist=[command]) {
+    | ExecFile(actual, args) => {
+        assert_eq(actual, command)
+        assert_eq(args, [])
+      }
+    | _ => assert_false(true)
+    }
+  })
+
+  test("decide: no args + allowlist match → ExecFile", () => {
     switch ExecPolicy.decide(~command="eslint", ~args=None, ~allowlist=["eslint", "prettier"]) {
-    | ShellExact(cmd) => assert_eq(cmd, "eslint")
-    | ExecFile(_, _) => assert_false(true)
+    | ExecFile(cmd, args) => {
+        assert_eq(cmd, "eslint")
+        assert_eq(args, [])
+      }
+    | ShellExact(_) => assert_false(true)
     | Reject(_) => assert_false(true)
     }
   })
@@ -66,12 +80,9 @@ suite("ExecPolicy", () => {
     }
   })
 
-  test("decide: empty allowlist + args → still ExecFile (allowlist only gates no-args shell)", () => {
+  test("decide: empty allowlist denies args too", () => {
     switch ExecPolicy.decide(~command="echo", ~args=Some(["hello"]), ~allowlist=[]) {
-    | ExecFile(cmd, args) => {
-        assert_eq(cmd, "echo")
-        assert_eq(args->Array.length, 1)
-      }
+    | Reject(_) => assert_true(true)
     | _ => assert_false(true)
     }
   })

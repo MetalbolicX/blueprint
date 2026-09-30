@@ -87,7 +87,7 @@ suite("NodeJsFileSystem adapter", () => {
     let dir = NodeJs.Os.makeStagingDir()
     let linkPath = NodeJs.Path.join(dir, "link")
     let shell: Ports.shell = NodeJsShell.make()
-    shell.execShellCommand(~command="ln -s /etc " ++ linkPath)
+    shell.execFileAsync("ln", ~args=["-s", "/etc", linkPath])
     ->Promise.then(_ => fs.lstat(linkPath))
     ->Promise.then(result => {
       assert_true(result.isSymbolicLink())

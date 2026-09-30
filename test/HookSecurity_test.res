@@ -5,7 +5,6 @@ open TestHelpers
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
 let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     switch execAsyncResult {
     | Ok(result) => Promise.resolve(result)
@@ -22,7 +21,6 @@ let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shel
 // structured-args tests can prove that shell metacharacters in args do NOT
 // get rewritten (no shell interpretation).
 let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (cmd, ~args=?, ~options as _=?) => {
@@ -32,6 +30,16 @@ let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int):
     }
     let _ = recorded.contents = (cmd, recordedArgs)
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult))
+  },
+}
+
+type capturedExec = {command: string, args: array<string>, options: option<Ports.shellOptions>}
+
+let makeExecutionCaptureShell = (calls: ref<array<capturedExec>>): Ports.shell => {
+  execAsync: (_cmd, ~options as _=?) => Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+  execFileAsync: (command, ~args=?, ~options=?) => {
+    calls.contents->Array.push({command, args: args->Option.getOr([]), options})
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))
   },
 }
 
@@ -49,7 +57,6 @@ let makeProcess = (): Ports.process => {
 // can assert that filtered safeEnv (not raw process.env) is what reaches
 // the child process. Used by the WS3 env-leak guard test below.
 let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.shell => {
-  execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
@@ -331,7 +338,7 @@ suite("HookSecurity", () => {
         | Ok(_) => {
             // The recorded tuple must contain the literal args — no array splitting.
             let (cmd, args) = recorded.contents
-            assert_eq(cmd, "./scripts/setup.sh")
+            assert_eq(cmd, NodeJs.Path.resolve(tmpDir, "./scripts/setup.sh"))
             assert_eq(args->Array.length, 3)
             assert_eq(args[0]->Option.getOr(""), "--flag")
             assert_eq(args[1]->Option.getOr(""), "value with space")
@@ -404,12 +411,11 @@ suite("HookSecurity", () => {
       ~commands=[cmd],
       ~cwd="/tmp/ws2-reject",
       ~stagingDir="/tmp/ws2-reject",
-      ~shellConfig=Some({enabled: true}),
+      ~shellConfig=Some({enabled: true, tools: []}),
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell={
-        execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
         execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
         execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },
@@ -467,6 +473,128 @@ suite("HookSecurity", () => {
       Promise.resolve()
     })
     ->ignore
+  })
+
+  testAsync("executeHook resolves a path once and executes the validated absolute path", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let generatorDir = NodeJs.Path.join(tmpDir, "generator")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let generatorHooks = NodeJs.Path.join(generatorDir, "hooks")
+    let outputHooks = NodeJs.Path.join(outputDir, "hooks")
+    let resolvedScript = NodeJs.Path.join(generatorHooks, "pre.sh")
+    let calls: ref<array<capturedExec>> = ref([])
+    NodeJs.Fs.mkdir(generatorHooks, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputHooks, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(resolvedScript, "generator"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(outputHooks, "pre.sh"), "output"))
+    ->Promise.then(_ => Hooks.executeHook(
+      ~hook={command: "./hooks/pre.sh"}, ~scriptRoot=generatorDir, ~cwd=outputDir, ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_eq(calls.contents[0]->Option.map(call => call.command), Some(resolvedScript))
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("executeHook rejects an empty configured allowlist for commands with args", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    Hooks.executeHook(
+      ~hook={command: "npm", args: ["test"]}, ~cwd="/workspace/project", ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+      ~toolsAllowlist=Some([]),
+    )->Promise.then(result => {
+      switch result {
+      | Error(message) => assert_true(String.includes(message, "tools allowlist"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(calls.contents->Array.length, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("executeHook checks path commands against the allowlist", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let script = NodeJs.Path.join(tmpDir, "pre.sh")
+    let calls: ref<array<capturedExec>> = ref([])
+    NodeJs.Fs.writeFile(script, "script")
+    ->Promise.then(_ => Hooks.executeHook(
+      ~hook={command: "./pre.sh"}, ~scriptRoot=tmpDir, ~cwd=tmpDir, ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+      ~toolsAllowlist=Some(["another-tool"]),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Error(message) => assert_true(String.includes(message, "tools allowlist"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(calls.contents->Array.length, 0)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("Hooks.run refuses hooks when shell execution is disabled", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    let config: Config.config = {hooks: {preGenerate: {command: "npm test"}}}
+    Hooks.run(
+      ~config, ~projectRoot="/workspace/project", ~hookType=Hooks.PreGenerate,
+      ~shellConfig=Some({enabled: false}), ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+    )->Promise.then(result => {
+      switch result {
+      | Error(message) => assert_true(String.includes(message, "disabled"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(calls.contents->Array.length, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("Hooks.run clamps configured timeout to 600 seconds", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    let config: Config.config = {hooks: {preGenerate: {command: "npm test"}, timeout: 999999}}
+    Hooks.run(
+      ~config, ~projectRoot="/workspace/project", ~hookType=Hooks.PreGenerate, ~cwd=".",
+      ~shellConfig=Some({enabled: true, tools: [{name: "npm", command: "npm"}]}),
+      ~toolsAllowlist=Some(["npm"]), ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+    )->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_eq(calls.contents[0]->Option.flatMap(call => call.options)->Option.flatMap(options => options.timeout), Some(600000))
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("tokenized hooks receive their declared cwd", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    let cwd = "/declared/hook-directory"
+    Hooks.executeHook(
+      ~hook={command: "npm test"}, ~cwd, ~timeout=1000, ~hookType=Hooks.PreGenerate,
+      ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls), ~process=makeProcess(),
+      ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
+    )->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_eq(calls.contents[0]->Option.flatMap(call => call.options)->Option.flatMap(options => options.cwd), Some(cwd))
+      | Error(_) => assert_false(true)
+      }
+      resolve()
+      Promise.resolve()
+    })->ignore
   })
 
   testAsync("executeHook: script outside scriptRoot is rejected", resolve => {

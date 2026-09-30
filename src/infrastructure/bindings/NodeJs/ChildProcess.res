@@ -109,37 +109,3 @@ let execFileAsync: (
   }
   wrapExecResult((~callback) => execFileWithCallback(cmd, argsArr, ~options=opts, ~callback))
 }
-
-let execShellCommand: (
-  ~command: string,
-  ~cwd: string=?,
-  ~timeout: option<int>=?,
-) => promise<result<string, string>> = async (~command, ~cwd=?, ~timeout=?) => {
-  try {
-    let options: execOptions = {
-      ?cwd,
-      encoding: "utf8",
-    }
-    let options = switch timeout {
-    | Some(Some(t)) => {...options, timeout: t}
-    | Some(None) | None => options
-    }
-    let result = await execAsync(command, ~options)
-    if result.killed {
-      Error("Command timed out")
-    } else {
-      switch result.status {
-      | Some(0) => Ok(result.stdout)
-      | Some(code) => Error("Command exited with code " ++ Int.toString(code))
-      | None => Error("Command exited unexpectedly")
-      }
-    }
-  } catch {
-  | JsExn(obj) =>
-    let message = switch JsExn.message(obj) {
-    | Some(m) => m
-    | None => "Unknown error"
-    }
-    Error(message)
-  }
-}
