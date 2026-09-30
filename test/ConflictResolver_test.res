@@ -17,9 +17,11 @@ suite("ConflictResolver", () => {
     assert_eq(ConflictResolver.parseChoice("yes"), Some(ConflictResolver.Yes))
   })
 
-  test("parseChoice: a/all", () => {
-    assert_eq(ConflictResolver.parseChoice("a"), Some(ConflictResolver.YesAll))
+  test("parseChoice: a/abort and all", () => {
+    assert_eq(ConflictResolver.parseChoice("a"), Some(ConflictResolver.Abort))
+    assert_eq(ConflictResolver.parseChoice("abort"), Some(ConflictResolver.Abort))
     assert_eq(ConflictResolver.parseChoice("all"), Some(ConflictResolver.YesAll))
+    assert_eq(ConflictResolver.parseChoice("q"), None)
   })
 
   test("parseChoice: n/no", () => {

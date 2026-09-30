@@ -23,10 +23,10 @@ let parseChoice: string => option<resolution> = input => {
   let trimmed = String.trim(input)->String.toLowerCase
   switch trimmed {
   | "y" | "yes" => Some(Yes)
-  | "a" | "all" => Some(YesAll)
-  | "n" | "no" | "q" => Some(NoAll)
+  | "a" | "abort" => Some(Abort)
+  | "all" => Some(YesAll)
+  | "n" | "no" => Some(NoAll)
   | "s" | "select" => Some(Select)
-  | "abort" => Some(Abort)
   | _ => None
   }
 }
