@@ -3,6 +3,52 @@ open Context
 type packageMetadata = {version: string}
 @val external parsePackageMetadata: string => packageMetadata = "JSON.parse"
 
+let importMetaUrl: string = %raw("import.meta.url")
+@module("node:url") external fileURLToPath: string => string = "fileURLToPath"
+
+// Extract the "name" field of a manifest without crashing on garbage input.
+let packageNameFromJson: string => string = %raw(`
+  function(content) {
+    try { const parsed = JSON.parse(content); return typeof parsed.name === "string" ? parsed.name : ""; }
+    catch (_) { return ""; }
+  }
+`)
+
+// Match this package's manifest regardless of npm scope ("blueprint" or
+// "@scope/blueprint"): we only ever walk up from inside our own package.
+let isBlueprintName = (name: string): bool => name == "blueprint" || String.endsWith(name, "/blueprint")
+
+// Walk up from startDir looking for this package's own manifest. argv[1] is
+// unusable here: under npx / node_modules/.bin / npm-global installs it is a
+// symlink path whose dirname is NOT the package root, so an argv-based
+// lookup resolves the wrong package.json and exits 1 (found in review).
+let rec findPackageJson = (
+  currentDir: string,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~depth: int=0,
+): promise<option<string>> => {
+  if depth > 6 {
+    Promise.resolve(None)
+  } else {
+    let candidate = path.join(currentDir, "package.json")
+    let parent = path.dirname(currentDir)
+    fs.readFile(candidate, ~options={encoding: "utf8"})
+    ->Promise.then(content =>
+        if packageNameFromJson(content)->isBlueprintName {
+          Promise.resolve(Some(candidate))
+        } else if parent == currentDir {
+          Promise.resolve(None)
+        } else {
+          findPackageJson(parent, ~fs, ~path, ~depth=depth + 1)
+        }
+      )
+    ->Promise.catch(_ =>
+      parent == currentDir ? Promise.resolve(None) : findPackageJson(parent, ~fs, ~path, ~depth=depth + 1)
+    )
+  }
+}
+
 // Known CLI flags that should NOT be collected as template attributes.
 let knownFlags: array<string> = ["name", "force", "output", "help"]
 
@@ -71,13 +117,31 @@ let extractAttributes: (~args: array<string>) => dict<Context.attrValue> = (~arg
 // ─── Per-command handlers ─────────────────────────────────────────────────────
 
 let routeVersion: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
-  // The bundled entry point lives in dist/, so resolve package.json from its location, not cwd.
-  let entryPoint = deps.process.argv()->Array.get(1)->Option.getOr("dist/main.mjs")
-  let packagePath = deps.path.join(deps.path.dirname(entryPoint), "../package.json")
-  let packageJson = await deps.fs.readFile(packagePath, ~options={encoding: "utf8"})
-  let metadata = parsePackageMetadata(packageJson)
-  Console.log("Blueprint " ++ metadata.version)
-  deps.process.exit(0)
+  // Resolve from this module's URL, never argv[1]: installed bins invoke the
+  // bundle through a node_modules/.bin symlink, and the old argv-based path
+  // landed on a foreign package.json and failed with ENOENT.
+  let entryDir = try {
+    deps.path.dirname(fileURLToPath(importMetaUrl))
+  } catch {
+  | _ =>
+    deps.process
+    .argv()
+    ->Array.get(1)
+    ->Option.getOr("dist/main.mjs")
+    ->(entry => deps.path.dirname(entry))
+  }
+  switch await findPackageJson(entryDir, ~fs=deps.fs, ~path=deps.path) {
+  | Some(packagePath) => {
+      let packageJson = await deps.fs.readFile(packagePath, ~options={encoding: "utf8"})
+      let metadata = parsePackageMetadata(packageJson)
+      Console.log("Blueprint " ++ metadata.version)
+      deps.process.exit(0)
+    }
+  | None => {
+      Console.error("Could not locate the blueprint package.json from " ++ entryDir)
+      deps.process.exit(1)
+    }
+  }
 }
 
 let routeReadyz: (~deps: Ports.deps) => promise<unit> = async (~deps) => {

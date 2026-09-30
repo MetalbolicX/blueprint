@@ -29,6 +29,32 @@ let restoreConsoleError: unit => unit = %raw(`
 
 let parsePackageVersion: string => string = %raw("packageJson => JSON.parse(packageJson).version")
 
+let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
+
+// Minimal fs mock: readFile serves only the provided (path -> content) map,
+// everything else rejects with ENOENT. Used by findPackageJson tests.
+let makeLookupFs = (contents: array<(string, string)>): Ports.fileSystem => {
+  let base = NodeJsFileSystem.make()
+  {
+    readFile: (target, ~options as _=?) =>
+      switch contents->Array.filter(((candidate, _)) => candidate == target)->Array.get(0) {
+      | Some((_, content)) => Promise.resolve(content)
+      | None => rejectError("ENOENT: " ++ target)
+      },
+    writeFile: base.writeFile,
+    mkdir: base.mkdir,
+    rm: base.rm,
+    cp: base.cp,
+    readdir: base.readdir,
+    fileExists: target =>
+      contents->Array.some(((candidate, _)) => candidate == target) ? Promise.resolve(true) : Promise.resolve(false),
+    stat: base.stat,
+    lstat: base.lstat,
+    realpath: base.realpath,
+    makeStagingDir: base.makeStagingDir,
+  }
+}
+
 let restoreConsoleLog: unit => unit = %raw(`
   function() {
     if (globalThis.__originalConsoleLog) {
@@ -168,6 +194,42 @@ suite("Router extractAttributes", () => {
           Promise.resolve()
         })
       })
+    })->ignore
+  })
+
+  testAsync("findPackageJson walks up past decoy manifests to the blueprint root", resolve => {
+    let fs = makeLookupFs([
+      ("/x/y/dist/package.json", "{\"name\": \"decoy\", \"version\": \"0.0.1\"}"),
+      ("/x/y/package.json", "{\"name\": \"someone-else\", \"version\": \"0.0.2\"}"),
+      ("/x/package.json", "{\"name\": \"blueprint\", \"version\": \"9.9.9\"}"),
+    ])
+    Router.findPackageJson("/x/y/dist", ~fs, ~path=NodeJsPath.make())->Promise.then(found => {
+      assert_eq(found, Some("/x/package.json"))
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("findPackageJson returns None when no blueprint manifest exists upward", resolve => {
+    let fs = makeLookupFs([
+      ("/a/package.json", "{\"name\": \"other-tool\", \"version\": \"1.0.0\"}"),
+    ])
+    Router.findPackageJson("/a/b/c", ~fs, ~path=NodeJsPath.make())->Promise.then(found => {
+      assert_eq(found, None)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("findPackageJson tolerates unparseable manifests and keeps walking", resolve => {
+    let fs = makeLookupFs([
+      ("/n/e/dist/package.json", "not json at all"),
+      ("/n/package.json", "{\"name\": \"blueprint\", \"version\": \"7.7.7\"}"),
+    ])
+    Router.findPackageJson("/n/e/dist", ~fs, ~path=NodeJsPath.make())->Promise.then(found => {
+      assert_eq(found, Some("/n/package.json"))
+      resolve()
+      Promise.resolve()
     })->ignore
   })
 
