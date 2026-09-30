@@ -24,6 +24,8 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~tmpRoot: string=?,
+  ~commitRollbackRef: ref<option<unit => promise<unit>>>=?,
 ) => promise<result<phase2Result, phase2Error>> = async (
   ~stagingDir,
   ~outputDir,
@@ -34,14 +36,25 @@ let run: (
   ~path,
   ~process,
   ~shell,
+  ~tmpRoot=?,
+  ~commitRollbackRef=?,
 ) => {
-  // Compute tmpRoot from process environment for rollback containment check
-  let tmpRoot = {
-    let env = process.env()
-    switch Dict.get(env, "TMPDIR") {
-    | Some(t) => t
-    | None => "/tmp"
-    }
+  let tmpRoot = tmpRoot->Option.getOr(path.dirname(stagingDir))
+  let committingFiles: ref<array<string>> = ref([])
+  let committingBackups: ref<array<backupEntry>> = ref([])
+  let setRollback = switch commitRollbackRef {
+  | Some(stateRef) => Some(stateRef)
+  | None => None
+  }
+  switch setRollback {
+  | Some(stateRef) => stateRef.contents = Some(() => Commit.rollbackOutput(
+      ~committedFiles=committingFiles.contents,
+      ~backups=committingBackups.contents,
+      ~outputDir,
+      ~path,
+      ~fs,
+    )->Promise.then(_ => Promise.resolve()))
+  | None => ()
   }
 
   let committedFiles = renderedFiles->Array.map(((_, targetPath)) => path.join(outputDir, targetPath))
@@ -53,7 +66,18 @@ let run: (
     ~renderedFiles,
     ~fs,
     ~path,
+    ~onCommitting=((outputPath, backupOpt) => {
+      committingFiles.contents->Array.push(outputPath)->ignore
+      switch backupOpt {
+      | Some(backup) => committingBackups.contents->Array.push(backup)->ignore
+      | None => ()
+      }
+    }),
   )
+  switch setRollback {
+  | Some(stateRef) => stateRef.contents = None
+  | None => ()
+  }
 
   switch commitResult {
   | Ok((count, backups)) => {
@@ -71,7 +95,10 @@ let run: (
 
       switch shellResult {
       | Ok(cmdsExec) => {
-          let _ = await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs)
+          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+          | Ok() => ()
+          | Error(message) => Console.warn("Warning: could not clean staging directory " ++ stagingDir ++ ": " ++ message)
+          }
 
           let result: phase2Result = {
             filesCreated: count,

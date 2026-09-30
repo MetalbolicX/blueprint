@@ -41,7 +41,7 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 - Tests: fix enshrined `a → YesAll` assertion; add prompt-contract test covering every advertised key.
 - Acceptance: focused tests green; full suite no new failures. Commit: `fix(conflicts): make 'a' abort instead of overwrite-all`.
 
-### T2 — SSRF hardening (WU2) — done (commit pending below)
+### T2 — SSRF hardening (WU2) — done (commit 86198c2)
 - `Fetcher.httpGetOnce`: `redirect: "manual"` + explicit redirect loop that re-runs `SsrfGuard.isUrlAllowed` on every `Location` hop (cap hops ≤5, reject non-http(s)).
 - Response body size cap (e.g. 10 MiB) — fail closed.
 - `SsrfGuard`: fix `parseIpv6` end-padding bug; classify `::ffff:`/`0:0:...:ffff:` mapped forms as IPv4-equivalent; add 100.64/10, 224/4, 240/4, 255.255.255.255, fec0::/10.
@@ -49,13 +49,13 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 - DNS-rebinding connect-time pinning: document as residual risk in code + here (undici dispatcher follow-up).
 - Acceptance: SsrfGuard/Fetcher tests cover redirect-to-metadata rejection, mapped-IPv6 rejection, new ranges; focused green; full suite no new failures. Commit: `fix(security): close SSRF redirect bypass and IP classification gaps`.
 
-### T3 — EOF/non-TTY + process lifecycle (WU3) — pending
+### T3 — EOF/non-TTY + process lifecycle (WU3) — done (commit 8a0e861)
 - Readline binding exposes close/EOF events; `NodeJsInteractiveIO.question` rejects cleanly on EOF.
 - Non-TTY stdin + required prompt → actionable error + exit 1 (no hang, no silent exit).
 - Readline created lazily; commands that never prompt never open it; success paths close IO and exit 0 (`init`, `init --global`, `generator list/add-prompt/add-file`).
 - Acceptance: EOF/non-TTY tests for conflict prompt + one command; focused green; full suite no new failures. Commit: `fix(cli): handle EOF/non-TTY stdin and close interactive loops`.
 
-### T4 — Transactional integrity (WU4) — pending
+### T4 — Transactional integrity (WU4) — done (commit below)
 - Signal handler must not delete staging mid-commit: during Phase2 commit, SIGINT/SIGTERM triggers output rollback (restoring backups) then cleanup; before commit, staging-only cleanup as today.
 - Single tmpRoot derivation via `os.tmpdir()` shared by Phase2/EngineOrchestrator/EngineLifecycle/Commit guard.
 - Failed staging cleanup no longer silent on success path (surface warning).
@@ -63,7 +63,7 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 - Orphan sweep: skip dirs whose mtime advanced within threshold; never delete a staging dir younger than the sweep age.
 - Acceptance: signal-mid-commit test asserts backups restore; tmpRoot guard test; focused green; full suite no new failures. Commit: `fix(pipeline): protect backups from signals, unify staging root`.
 
-### T5 — Hook execution boundary (WU5) — pending
+### T5 — Hook execution boundary (WU5) — in progress
 - `Hooks`: resolve once, validate the resolved path, execute that same absolute path.
 - Allowlist authoritative for all routes (arg-less, with-args, path commands); configured-but-empty allowlist denies; `shell.enabled=false` gates hooks too.
 - Hook timeout upper bound (cap 600s); tokenized hooks run with declared cwd.
@@ -93,9 +93,9 @@ Six work units (WU1–WU6), each one delegated writer → parent verification �
 | Task | Commit | Assess tier | Outcome |
 |------|--------|-------------|---------|
 | T1 | 84b42b7 | unassessable (native blocked) | TDD RED 4→GREEN 14/14; full 698/699 (known baseline only); parent rerun 14/14; independent verify bg task muok4mls-6-eifi |
-| T2 | (this commit) | unassessable (native blocked) | TDD RED 12→GREEN 97/97, fix-back RED 2→101/101 (fec0::/10 full range); full 719/720 (known baseline only); parent rerun 101/101; fallback verify bg in flight |
-| T3 | — | — | — |
-| T4 | — | — | — |
+| T2 | 86198c2 | unassessable (native blocked) | TDD RED 12→GREEN 97/97, fix-back RED 2→101/101 (fec0::/10 full range); full 719/720 (known baseline only); parent rerun 101/101; fallback verify bg muokosdk-9-s02x |
+| T3 | 8a0e861 | unassessable (native blocked) | TDD RED→GREEN; focused 8/8+1/1+12/12+2/2; full 723/724 (known baseline only); parent rerun 9/9; fallback verify bg muolhvmb-b-6cbs |
+| T4 | (this commit) | unassessable (native blocked) | TDD RED observed (orphan/signal/warning) → focused 22/22+28/28+6/6+2/2; full 729/730 (known baseline only); surfaces expanded by parent: Ports.res, NodeJsFileSystem.res (additive mtime), EngineLifecycle/Commit/Phase2 .resi (optional args) |
 | T5 | — | — | — |
 | T6 | — | — | — |
 

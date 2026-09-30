@@ -18,6 +18,7 @@ type readdirOptions = {withFileTypes: bool}
 type statResult = {
   isDirectory: unit => bool,
   isFile: unit => bool,
+  mtimeMs?: float,
 }
 type lstatResult = {
   isDirectory: unit => bool,

@@ -67,12 +67,14 @@ let commitFiles: (
   ~renderedFiles: array<(string, string)>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~onCommitting: (string, option<backupEntry>) => unit=?,
 ) => promise<result<(int, array<backupEntry>), phase2Error>> = async (
   ~stagingDir,
   ~outputDir,
   ~renderedFiles,
   ~fs,
   ~path,
+  ~onCommitting=?,
 ) => {
   let seenTargets: ref<dict<string>> = ref(Dict.make())
   let dedupedFiles = renderedFiles->Array.filter(((_, targetPath)) => {
@@ -97,6 +99,10 @@ let commitFiles: (
       switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
       | Error(e) => Error((e, None))
       | Ok(backupOpt) => {
+          switch onCommitting {
+          | Some(callback) => callback(destPath, backupOpt)
+          | None => ()
+          }
           // Step 5: refuse to copy a symbolic-link staged file into the output tree.
           // The lstat is inside the try so a missing/unreadable staged file surfaces
           // as a commit Error (preserving partialCommit) rather than an unhandled

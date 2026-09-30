@@ -57,6 +57,7 @@ let make: unit => Ports.fileSystem = () => {
     let res: Ports.statResult = {
       isDirectory: () => isDir,
       isFile: () => isF,
+      mtimeMs: ?Some(Obj.magic(s)["mtimeMs"]),
     }
     res
   },

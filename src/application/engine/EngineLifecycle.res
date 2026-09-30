@@ -3,7 +3,8 @@
 
 let stagingDirPrefix = "blueprint-"
 let backupDirName = ".blueprint-backup"
-let staleThresholdMs = 5 * 60 * 1000
+let staleThresholdMs = 30 * 60 * 1000
+let recentMtimeThresholdMs = 15 * 60 * 1000
 
 let cleanupPath: (~target: string, ~fs: Ports.fileSystem) => promise<unit> = async (~target, ~fs) => {
   try {
@@ -17,6 +18,11 @@ let cleanupPath: (~target: string, ~fs: Ports.fileSystem) => promise<unit> = asy
 let parseStagingDirTimestamp = (dirName: string): option<int> => {
   let parts = String.split(dirName, "-")
   switch Array.get(parts, 1) {
+  | Some("") =>
+    switch Array.get(parts, 2) {
+    | Some(rawTs) => Int.fromString("-" ++ rawTs)
+    | None => None
+    }
   | Some(rawTs) => Int.fromString(rawTs)
   | None => None
   }
@@ -31,15 +37,9 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   let resolvedTmpRoot = switch tmpRoot {
   | Some(dir) => dir
   | None => {
-      // Create a short-lived staging probe to derive the temp root
-      let probeDir = await fs.makeStagingDir(stagingDirPrefix ++ "probe")
+      let probeDir = await fs.makeStagingDir(stagingDirPrefix ++ "tmp-root-probe")
       let probeRoot = path.dirname(probeDir)
-      // Remove the probe immediately after deriving the root
-      try {
-        await fs.rm(probeDir, ~options={recursive: true})
-      } catch {
-      | _ => ()
-      }
+      await cleanupPath(~target=probeDir, ~fs)
       probeRoot
     }
   }
@@ -51,6 +51,7 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   }
 
   let nowMs = Date.now()->Float.toInt
+  let nowMsFloat = Date.now()
   let cleanupOps = tmpEntries->Array.map(async entry => {
       if String.startsWith(entry, stagingDirPrefix) {
         switch parseStagingDirTimestamp(entry) {
@@ -58,7 +59,12 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
             let fullPath = path.join(resolvedTmpRoot, entry)
             try {
               let stat = await fs.stat(fullPath)
-              if stat.isDirectory() {
+              let oldEnoughByMtime = switch stat.mtimeMs {
+              | Some(mtimeMs) => nowMsFloat -. mtimeMs >= recentMtimeThresholdMs->Int.toFloat
+              | None => false
+              }
+              if stat.isDirectory() && oldEnoughByMtime {
+                // Residual risk: an active run idle for more than 15 minutes between writes may be swept; a heartbeat marker is a follow-up.
                 await cleanupPath(~target=fullPath, ~fs)
               }
             } catch {
@@ -84,21 +90,28 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   }
 }
 
-let registerSignalHandlers: (~process: Ports.process, ~stagingDirRef: ref<option<string>>, ~fs: Ports.fileSystem) => unit = (
+let registerSignalHandlers: (~process: Ports.process, ~stagingDirRef: ref<option<string>>, ~commitRollbackRef: ref<option<unit => promise<unit>>>, ~fs: Ports.fileSystem) => unit = (
   ~process,
   ~stagingDirRef,
+  ~commitRollbackRef,
   ~fs,
 ) => {
   let handleSignal = () => {
-    let cleanupPromise = switch stagingDirRef.contents {
-    | Some(stagingDir) => {
-        stagingDirRef.contents = None
-        cleanupPath(~target=stagingDir, ~fs)
-      }
+    let rollbackPromise = switch commitRollbackRef.contents {
+    | Some(rollback) => rollback()
     | None => Promise.resolve()
     }
 
-    cleanupPromise
+    rollbackPromise->Promise.then(_ => {
+      let cleanupPromise = switch stagingDirRef.contents {
+      | Some(stagingDir) => {
+          stagingDirRef.contents = None
+          cleanupPath(~target=stagingDir, ~fs)
+        }
+      | None => Promise.resolve()
+      }
+      cleanupPromise
+    })
     ->Promise.then(_ => {
       process.exit(1)
       Promise.resolve()

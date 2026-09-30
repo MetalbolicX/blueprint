@@ -24,6 +24,14 @@ let makeProcess = (): Ports.process => {
   homedir: () => "/home/test",
 }
 
+let makeSignalProcess = (~handler: ref<option<unit => unit>>, ~exitCodes: ref<array<int>>): Ports.process => {
+  {
+    ...makeProcess(),
+    exit: code => exitCodes.contents->Array.push(code)->ignore,
+    onSignal: (_, callback) => handler.contents = Some(callback),
+  }
+}
+
 let makeShell = (~status: int): Ports.shell => {
   execShellCommand: (~command as _, ~cwd as _=?, ~timeout as _=?) => Promise.resolve(Ok("")),
   execAsync: (_cmd, ~options as _=?) =>
@@ -117,6 +125,165 @@ let makeRollbackFs = (
 }
 
 suite("Phase2", () => {
+  testAsync("cleanup failure warns with orphan path but preserves successful result", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let base = NodeJsFileSystem.make()
+    let process = makeProcess()
+    let fs: Ports.fileSystem = {
+      ...base,
+      rm: (target, ~options=?) => target == stagingDir ? rejectError("locked") : base.rm(target, ~options?),
+    }
+    let startWarningCapture: unit => unit = %raw(`function() { globalThis.__oldWarn = console.warn; globalThis.__warnings = []; console.warn = msg => globalThis.__warnings.push(msg); }`)
+    let restoreWarningCapture: unit => unit = %raw(`function() { console.warn = globalThis.__oldWarn; }`)
+    startWarningCapture()
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => Phase2.run(
+      ~stagingDir,
+      ~outputDir=NodeJs.Path.join(root, "output"),
+      ~renderedFiles=[],
+      ~shellCommands=[],
+      ~shellConfig=None,
+      ~fs,
+      ~path=NodeJsPath.make(),
+      ~process,
+      ~shell=NodeJsShell.make(),
+      ~tmpRoot=NodeJs.Os.tmpdir(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => ()
+      | Error(_) => assert_false(true)
+      }
+      let warnings: array<string> = %raw("globalThis.__warnings")
+      assert_true(warnings->Array.some(message => String.includes(message, stagingDir)))
+      restoreWarningCapture()
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->Promise.catch(_ => {
+      restoreWarningCapture()
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollback containment ignores conflicting TMPDIR and uses OS tmpdir", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let process: Ports.process = {...makeProcess(), env: () => Dict.fromArray([("TMPDIR", "/different/temp")])}
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => Phase2.run(
+      ~stagingDir,
+      ~outputDir=NodeJs.Path.join(root, "output"),
+      ~renderedFiles=[],
+      ~shellCommands=[],
+      ~shellConfig=None,
+      ~fs=NodeJsFileSystem.make(),
+      ~path=NodeJsPath.make(),
+      ~process,
+      ~shell=NodeJsShell.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => ()
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.fileExists(stagingDir)
+    })
+    ->Promise.then(exists => {
+      assert_false(exists)
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+  testAsync("signal during commit restores backups, removes staging, and exits non-zero", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let outputDir = NodeJs.Path.join(root, "output")
+    let stagedFile = NodeJs.Path.join(stagingDir, "file.txt")
+    let outputFile = NodeJs.Path.join(outputDir, "file.txt")
+    let base = NodeJsFileSystem.make()
+    let handler = ref(None)
+    let exitCodes = ref([])
+    let process = makeSignalProcess(~handler, ~exitCodes)
+    let signalFs: Ports.fileSystem = {
+      readFile: base.readFile,
+      writeFile: base.writeFile,
+      mkdir: base.mkdir,
+      rm: base.rm,
+      cp: (src, dst, ~options=?) => base.cp(src, dst, ~options?)->Promise.then(_ => {
+        if src == stagedFile {
+          switch handler.contents {
+          | Some(callback) => callback()
+          | None => assert_false(true)
+          }
+        }
+        Promise.resolve()
+      }),
+      readdir: base.readdir,
+      fileExists: base.fileExists,
+      stat: base.stat,
+      lstat: base.lstat,
+      realpath: base.realpath,
+      makeStagingDir: base.makeStagingDir,
+    }
+    let stagingRef = ref(Some(stagingDir))
+    let rollbackRef: ref<option<unit => promise<unit>>> = ref(None)
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "new"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputFile, "original"))
+    ->Promise.then(_ => {
+      EngineLifecycle.registerSignalHandlers(~process, ~stagingDirRef=stagingRef, ~commitRollbackRef=rollbackRef, ~fs=signalFs)
+      Promise.resolve()
+    })
+    ->Promise.then(_ => Phase2.run(
+      ~stagingDir,
+      ~outputDir,
+      ~renderedFiles=[("template", "file.txt")],
+      ~shellCommands=[],
+      ~shellConfig=None,
+      ~fs=signalFs,
+      ~path=NodeJsPath.make(),
+      ~process,
+      ~shell=NodeJsShell.make(),
+      ~tmpRoot=NodeJs.Os.tmpdir(),
+      ~commitRollbackRef=rollbackRef,
+    ))
+    ->Promise.then(_ => Promise.resolve())
+    ->Promise.then(_ => NodeJs.Fs.readFile(outputFile, ~options={encoding: "utf8"}))
+    ->Promise.then(content => {
+      assert_eq(content, "original")
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
+      NodeJs.Fs.fileExists(stagingDir)
+    })
+    ->Promise.then(stagingExists => {
+      assert_false(stagingExists)
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
   test("phase2Result: structure", () => {
     let result: Phase2.phase2Result = {
       filesCreated: 5,

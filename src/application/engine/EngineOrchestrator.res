@@ -31,18 +31,15 @@ let run: (
 ) => {
   let {fs, path, process: proc, shell, interactiveIO: io, ejs, yamlParser} = deps
 
-  // Compute tmpRoot for rollback containment check
-  let tmpRoot = {
-    let env = proc.env()
-    switch Dict.get(env, "TMPDIR") {
-    | Some(t) => t
-    | None => "/tmp"
-    }
-  }
+  // Derive the shared OS temp root through the filesystem port, whose Node adapter
+  // creates staging directories under os.tmpdir().
+  let tmpRootProbe = await fs.makeStagingDir("blueprint-tmp-root-probe")
+  let tmpRoot = path.dirname(tmpRootProbe)
+  await EngineLifecycle.cleanupPath(~target=tmpRootProbe, ~fs)
 
   // Phase 0: setup (unconditional)
   Fetcher.clearCache()
-  await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path)
+  await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path, ~tmpRoot)
 
   let context = await EngineContext.buildInitialContext(
     ~fs,
@@ -180,7 +177,8 @@ let run: (
     ~prev=phase1Result,
     ~next=(async ((p1, shellConfig)) => {
       let stagingDirRef = ref(Some(p1.stagingDir))
-      EngineLifecycle.registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
+      let commitRollbackRef: ref<option<unit => promise<unit>>> = ref(None)
+      EngineLifecycle.registerSignalHandlers(~process=proc, ~stagingDirRef, ~commitRollbackRef, ~fs)
       let isDryRun = config->Option.flatMap(c => c.dryRun)->Option.getOr(false)
 
       if isDryRun {
@@ -189,7 +187,10 @@ let run: (
         Console.log(
           "Dry run — would generate " ++ Int.toString(p1.renderedFiles->Array.length) ++ " file(s)",
         )
-        let _ = await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs)
+        switch await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs) {
+        | Ok() => ()
+        | Error(message) => Console.warn("Warning: could not clean staging directory " ++ p1.stagingDir ++ ": " ++ message)
+        }
         Ok({
           filesCreated: p1.renderedFiles->Array.length,
           filesInjected: 0,
@@ -207,6 +208,8 @@ let run: (
           ~path,
           ~process=proc,
           ~shell,
+          ~tmpRoot,
+          ~commitRollbackRef,
         )
 
         stagingDirRef.contents = None
@@ -264,7 +267,7 @@ let run: (
             io.close()
             switch finalResult {
             | Ok(r) => Ok(r)
-            | Error(e) => Error({Commit.message: e})
+            | Error(e) => Error({Commit.message: e ++ "; files were already committed; output tree is partially updated"})
             }
           }
         }

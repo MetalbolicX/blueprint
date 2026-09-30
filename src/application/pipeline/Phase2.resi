@@ -25,4 +25,6 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~tmpRoot: string=?,
+  ~commitRollbackRef: ref<option<unit => promise<unit>>>=?,
 ) => promise<result<phase2Result, Commit.phase2Error>>

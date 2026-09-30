@@ -22,6 +22,7 @@ let makeCleanupFs = (
   ~tmpEntries: array<string>,
   ~existingPaths: array<string>=[],
   ~directoryPaths: array<string>=[],
+  ~recentMtimePaths: array<string>=[],
   ~removed: ref<array<string>>,
 ): Ports.fileSystem => {
   readFile: (_, ~options as _=?) => Promise.resolve(""),
@@ -38,6 +39,7 @@ let makeCleanupFs = (
     Promise.resolve({
       isDirectory: () => directoryPaths->Array.some(path => path == target),
       isFile: () => !(directoryPaths->Array.some(path => path == target)),
+      mtimeMs: ?Some(recentMtimePaths->Array.some(path => path == target) ? Date.now() : Date.now() -. 1860000.0),
     }: Ports.statResult),
   lstat: _target =>
     Promise.resolve({
@@ -78,6 +80,8 @@ let invokeHandler = (handlerRef: ref<option<unit => unit>>) => {
   | None => assert_false(true)
   }
 }
+
+let waitForSignalCleanup: unit => promise<unit> = %raw(`() => new Promise(resolve => setTimeout(resolve, 20))`)
 
 suite("Engine", () => {
   test("generateResult: structure", () => {
@@ -200,17 +204,23 @@ suite("Engine", () => {
       },
     }
 
+    let root = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(root, "output")
     let gen: Discovery.generator = {
       name: "component",
-      path: "/tmp/blueprint-test-nonexistent",
-      templates: [],
+      path: root,
+      templates: [{
+        sourcePath: NodeJs.Path.join(root, "template.ejs.t"),
+        directives: [Template.To("file.txt"), Template.Force],
+        body: "committed-content",
+      }],
     }
 
     Engine.run(
       ~generator=gen,
       ~name="Button",
       ~cliAttributes=Dict.make(),
-      ~outputDir="/tmp/blueprint-test-output",
+      ~outputDir,
       ~force=true,
       ~config=cfg,
       ~deps,
@@ -218,8 +228,21 @@ suite("Engine", () => {
     ->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
-      | Error(e) => assert_true(String.includes(e.message, "post_generate hook failed"))
+      | Error(e) => {
+          assert_true(String.includes(e.message, "post_generate hook failed"))
+          assert_true(String.includes(e.message, "files were already committed; output tree is partially updated"))
+        }
       }
+      NodeJs.Fs.readFile(NodeJs.Path.join(outputDir, "file.txt"), ~options={encoding: "utf8"})
+      ->Promise.then(content => {
+        assert_eq(content, "committed-content")
+        NodeJs.Fs.rm(root, ~options={recursive: true})
+        ->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
       resolve()
       Promise.resolve()
     })
@@ -390,13 +413,14 @@ suite("Engine", () => {
     let proc = makeSignalProcess(~registeredSignals, ~exitCodes, ~removedListeners, ~sigintHandler, ~sigtermHandler)
     let fs = makeCleanupFs(~tmpRoot="/tmp/engine-signal-cleanup", ~tmpEntries=[], ~removed)
     let stagingDirRef = ref(Some("/tmp/blueprint-signal-int"))
+    let commitRollbackRef: ref<option<unit => promise<unit>>> = ref(None)
 
-    registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
+    registerSignalHandlers(~process=proc, ~stagingDirRef, ~commitRollbackRef, ~fs)
     invokeHandler(sigintHandler)
 
     Promise.resolve()
     ->Promise.then(_ => {
-      Promise.resolve()
+      Promise.resolve()->Promise.then(_ => Promise.resolve())->Promise.then(_ => Promise.resolve())
     })
     ->Promise.then(_ => {
       assert_eq(Array.get(registeredSignals.contents, 0), Some("SIGINT"))
@@ -408,9 +432,50 @@ suite("Engine", () => {
       invokeHandler(sigtermHandler)
       Promise.resolve()
     })
-    ->Promise.then(_ => {
+    ->Promise.then(_ => Promise.resolve())->Promise.then(_ => Promise.resolve())->Promise.then(_ => {
       assert_eq(Array.get(removed.contents, 1), Some("/tmp/blueprint-signal-term"))
       assert_eq(Array.get(exitCodes.contents, 1), Some(1))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("registerSignalHandlers: pre-commit signal removes staging and leaves output unchanged", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "staging")
+    let outputFile = NodeJs.Path.join(root, "output.txt")
+    let registeredSignals = ref([])
+    let exitCodes = ref([])
+    let removedListeners = ref(0)
+    let sigintHandler = ref(None)
+    let sigtermHandler = ref(None)
+    let proc = makeSignalProcess(~registeredSignals, ~exitCodes, ~removedListeners, ~sigintHandler, ~sigtermHandler)
+    let stagingDirRef = ref(Some(stagingDir))
+    let commitRollbackRef: ref<option<unit => promise<unit>>> = ref(None)
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputFile, "untouched"))
+    ->Promise.then(_ => {
+      registerSignalHandlers(~process=proc, ~stagingDirRef, ~commitRollbackRef, ~fs=deps.fs)
+      invokeHandler(sigintHandler)
+      Promise.resolve()
+    })
+    ->Promise.then(_ => waitForSignalCleanup())
+    ->Promise.then(_ => NodeJs.Fs.fileExists(stagingDir))
+    ->Promise.then(stagingExists => {
+      assert_false(stagingExists)
+      NodeJs.Fs.readFile(outputFile, ~options={encoding: "utf8"})
+    })
+    ->Promise.then(content => {
+      assert_eq(content, "untouched")
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
       resolve()
       Promise.resolve()
     })
@@ -427,16 +492,51 @@ suite("Engine", () => {
     let proc = makeSignalProcess(~registeredSignals, ~exitCodes, ~removedListeners, ~sigintHandler, ~sigtermHandler)
     let fs = makeCleanupFs(~tmpRoot="/tmp/engine-signal-no-staging", ~tmpEntries=[], ~removed)
     let stagingDirRef = ref(None)
+    let commitRollbackRef: ref<option<unit => promise<unit>>> = ref(None)
 
-    registerSignalHandlers(~process=proc, ~stagingDirRef, ~fs)
+    registerSignalHandlers(~process=proc, ~stagingDirRef, ~commitRollbackRef, ~fs)
     invokeHandler(sigintHandler)
 
     Promise.resolve()
-    ->Promise.then(_ => {
+    ->Promise.then(_ => Promise.resolve())->Promise.then(_ => Promise.resolve())->Promise.then(_ => {
       assert_eq(Array.get(registeredSignals.contents, 0), Some("SIGINT"))
       assert_eq(Array.get(registeredSignals.contents, 1), Some("SIGTERM"))
       assert_eq(Array.length(removed.contents), 0)
       assert_eq(Array.get(exitCodes.contents, 0), Some(1))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("cleanupOrphans: preserves old-name staging dirs with recent mtime", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-active"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-active"
+    let target = deps.path.join(tmpRoot, name)
+    let removed = ref([])
+    let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~recentMtimePaths=[target], ~removed)
+
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_eq(Array.length(removed.contents), 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("cleanupOrphans: removes staging dirs old by name and mtime", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-stale"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-stale"
+    let target = deps.path.join(tmpRoot, name)
+    let removed = ref([])
+    let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~removed)
+
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_eq(Array.get(removed.contents, 0), Some(target))
       resolve()
       Promise.resolve()
     })
