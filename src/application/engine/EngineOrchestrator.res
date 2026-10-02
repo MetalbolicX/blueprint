@@ -19,6 +19,7 @@ let run: (
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
+  ~projectRoot: string=?,
   ~deps: Ports.deps,
 ) => promise<result<generateResult, Commit.phase2Error>> = async (
   ~generator,
@@ -27,9 +28,11 @@ let run: (
   ~outputDir,
   ~force,
   ~config=?,
+  ~projectRoot=?,
   ~deps,
 ) => {
   let {fs, path, process: proc, shell, interactiveIO: io, ejs, yamlParser} = deps
+  let resolvedProjectRoot = projectRoot->Option.getOr(proc.cwd())
 
   // Derive the shared OS temp root through the filesystem port, whose Node adapter
   // creates staging directories under os.tmpdir().
@@ -66,20 +69,20 @@ let run: (
         (Some(hookCmd), generator.path, outputDir)
       | None =>
         let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
-        (projectHook, context.cwd, outputDir)
+        (projectHook, resolvedProjectRoot, outputDir)
       }
     | None =>
       let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
-      (projectHook, context.cwd, outputDir)
+      (projectHook, resolvedProjectRoot, outputDir)
     }
   | None =>
     let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.preGenerate)
-    (projectHook, context.cwd, outputDir)
+    (projectHook, resolvedProjectRoot, outputDir)
   }
 
   let preHookResult = switch await EngineHooks.runPreHook(
     ~config,
-    ~projectRoot=context.cwd,
+    ~projectRoot=resolvedProjectRoot,
     ~shell,
     ~process=proc,
     ~path,
@@ -242,19 +245,19 @@ let run: (
                 (Some(hookCmd), generator.path, outputDir)
               | None =>
                   let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
-                  (projectHook, context.cwd, outputDir)
+                  (projectHook, resolvedProjectRoot, outputDir)
                 }
               | None =>
                 let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
-                (projectHook, context.cwd, outputDir)
+                (projectHook, resolvedProjectRoot, outputDir)
               }
             | None =>
               let projectHook = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.postGenerate)
-              (projectHook, context.cwd, outputDir)
+              (projectHook, resolvedProjectRoot, outputDir)
             }
             let finalResult = await EngineHooks.runPostHook(
               ~config,
-              ~projectRoot=context.cwd,
+              ~projectRoot=resolvedProjectRoot,
               ~result,
               ~shell,
               ~process=proc,

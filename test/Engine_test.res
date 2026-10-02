@@ -17,6 +17,36 @@ let deps: Ports.deps = {
 
 let staleThresholdMs = 5 * 60 * 1000
 
+let makeHookCaptureShell = (calls: ref<array<string>>): Ports.shell => {
+  execAsync: (_cmd, ~options as _=?) => Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
+  execFileAsync: (command, ~args as _=?, ~options as _=?) => {
+    calls.contents->Array.push(command)->ignore
+    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))
+  },
+}
+
+let runProjectHook = (~projectRoot: string, ~generatorPath: string, ~hookPath: string, ~manifest: option<Manifest.manifest>=?) => {
+  let process: Ports.process = {...deps.process, cwd: () => projectRoot}
+  let calls = ref([])
+  let testDeps = {...deps, process, shell: makeHookCaptureShell(calls)}
+  let gen: Discovery.generator = {
+    name: "hook-test",
+    path: generatorPath,
+    templates: [],
+    manifest: ?manifest,
+  }
+  let config: Config.config = {hooks: {preGenerate: {command: hookPath}}}
+  Engine.run(
+    ~generator=gen,
+    ~name="HookTest",
+    ~cliAttributes=Dict.make(),
+    ~outputDir=NodeJs.Path.join(projectRoot, "output"),
+    ~force=true,
+    ~config,
+    ~deps=testDeps,
+  )->Promise.then(result => Promise.resolve((result, calls.contents)))
+}
+
 let makeCleanupFs = (
   ~tmpRoot: string,
   ~tmpEntries: array<string>,
@@ -83,7 +113,86 @@ let invokeHandler = (handlerRef: ref<option<unit => unit>>) => {
 
 let waitForSignalCleanup: unit => promise<unit> = %raw(`() => new Promise(resolve => setTimeout(resolve, 20))`)
 
+let prepareHookRoots = async root => {
+  let projectRoot = NodeJs.Path.join(root, "project")
+  let generatorPath = NodeJs.Path.join(root, "generator")
+  let _ = await NodeJs.Fs.mkdir(NodeJs.Path.join(projectRoot, "scripts"), ~options={recursive: true})
+  let _ = await NodeJs.Fs.mkdir(NodeJs.Path.join(generatorPath, "scripts"), ~options={recursive: true})
+  let _ = await NodeJs.Fs.writeFile(NodeJs.Path.join(projectRoot, "scripts/pre.sh"), "project")
+  let _ = await NodeJs.Fs.writeFile(NodeJs.Path.join(generatorPath, "scripts/pre.sh"), "generator")
+  let _ = await NodeJs.Fs.writeFile(NodeJs.Path.join(projectRoot, "scripts/only.sh"), "project-only")
+  (projectRoot, generatorPath)
+}
+
 suite("Engine", () => {
+  testAsync("plan 042: project hook wins over generator file at the same relative path", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    prepareHookRoots(root)->Promise.then(((projectRoot, generatorPath)) => {
+      runProjectHook(~projectRoot, ~generatorPath, ~hookPath="./scripts/pre.sh")
+      ->Promise.then(((result, calls)) => {
+        switch result {
+        | Ok(_) => assert_eq(calls[0]->Option.getOr(""), NodeJs.Path.resolve(projectRoot, "scripts/pre.sh"))
+        | Error(_) => assert_false(true)
+        }
+        NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
+  testAsync("plan 042: project-only relative hook resolves in project root", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    prepareHookRoots(root)->Promise.then(((projectRoot, generatorPath)) => {
+      runProjectHook(~projectRoot, ~generatorPath, ~hookPath="./scripts/only.sh")
+      ->Promise.then(((result, calls)) => {
+        switch result {
+        | Ok(_) => assert_eq(calls[0]->Option.getOr(""), NodeJs.Path.resolve(projectRoot, "scripts/only.sh"))
+        | Error(_) => assert_false(true)
+        }
+        NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
+  testAsync("plan 042: project hook traversal remains rejected", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    prepareHookRoots(root)->Promise.then(((projectRoot, generatorPath)) =>
+      runProjectHook(~projectRoot, ~generatorPath, ~hookPath="../outside.sh")
+    )->Promise.then(((result, _calls)) => {
+      switch result {
+      | Error(e) => assert_true(String.includes(e.message, "outside project tree"))
+      | Ok(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("plan 042: generator manifest hook still resolves from generator root", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    prepareHookRoots(root)->Promise.then(((projectRoot, generatorPath)) => {
+      let manifest: Manifest.manifest = {
+        name: "hook-test",
+        classification: "hook-test",
+        hooks: ?Some({preGenerate: ?Some("./scripts/pre.sh")}),
+      }
+      runProjectHook(~projectRoot, ~generatorPath, ~hookPath="./scripts/only.sh", ~manifest)
+      ->Promise.then(((result, calls)) => {
+        switch result {
+        | Ok(_) => assert_eq(calls[0]->Option.getOr(""), NodeJs.Path.resolve(generatorPath, "scripts/pre.sh"))
+        | Error(_) => assert_false(true)
+        }
+        NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+
   test("generateResult: structure", () => {
     let result: generateResult = {
       filesCreated: 3,
