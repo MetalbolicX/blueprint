@@ -6,8 +6,12 @@ let runTemplateCopy: (
   ~name: string,
   ~force: bool,
 ) => promise<unit> = async (~deps, ~fs, ~path, ~name, ~force) => {
-  let ctx = await ConfigContext.loadConfigContext(~deps, ~fs, ~path)
-
+  switch await ConfigContext.loadConfigContext(~deps, ~fs, ~path) {
+  | Error(e) => {
+      Console.error("Error: " ++ e)
+      deps.process.exit(1)
+    }
+  | Ok(ctx) => {
   let projectPaths = ["_templates", "templates", "generators"]
   let sourceSearchPaths = projectPaths->Array.concat(ctx.merged.templates)
   let generators = await Discovery.discover(~fs, ~path, ~yamlParser=deps.yamlParser, ~searchPaths=sourceSearchPaths, ())
@@ -53,5 +57,7 @@ let runTemplateCopy: (
       }
       }
     }
+  }
+  }
   }
 }
