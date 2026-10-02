@@ -8,13 +8,15 @@ type phase0Result = {
   conflicts: array<conflictFile>,
 }
 
-let detectConflicts: (
+let detectRenderedConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
+  ~ejs: Ports.ejs,
+  ~attributes: dict<string>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<array<conflictFile>>
+) => promise<result<array<conflictFile>, string>>
 
 let run: (
   ~io: Ports.interactiveIO,
