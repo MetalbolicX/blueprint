@@ -14,6 +14,8 @@ type phase2Error = {
   catastrophic?: bool,
   failedRollbackFiles?: array<string>,
   backups?: array<backupEntry>,
+  failedTargets?: array<string>,
+  failedBackups?: array<backupEntry>,
 }
 
 let commitFiles: (

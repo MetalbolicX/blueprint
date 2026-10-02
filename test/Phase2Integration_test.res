@@ -4,6 +4,16 @@ open TestHelpers
 
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
+let waitForRollback: (unit => promise<bool>) => promise<unit> = %raw(`condition => new Promise((resolve, reject) => {
+  let attempts = 0;
+  const poll = () => Promise.resolve(condition()).then(settled => {
+    if (settled) return resolve();
+    if (++attempts >= 400) return reject(new Error("rollback chain did not settle"));
+    setTimeout(poll, 5);
+  }, reject);
+  poll();
+})`)
+
 let makeDeps = () => {
   (
     NodeJsFileSystem.make(),
@@ -481,6 +491,9 @@ suite("Phase2 Integration", () => {
         ~shell,
       )
     )
+    ->Promise.then(result => waitForRollback(() => (
+      NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "out.txt"))->Promise.then(exists => Promise.resolve(!exists))
+    ))->Promise.then(_ => Promise.resolve(result)))
     ->Promise.then(result => {
       switch result {
       | Ok(_) => {
