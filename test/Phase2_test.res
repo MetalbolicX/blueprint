@@ -680,7 +680,8 @@ suite("Phase2", () => {
         ~commands,
         ~cwd=tmpDir,
         ~stagingDir=tmpDir,
-        ~shellConfig=None,
+        // shell.enabled gate (plan 039)
+        ~shellConfig=Some({enabled: true}),
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
         ~process=NodeJsProcess.make(),
@@ -742,7 +743,8 @@ suite("Phase2", () => {
       ~commands,
       ~cwd=tmpDir,
       ~stagingDir=tmpDir,
-      ~shellConfig=None,
+      // shell.enabled gate (plan 039)
+      ~shellConfig=Some({enabled: true}),
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
@@ -900,7 +902,8 @@ suite("Phase2", () => {
         ~outputDir,
         ~renderedFiles,
         ~shellCommands,
-        ~shellConfig=None,
+        // shell.enabled gate (plan 039)
+        ~shellConfig=Some({enabled: true}),
         ~fs,
         ~path,
         ~process=processAdapter,

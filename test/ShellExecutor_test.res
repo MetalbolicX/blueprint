@@ -228,8 +228,6 @@ suite("ShellBuilder.buildEnvFilterConfig", () => {
   })
 })
 
-// ---------- executeShellCommands — ToolCall ----------
-
 let runShellCommands = (
   ~commands: array<Template.shellCommand>,
   ~shellConfig: option<Config.shellConfig>,
@@ -247,6 +245,78 @@ let runShellCommands = (
     ~shell,
   )
 }
+
+// ---------- shell.enabled gate (plan 039) ----------
+
+suite("ShellExecutor shell.enabled gate", () => {
+  let toolCommand: Template.shellCommand = {
+    target: ToolCall({name: "echo", toolDef: {name: "echo", command: "echo", args: ["hello"]}, sourcePath: "test"}),
+    sourcePath: "test",
+  }
+  let scriptCommand: Template.shellCommand = {
+    target: ScriptFile("scripts/setup.sh"),
+    sourcePath: "test",
+  }
+
+  testAsync("disabled ToolCall refuses execution", resolve => {
+    let tracking = makeTrackingShell()
+    runShellCommands(~commands=[toolCommand], ~shellConfig=Some({enabled: false}), ~shell=tracking.shell)
+    ->Promise.then(result => {
+      assert_eq(result, Error("Shell execution disabled"))
+      assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("disabled ScriptFile refuses execution", resolve => {
+    let tracking = makeTrackingShell()
+    runShellCommands(~commands=[scriptCommand], ~shellConfig=Some({enabled: false}), ~shell=tracking.shell)
+    ->Promise.then(result => {
+      assert_eq(result, Error("Shell execution disabled"))
+      assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("enabled ToolCall and ScriptFile still execute", resolve => {
+    let tracking = makeTrackingShell()
+    let fs = makeFs(~fileExistsResult=true)
+    runShellCommands(
+      ~commands=[toolCommand, scriptCommand],
+      ~shellConfig=Some({enabled: true, tools: [{name: "echo", command: "echo"}]}),
+      ~shell=tracking.shell,
+      ~fs,
+    )->Promise.then(result => {
+      assert_eq(tracking.execFileAsyncCalls, ["echo|hello", "/workspace/project/scripts/setup.sh|"])
+      assert_eq(result, Ok(2))
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("missing shell config refuses both ToolCall and ScriptFile", resolve => {
+    let toolTracking = makeTrackingShell()
+    let scriptTracking = makeTrackingShell()
+    runShellCommands(~commands=[toolCommand], ~shellConfig=None, ~shell=toolTracking.shell)
+    ->Promise.then(toolResult => {
+      runShellCommands(
+        ~commands=[scriptCommand], ~shellConfig=None, ~shell=scriptTracking.shell,
+        ~fs=makeFs(~fileExistsResult=true),
+      )->Promise.then(scriptResult => {
+        assert_eq(toolResult, Error("Shell execution disabled"))
+        assert_eq(scriptResult, Error("Shell execution disabled"))
+        assert_eq(toolTracking.execFileAsyncCalls->Array.length, 0)
+        assert_eq(scriptTracking.execFileAsyncCalls->Array.length, 0)
+        resolve()
+        Promise.resolve()
+      })
+    })->ignore
+  })
+})
+
+// ---------- executeShellCommands — ToolCall ----------
 
 suite("ShellExecutor.executeShellCommands — ToolCall", () => {
   testAsync("ToolCall with args routes to execFileAsync with command and args", resolve => {
@@ -792,7 +862,8 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
         sourcePath: "/src/t.ejs.t",
       },
     ]
-    let shellConfig: option<Config.shellConfig> = None
+    // shell.enabled gate (plan 039)
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true})
     let shell = makeShell()
     runShellCommands(~commands, ~shellConfig, ~shell)
     ->Promise.then(result => {
@@ -814,7 +885,8 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
         sourcePath: "/src/t.ejs.t",
       },
     ]
-    let shellConfig: option<Config.shellConfig> = None
+    // shell.enabled gate (plan 039)
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true})
     let fs = makeFs(~fileExistsResult=false)
     let shell = makeShell()
     runShellCommands(~commands, ~shellConfig, ~fs, ~shell)
@@ -837,7 +909,8 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
         sourcePath: "/src/t.ejs.t",
       },
     ]
-    let shellConfig: option<Config.shellConfig> = None
+    // shell.enabled gate (plan 039)
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true})
     let fs = makeFs(~fileExistsResult=true)
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell, ~fs)
     ->Promise.then(result => {
@@ -867,7 +940,8 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
       ~commands,
       ~cwd,
       ~stagingDir=cwd,
-      ~shellConfig=None,
+      // shell.enabled gate (plan 039)
+      ~shellConfig=Some({enabled: true}),
       ~fs,
       ~path,
       ~process=makeProcess(),
@@ -888,7 +962,8 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
         sourcePath: "/src/t.ejs.t",
       },
     ]
-    let shellConfig: option<Config.shellConfig> = None
+    // shell.enabled gate (plan 039)
+    let shellConfig: option<Config.shellConfig> = Some({enabled: true})
     let fs = makeFs(~fileExistsResult=true)
     let shell = makeShell(~execFileAsyncKilled=true)
     runShellCommands(~commands, ~shellConfig, ~fs, ~shell)
