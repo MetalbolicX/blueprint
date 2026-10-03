@@ -846,8 +846,8 @@ suite("Phase2", () => {
       | Error(err) => {
           assert_true(String.includes(err.message, "Fetch failed"))
           switch err.partialCommit {
-          | Some(files) => assert_eq(Array.length(files), 1)
-          | None => assert_false(true)
+          | None => ()
+          | Some(_) => assert_false(true)
           }
         }
       }
@@ -913,8 +913,8 @@ suite("Phase2", () => {
       | Error(err) => {
           assert_true(String.includes(err.message, "Tool 'failing-tool' exited with code"))
           switch err.partialCommit {
-          | Some(files) => assert_eq(Array.length(files), 1)
-          | None => assert_false(true)
+          | None => ()
+          | Some(_) => assert_false(true)
           }
         }
       }
@@ -977,8 +977,8 @@ suite("Phase2", () => {
       | Error(err) => {
           assert_true(String.includes(err.message, "Script exited with code 9"))
           switch err.partialCommit {
-          | Some(files) => assert_eq(Array.length(files), 2)
-          | None => assert_false(true)
+          | None => ()
+          | Some(_) => assert_false(true)
           }
         }
       }
@@ -1059,6 +1059,10 @@ suite("Phase2", () => {
       | Error(err) => {
           assert_true(String.includes(err.message, "always-fail"))
           assert_eq(err.catastrophic, None)
+          switch err.partialCommit {
+          | None => ()
+          | Some(_) => assert_false(true)
+          }
         }
       }
       NodeJs.Fs.readFile(outputOverwrite, ~options={encoding: "utf8"})
@@ -1205,8 +1209,8 @@ suite("Phase2", () => {
       | Error(err) => {
           assert_true(String.includes(err.message, "copy blocked"))
           switch err.partialCommit {
-          | Some(files) => assert_eq(Array.length(files), 1)
-          | None => assert_false(true)
+          | None => ()
+          | Some(_) => assert_false(true)
           }
           switch err.catastrophic {
           | Some(true) => ()
@@ -1277,11 +1281,8 @@ suite("Phase2", () => {
       switch result {
       | Ok(_) => assert_false(true)
       | Error(err) => switch err.partialCommit {
-        | Some(files) => {
-            assert_eq(Array.length(files), 1)
-            assert_true(String.endsWith(files[0]->Option.getOr(""), "keep.txt"))
-          }
-        | None => assert_false(true)
+        | None => ()
+        | Some(_) => assert_false(true)
         }
       }
       NodeJs.Fs.readFile(outputKeep)
