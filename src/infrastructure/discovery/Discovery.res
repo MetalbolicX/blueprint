@@ -20,6 +20,46 @@ let isManifestFile: string => bool = filename => {
   filename == "manifest.yaml"
 }
 
+let maxConcurrent = 8
+
+// Run async factories with bounded concurrency while retaining input order.
+let mapBounded: (array<'a>, 'a => promise<'b>) => promise<array<'b>> = async (items, load) => {
+  let length = Array.length(items)
+  let cursor = ref(0)
+  let results: array<option<'b>> = Array.make(~length, None)
+
+  let rec worker = async () => {
+    let index = cursor.contents
+    if index < length {
+      cursor := index + 1
+      switch items[index] {
+      | Some(item) => {
+          let value = await load(item)
+          results[index] = Some(value)
+          await worker()
+        }
+      | None => await worker()
+      }
+    }
+  }
+
+  let workerCount = min(maxConcurrent, length)
+  let workers = Array.make(~length=workerCount, ())
+  let _ = await Promise.all(workers->Array.map(_ => worker()))
+  results->Array.map(result => switch result {
+  | Some(value) => value
+  | None => JsError.throwWithMessage("mapBounded worker did not produce a result")
+  })
+}
+
+let _errorMessage = (exn: exn, fallback: string): string => switch exn {
+| JsExn(obj) => JsExn.message(obj)->Option.getOr(fallback)
+| _ => fallback
+}
+
+let _isNotFound = (msg: string): bool =>
+  String.startsWith(msg, "ENOENT:") || String.includes(msg, "no such file or directory")
+
 // Load and parse a single template file
 let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<option<template>> = async (
   ~fs,
@@ -55,7 +95,10 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
     if String.startsWith(msg, "Parse error in ") {
       Console.warn(msg)
       None
+    } else if _isNotFound(msg) {
+      None
     } else {
+      Console.warn("Skipping template " ++ sourcePath ++ ": " ++ msg)
       None
     }
   }
@@ -133,10 +176,15 @@ let loadGeneratorTemplates: (~fs: Ports.fileSystem, ~path: Ports.path, string) =
   let actionEntries = try {
     await fs.readdir(genPath, ~options={withFileTypes: false})
   } catch {
-  | JsExn(_) => []
+  | exn =>
+    let msg = _errorMessage(exn, "Failed to read directory " ++ genPath)
+    if !_isNotFound(msg) {
+      Console.warn("Skipping directory " ++ genPath ++ ": " ++ msg)
+    }
+    []
   }
 
-  let actionTmplPromises = actionEntries->Array.map(async actionName => {
+  let actionTemplatePaths = await mapBounded(actionEntries, async actionName => {
     let actionPath = path.join(genPath, actionName)
     let actionStat = try {
       Some(await fs.stat(actionPath))
@@ -149,27 +197,23 @@ let loadGeneratorTemplates: (~fs: Ports.fileSystem, ~path: Ports.path, string) =
       let files = try {
         await fs.readdir(actionPath, ~options={withFileTypes: false})
       } catch {
-      | JsExn(_) => []
+      | exn =>
+        let msg = _errorMessage(exn, "Failed to read directory " ++ actionPath)
+        if !_isNotFound(msg) {
+          Console.warn("Skipping directory " ++ actionPath ++ ": " ++ msg)
+        }
+        []
       }
 
-      let filePromises = files->Array.map(fname => {
-        if isTemplateFile(fname) {
-          let fpath = path.join(actionPath, fname)
-          _loadTemplate(~fs, ~path, fpath)
-        } else {
-          Promise.resolve(None)
-        }
-      })
-
-      let loaded = await Promise.all(filePromises)
-      loaded->Array.filterMap(x => x)
+      files->Array.filter(isTemplateFile)->Array.map(fname => path.join(actionPath, fname))
     }
     | _ => []
     }
   })
 
-  let allActionTemplates = await Promise.all(actionTmplPromises)
-  allActionTemplates->Array.reduce([], (acc, t) => acc->Array.concat(t))
+  let templatePaths = actionTemplatePaths->Array.reduce([], (acc, paths) => acc->Array.concat(paths))
+  let loaded = await mapBounded(templatePaths, sourcePath => _loadTemplate(~fs, ~path, sourcePath))
+  loaded->Array.filterMap(x => x)
 }
 
 // Discover all generators under a base directory
@@ -281,7 +325,12 @@ let discoverGenerators: (
                   let actionEntries = try {
                     await fs.readdir(genPath, ~options={withFileTypes: false})
                   } catch {
-                  | JsExn(_) => []
+                  | exn =>
+                    let msg = _errorMessage(exn, "Failed to read directory " ++ genPath)
+                    if !_isNotFound(msg) {
+                      Console.warn("Skipping directory " ++ genPath ++ ": " ++ msg)
+                    }
+                    []
                   }
                   let actionChecks = await Promise.all(actionEntries->Array.map(async actionName => {
                     let actionPath = path.join(genPath, actionName)
