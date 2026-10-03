@@ -59,9 +59,20 @@ type validationError = {
   message: string,
 }
 
+// Drive-letter check is an explicit char test: RegExp pattern-string APIs
+// have version-dependent escaping semantics (review ruling, plan 051
+// re-review) — this is unambiguous by construction.
+let _isDrivePath: string => bool = %raw(`
+  function(cmd) {
+    if (cmd.length < 2 || cmd.charCodeAt(1) !== 58 /* ':' */) return false;
+    var c = cmd.charCodeAt(0);
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+  }
+`)
+
 // Validate a hook path: no absolute paths, no ".." segments
 let validateHookPath: (string, string) => option<string> = (hookName, path) => {
-  if path->String.includes("/") && path->String.startsWith("/") {
+  if path->String.startsWith("/") || path->String.startsWith("\\") || _isDrivePath(path) {
     Some(hookName ++ ": absolute paths are not allowed: " ++ path)
   } else if path->String.includes("..") {
     Some(hookName ++ ": paths with '..' segments are not allowed: " ++ path)

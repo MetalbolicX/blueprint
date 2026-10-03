@@ -9,7 +9,20 @@ type hookResult = {
   exitCode: int,
 }
 
-let _isPath: string => bool = cmd => Js.String.includes("/", cmd)
+// Windows-style separators and drive roots are paths too (plan 051).
+// Drive-letter check is an explicit char test: RegExp pattern-string APIs
+// have version-dependent escaping semantics (review ruling, plan 051
+// re-review) — this is unambiguous by construction.
+let _isDrivePath: string => bool = %raw(`
+  function(cmd) {
+    if (cmd.length < 2 || cmd.charCodeAt(1) !== 58 /* ':' */) return false;
+    var c = cmd.charCodeAt(0);
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+  }
+`)
+
+let _isPath: string => bool = cmd =>
+  Js.String.includes("/", cmd) || Js.String.includes("\\", cmd) || _isDrivePath(cmd)
 
 // Match ShellExecutor's deliberately conservative tokenization.
 let tokenizeCommand: string => option<array<string>> = %raw(`command => {

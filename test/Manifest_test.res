@@ -604,6 +604,31 @@ suite("Manifest", () => {
     }
   })
 
+  test("parse: Windows absolute paths in pre_generate are rejected with field name", () => {
+    let driveYaml = "name: x\nclassification: y\nhooks:\n  pre_generate: C:\\\\x.cmd\n"
+    let driveResult = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=driveYaml)
+    switch driveResult {
+    | Error(msg) => assert_true(String.includes(msg, "pre_generate"))
+    | Ok(_) => assert_false(true)
+    }
+
+    let rootedYaml = "name: x\nclassification: y\nhooks:\n  pre_generate: '\\\\x.cmd'\n"
+    let rootedResult = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=rootedYaml)
+    switch rootedResult {
+    | Error(msg) => assert_true(String.includes(msg, "pre_generate"))
+    | Ok(_) => assert_false(true)
+    }
+  })
+
+  test("parse: relative hook path remains accepted", () => {
+    let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: ./ok.sh\n"
+    let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)
+    switch result {
+    | Ok(_) => assert_true(true)
+    | Error(_) => assert_false(true)
+    }
+  })
+
   test("parse: parent-segment path in pre_generate is rejected", () => {
     let yaml = "name: x\nclassification: y\nhooks:\n  pre_generate: ../evil.sh\n"
     let result = Manifest.parse(~yamlParser=stubYamlParser, ~yaml=yaml)

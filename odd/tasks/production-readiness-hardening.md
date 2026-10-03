@@ -107,7 +107,7 @@ Feature implementation complete (six implementation work units, two verifier fix
 
 1. DNS-rebinding connect-time pinning (undici custom dispatcher) — residual TOCTOU, documented inline in Fetcher.res.
 2. `::/96` deprecated IPv4-compatible IPv6 form classifies Public (pre-existing; non-routable legacy).
-3. Windows backslash hook commands (`.\scripts\hook.cmd`) skip tree containment (`_isPath` checks `/` only); allowlist still gates (T5 verifier residual #1).
+3. Windows backslash/drive-letter hook path validation and classification are closed by plan 051 (`Hooks._isPath` recognizes `\\` and drive roots; `Manifest.validateHookPath` rejects Windows-absolute forms). Windows-runtime execution remains unverified (static classification only; no Windows execution performed); allowlist still gates.
 4. Symlink/file-swap TOCTOU between realpath validation and execFile (inherent window).
 5. `hooks.timeout <= 0` passthrough (0 = no timeout in Node); clamp covers upper bound only.
 6. Stale ExecPolicy ShellExact doc comment; dead defensive ShellExact branch; unused `execAsync` port + raw `exec` binding (removal candidates).
