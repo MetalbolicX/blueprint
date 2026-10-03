@@ -8,6 +8,7 @@ open EngineResult
 let runPreHook: (
   ~config: option<Config.config>,
   ~projectRoot: string,
+  ~hooks: Ports.hooks,
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
@@ -15,9 +16,10 @@ let runPreHook: (
   ~scriptRoot: string=?,
   ~cwd: string=?,
   ~preHook: option<Config.hookCommand>=?,
-) => promise<result<Hooks.hookResult, string>> = async (
+) => promise<result<Ports.hookResult, string>> = async (
   ~config,
   ~projectRoot,
+  ~hooks,
   ~shell,
   ~process,
   ~path,
@@ -38,10 +40,10 @@ let runPreHook: (
     }
   }
   switch effectiveHook {
-  | None => Ok({hookType: Hooks.PreGenerate, output: "", exitCode: 0})
+  | None => Ok({hookType: Ports.PreGenerate, output: "", exitCode: 0})
   | Some(hook) =>
-     let shellConfig = config->Option.flatMap(c => c.shell)
-     let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
+    let shellConfig = config->Option.flatMap(c => c.shell)
+    let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
     let timeout = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.timeout)
     // Build hooks config with explicit preGenerate
     let hooksCfg: Config.hooksConfig = {
@@ -52,7 +54,7 @@ let runPreHook: (
       hooks: hooksCfg,
       shell: ?shellConfig,
     }
-     await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PreGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
+    await hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Ports.PreGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
   }
 }
 
@@ -60,6 +62,7 @@ let runPostHook: (
   ~config: option<Config.config>,
   ~projectRoot: string,
   ~result: generateResult,
+  ~hooks: Ports.hooks,
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
@@ -71,6 +74,7 @@ let runPostHook: (
   ~config,
   ~projectRoot,
   ~result,
+  ~hooks,
   ~shell,
   ~process,
   ~path,
@@ -93,8 +97,8 @@ let runPostHook: (
   switch effectiveHook {
   | None => Ok(result)
   | Some(hook) =>
-     let shellConfig = config->Option.flatMap(c => c.shell)
-     let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
+    let shellConfig = config->Option.flatMap(c => c.shell)
+    let toolsAllowlist = shellConfig->Option.flatMap(s => s.tools)->Option.map(tools => tools->Array.map(tool => tool.command))
     let timeout = config->Option.flatMap(c => c.hooks)->Option.flatMap(h => h.timeout)
     let hooksCfg: Config.hooksConfig = {
       postGenerate: hook,
@@ -104,7 +108,7 @@ let runPostHook: (
       hooks: hooksCfg,
       shell: ?shellConfig,
     }
-     let hookResult = await Hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Hooks.PostGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
+    let hookResult = await hooks.run(~config=hookConfig, ~projectRoot, ~hookType=Ports.PostGenerate, ~shellConfig, ~shell, ~process, ~path, ~fs, ~scriptRoot, ~cwd, ~toolsAllowlist)
     switch hookResult {
     | Error(e) => Error(e)
     | Ok(_) => Ok(result)

@@ -42,6 +42,7 @@ let runConflictGeneration = (~tmpDir, ~templates, ~answer, ~force, ~askCount) =>
     pathSecurity: NodeJsPathSecurity.make(),
     shellBuilder: NodeJsShellBuilder.make(),
     envFilter: NodeJsEnvFilter.make(),
+    hooks: NodeJsHooks.make(),
   }
   let gen: Discovery.generator = {name: "conflict-test", path: tmpDir, templates}
   Engine.run(

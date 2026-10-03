@@ -87,6 +87,7 @@ let run: (
   let preHookResult = switch await EngineHooks.runPreHook(
     ~config,
     ~projectRoot=resolvedProjectRoot,
+    ~hooks=deps.hooks,
     ~shell,
     ~process=proc,
     ~path,
@@ -265,6 +266,7 @@ let run: (
               ~config,
               ~projectRoot=resolvedProjectRoot,
               ~result,
+              ~hooks=deps.hooks,
               ~shell,
               ~process=proc,
               ~path,

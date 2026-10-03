@@ -7,6 +7,8 @@ type readdirOptions = {withFileTypes: bool}
 type statResult = {isDirectory: unit => bool, isFile: unit => bool, mtimeMs?: float}
 type lstatResult = {isDirectory: unit => bool, isFile: unit => bool, isSymbolicLink: unit => bool}
 
+type hookType = PreGenerate | PostGenerate
+type hookResult = {hookType: hookType, output: string, exitCode: int}
 type yamlParser = {parse: string => result<JSON.t, string>}
 type ejs = {
   renderString: (~template: string, ~context: dict<string>) => result<string, string>,
@@ -64,6 +66,22 @@ type interactiveIO = {
 }
 type parsedArgs = {values: dict<string>, positionals: array<string>}
 type argParser = {parse: (~args: array<string>, ~strict: bool, ~allowPositionals: bool) => result<parsedArgs, string>}
+type hooks = {
+  run: (
+    ~config: ConfigTypes.config,
+    ~projectRoot: string,
+    ~hookType: hookType,
+    ~shellConfig: option<ConfigTypes.shellConfig>,
+    ~shell: shell,
+    ~process: process,
+    ~path: path,
+    ~fs: fileSystem,
+    ~scriptRoot: string=?,
+    ~cwd: string=?,
+    ~toolsAllowlist: option<array<string>>=?,
+  ) => promise<result<hookResult, string>>,
+}
+
 type deps = {
   fs: fileSystem,
   path: path,
@@ -77,4 +95,5 @@ type deps = {
   pathSecurity: pathSecurity,
   shellBuilder: shellBuilder,
   envFilter: envFilter,
+  hooks: hooks,
 }

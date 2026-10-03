@@ -37,6 +37,7 @@ let makeDeps = (
     pathSecurity: NodeJsPathSecurity.make(),
     shellBuilder: NodeJsShellBuilder.make(),
     envFilter: NodeJsEnvFilter.make(),
+    hooks: NodeJsHooks.make(),
   }
 }
 

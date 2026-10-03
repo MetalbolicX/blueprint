@@ -4,6 +4,7 @@ open EngineResult
 let runPreHook: (
   ~config: option<Config.config>,
   ~projectRoot: string,
+  ~hooks: Ports.hooks,
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,
@@ -11,12 +12,13 @@ let runPreHook: (
   ~scriptRoot: string=?,
   ~cwd: string=?,
   ~preHook: option<Config.hookCommand>=?,
-) => promise<result<Hooks.hookResult, string>>
+) => promise<result<Ports.hookResult, string>>
 
 let runPostHook: (
   ~config: option<Config.config>,
   ~projectRoot: string,
   ~result: generateResult,
+  ~hooks: Ports.hooks,
   ~shell: Ports.shell,
   ~process: Ports.process,
   ~path: Ports.path,

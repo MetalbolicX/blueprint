@@ -18,10 +18,10 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       let hook: Config.hookCommand = {
         command: "echo hello",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Ports.PostGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
-        | Ok(hookResult) => assert_eq(hookResult.hookType, Hooks.PostGenerate)
+        | Ok(hookResult) => assert_eq(hookResult.hookType, Ports.PostGenerate)
         | Error(_) => assert_false(true)
         }
         resolve()
@@ -34,7 +34,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       let hook: Config.hookCommand = {
         command: "echo hook-no-args",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(hookResult) => {
@@ -55,7 +55,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
     testAsync("executeHook: tokenizes non-path command into execFile arguments", resolve => {
       let recorded = ref(("", [], None))
       let hook: Config.hookCommand = {command: "npm test"}
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1234, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1234, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(_) => {
@@ -73,7 +73,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
 
     testAsync("executeHook: rejects shell metacharacters with hook name", resolve => {
       let hook: Config.hookCommand = {command: "npm test && echo bad"}
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(message) => assert_true(String.includes(message, "pre_generate hook failed") || String.includes(message, "npm test"))
@@ -87,7 +87,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
     testAsync("executeHook: configured tools allowlist rejects other binaries", resolve => {
       let recorded = ref(("", [], None))
       let hook: Config.hookCommand = {command: "git status"}
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter, ~toolsAllowlist=Some(["npm"]))
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter, ~toolsAllowlist=Some(["npm"]))
       ->Promise.then(result => {
         switch result {
         | Error(message) => assert_true(String.includes(message, "tools allowlist"))
@@ -102,7 +102,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
     testAsync("executeHook: unset tools allowlist permits tokenized binary", resolve => {
       let recorded = ref(("", [], None))
       let hook: Config.hookCommand = {command: "npm test"}
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter, ~toolsAllowlist=None)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeRecordingShell(recorded), ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter, ~toolsAllowlist=None)
       ->Promise.then(result => {
         switch result {
         | Ok(_) => assert_eq(recorded.contents, ("npm", ["test"], Some(1000)))
@@ -121,7 +121,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
         },
       }
 
-      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Ports.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(postResult => {
         switch postResult {
         | Ok(_) =>
@@ -131,7 +131,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
               timeout: 1,
             },
           }
-          Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+          Hooks.run(~config=cfgNoPre, ~projectRoot=".", ~hookType=Ports.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
           ->Promise.then(preResult => {
             switch preResult {
             | Ok(_) => assert_true(true)
@@ -158,7 +158,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
         },
       }
 
-      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Ports.PostGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(_) => assert_true(true)
@@ -176,7 +176,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       let hook: Config.hookCommand = {
         command: "../evil.sh",
       }
-      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -192,7 +192,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       let hook: Config.hookCommand = {
         command: "/etc/passwd",
       }
-      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
@@ -206,7 +206,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
 
     testAsync("executeHook: path-like commands retain tree containment", resolve => {
       let hook: Config.hookCommand = {command: "../outside.sh"}
-      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd="/tmp", ~timeout=1000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(message) => assert_true(String.includes(message, "outside project tree"))
@@ -222,7 +222,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
         command: "printf",
         args: ["%s", "HOME-is-set"],
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=5000, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Ok(hookResult) => {
@@ -241,7 +241,7 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
       let hook: Config.hookCommand = {
         command: "sleep 10",
       }
-      Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.executeHook(~hook, ~cwd=".", ~timeout=100, ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(result => {
         switch result {
         | Error(_msg) => assert_true(true) 
@@ -260,11 +260,11 @@ let runTests = (label, processAdapter, shellAdapter, pathAdapter, fsAdapter) => 
           timeout: 5,
         },
       }
-      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Hooks.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
+      Hooks.run(~config=cfg, ~projectRoot=".", ~hookType=Ports.PreGenerate, ~shellConfig=None, ~shell=shellAdapter, ~process=processAdapter, ~path=pathAdapter, ~fs=fsAdapter)
       ->Promise.then(r => {
         switch r {
         | Ok(hookResult) => {
-            assert_eq(hookResult.hookType, Hooks.PreGenerate)
+            assert_eq(hookResult.hookType, Ports.PreGenerate)
             assert_true(String.includes(hookResult.output, "\"k\""))
             assert_true(String.includes(hookResult.output, "hello"))
           }

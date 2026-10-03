@@ -164,6 +164,7 @@ suite("Ports", () => {
       envFilter: {
         buildSafeEnv: (_, inheritedEnv) => inheritedEnv,
       },
+      hooks: TestPorts.stubHooks,
     }
     assert_true(true)
   })

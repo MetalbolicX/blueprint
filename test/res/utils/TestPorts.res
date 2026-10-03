@@ -63,3 +63,5 @@ let stubShellBuilder: shellBuilder = {
 let stubEnvFilter: envFilter = {
   buildSafeEnv: (config, inheritedEnv) => NodeJsEnvFilter.make().buildSafeEnv(config, inheritedEnv),
 }
+
+let stubHooks: hooks = {run: Hooks.run}

@@ -1,10 +1,5 @@
-type hookType = PreGenerate | PostGenerate
-
-type hookResult = {
-  hookType: hookType,
-  output: string,
-  exitCode: int,
-}
+type hookType = Ports.hookType
+type hookResult = Ports.hookResult
 
 let executeHook: (
   ~hook: Config.hookCommand,

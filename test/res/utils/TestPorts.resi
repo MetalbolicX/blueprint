@@ -10,3 +10,4 @@ let stubFetcher: fetcher
 let stubPathSecurity: pathSecurity
 let stubShellBuilder: shellBuilder
 let stubEnvFilter: envFilter
+let stubHooks: hooks

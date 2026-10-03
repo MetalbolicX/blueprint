@@ -62,6 +62,7 @@ let makeDeps = (~cwd: string, ~answers: array<string>, ~confirmAnswers: array<bo
     pathSecurity: NodeJsPathSecurity.make(),
     shellBuilder: NodeJsShellBuilder.make(),
     envFilter: NodeJsEnvFilter.make(),
+    hooks: NodeJsHooks.make(),
   }
   (deps, harness)
 }

@@ -17,6 +17,7 @@ let deps: Ports.deps = {
   pathSecurity: NodeJsPathSecurity.make(),
   shellBuilder: NodeJsShellBuilder.make(),
   envFilter: NodeJsEnvFilter.make(),
+  hooks: NodeJsHooks.make(),
 }
 
 suite("Integration E2E", () => {

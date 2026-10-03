@@ -36,6 +36,7 @@ let makeDeps = (~cwd: string, ~exitCodes: ref<array<int>>): Ports.deps => {
     pathSecurity: NodeJsPathSecurity.make(),
     shellBuilder: NodeJsShellBuilder.make(),
     envFilter: NodeJsEnvFilter.make(),
+    hooks: NodeJsHooks.make(),
   }
 }
 
