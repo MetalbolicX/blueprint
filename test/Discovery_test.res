@@ -2,6 +2,26 @@
 
 open TestHelpers
 
+let makeCountingFs = (readPaths: ref<array<string>>): Ports.fileSystem => {
+  let base = NodeJsFileSystem.make()
+  {
+    readFile: (file, ~options=?) => {
+      readPaths := readPaths.contents->Array.concat([file])
+      base.readFile(file, ~options?)
+    },
+    writeFile: (file, content, ~options=?) => base.writeFile(file, content, ~options?),
+    mkdir: (dir, ~options=?) => base.mkdir(dir, ~options?),
+    rm: (target, ~options=?) => base.rm(target, ~options?),
+    cp: (fromPath, toPath, ~options=?) => base.cp(fromPath, toPath, ~options?),
+    readdir: (dir, ~options=?) => base.readdir(dir, ~options?),
+    fileExists: file => base.fileExists(file),
+    stat: file => base.stat(file),
+    lstat: file => base.lstat(file),
+    realpath: file => base.realpath(file),
+    makeStagingDir: prefix => base.makeStagingDir(prefix),
+  }
+}
+
 suite("Discovery", () => {
   let fs = NodeJsFileSystem.make()
   let pathAdapter = NodeJsPath.make()
@@ -388,5 +408,125 @@ suite("Discovery", () => {
         throw(exn)
       })
     })
+  })
+
+  testAsync("discoverGenerators loads template bodies only for selected generator", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let readPaths = ref([])
+    let countingFs = makeCountingFs(readPaths)
+    let generators = ["A", "B", "C"]
+    let setup = generators->Array.map(generator => {
+      let genDir = NodeJs.Path.join(tmpDir, generator)
+      let actionDir = NodeJs.Path.join(genDir, "new")
+      NodeJs.Fs.mkdir(actionDir, ~options={recursive: true})
+      ->Promise.then(_ => NodeJs.Fs.writeFile(
+        NodeJs.Path.join(genDir, "manifest.yaml"),
+        "name: " ++ generator ++ "\nclassification: " ++ generator ++ "\nprompts: []\n",
+      ))
+      ->Promise.then(_ => NodeJs.Fs.writeFile(
+        NodeJs.Path.join(actionDir, "one.txt.ejs.t"), "---\nto: one.txt\n---\none",
+      ))
+      ->Promise.then(_ => NodeJs.Fs.writeFile(
+        NodeJs.Path.join(actionDir, "two.txt.ejs.t"), "---\nto: two.txt\n---\ntwo",
+      ))
+    })
+
+    let _ = Promise.all(setup)->Promise.then(_ =>
+      Discovery.discoverGenerators(
+        ~fs=countingFs,
+        ~path=pathAdapter,
+        ~yamlParser,
+        ~searchPaths=[tmpDir],
+        (),
+      )
+    )->Promise.then(metas => {
+      let selected = Discovery.findByClassificationMeta(metas, "B")
+      switch selected {
+      | None => {
+          assert_false(true)
+          resolve()
+          Promise.resolve()
+        }
+      | Some(meta) => {
+          assert_eq(meta.path, NodeJs.Path.join(tmpDir, "B"))
+          Discovery.loadGeneratorTemplates(~fs=countingFs, ~path=pathAdapter, meta.path)
+          ->Promise.then(templates => {
+            assert_eq(Array.length(templates), 2)
+            let bodyReads = readPaths.contents->Array.filter(p => String.endsWith(p, ".ejs.t"))
+            assert_eq(Array.length(bodyReads), 2)
+            assert_true(bodyReads->Array.every(p => String.startsWith(p, meta.path)))
+            let manifestReads = readPaths.contents->Array.filter(p => String.endsWith(p, "manifest.yaml"))
+            assert_true(Array.length(manifestReads) <= 3)
+            resolve()
+            Promise.resolve()
+          })
+        }
+      }
+    })->Promise.catch(exn => { throw(exn) })
+  })
+
+  testAsync("discoverGenerators skips invalid manifests before template reads", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let readPaths = ref([])
+    let countingFs = makeCountingFs(readPaths)
+    let entries = [("good", "prompts: []"), ("bad", "prompts: [unterminated"), ("other", "prompts: []")]
+    let setup = entries->Array.map(((name, manifestBody)) => {
+      let genDir = NodeJs.Path.join(tmpDir, name)
+      let actionDir = NodeJs.Path.join(genDir, "new")
+      NodeJs.Fs.mkdir(actionDir, ~options={recursive: true})
+      ->Promise.then(_ => NodeJs.Fs.writeFile(
+        NodeJs.Path.join(genDir, "manifest.yaml"),
+        "name: " ++ name ++ "\nclassification: " ++ name ++ "\n" ++ manifestBody ++ "\n",
+      ))
+      ->Promise.then(_ => NodeJs.Fs.writeFile(
+        NodeJs.Path.join(actionDir, "file.txt.ejs.t"), "---\nto: file.txt\n---\nbody",
+      ))
+    })
+
+    let _ = Promise.all(setup)->Promise.then(_ =>
+      Discovery.discoverGenerators(
+        ~fs=countingFs,
+        ~path=pathAdapter,
+        ~yamlParser,
+        ~searchPaths=[tmpDir],
+        (),
+      )
+    )->Promise.then(metas => {
+      assert_eq(Array.length(metas), 2)
+      switch Discovery.findByClassificationMeta(metas, "good") {
+      | None => {
+          assert_false(true)
+          resolve()
+          Promise.resolve()
+        }
+      | Some(meta) => {
+          Discovery.loadGeneratorTemplates(~fs=countingFs, ~path=pathAdapter, meta.path)
+          ->Promise.then(templates => {
+            assert_eq(Array.length(templates), 1)
+            let badTemplatePath = NodeJs.Path.join(tmpDir, "bad/new/file.txt.ejs.t")
+            assert_false(readPaths.contents->Array.includes(badTemplatePath))
+            resolve()
+            Promise.resolve()
+          })
+        }
+      }
+    })->Promise.catch(exn => { throw(exn) })
+  })
+
+  test("findByClassificationMeta preserves search path precedence", () => {
+    let first: Discovery.generatorMeta = {
+      name: "same",
+      path: "/first/_templates/same",
+      manifest: None,
+    }
+    let later: Discovery.generatorMeta = {
+      name: "same",
+      path: "/later/templates/same",
+      manifest: None,
+    }
+    switch Discovery.findByClassificationMeta([first, later], "same") {
+    | Some(meta) => assert_eq(meta.path, first.path)
+    | None => assert_false(true)
+    }
   })
 })
