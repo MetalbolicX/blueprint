@@ -18,8 +18,12 @@ let runGenerate: (
   ~outputDir,
   ~cliAttributes,
 ) => {
-  let ctx = await ConfigContext.loadConfigContext(~deps, ~fs, ~path)
-
+  switch await ConfigContext.loadConfigContext(~deps, ~fs, ~path) {
+  | Error(e) => {
+      Console.error("Error: " ++ e)
+      deps.process.exit(1)
+    }
+  | Ok(ctx) =>
   switch Config.validateMergedConfig(ctx.merged) {
   | Error(e) => {
       Console.error("Error: " ++ e)
@@ -110,5 +114,6 @@ let runGenerate: (
         }
       }
     }
+  }
   }
 }

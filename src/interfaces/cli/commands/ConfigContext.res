@@ -17,15 +17,17 @@ let loadConfigContext: (
   ~deps: Ports.deps,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<t> = async (~deps, ~fs, ~path) => {
+) => promise<result<t, string>> = async (~deps, ~fs, ~path) => {
   let homeDir = deps.process.homedir()
   let globalConfig = await Config.loadMergedGlobalConfig(~fs, ~path, ~homeDir)
   let cwd = deps.process.cwd()
+  let configPath = path.join(cwd, ".blueprint.yaml")
   let configResult = await Config.loadFrom(~fs, ~path, cwd)
-  let projectConfig = switch configResult {
-  | Ok(c) => c
-  | Error(_) => None
+  switch configResult {
+  | Error(msg) => Error("Invalid project config " ++ configPath ++ ": " ++ msg)
+  | Ok(projectConfig) => {
+      let merged = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
+      Ok({homeDir, globalConfig, projectConfig, merged})
+    }
   }
-  let merged = Config.mergeConfig(~global=globalConfig, ~project=projectConfig)
-  {homeDir, globalConfig, projectConfig, merged}
 }

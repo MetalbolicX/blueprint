@@ -1,10 +1,13 @@
 open TestHelpers
 
-let makeTrackingFs = (~readdirCalls: ref<int>): Ports.fileSystem => {
+let makeTrackingFs = (~readdirCalls: ref<int>, ~writeCalls: ref<int>): Ports.fileSystem => {
   let base = NodeJsFileSystem.make()
   {
     readFile: (file, ~options=?) => base.readFile(file, ~options?),
-    writeFile: (file, content, ~options=?) => base.writeFile(file, content, ~options?),
+    writeFile: (file, content, ~options=?) => {
+      writeCalls.contents = writeCalls.contents + 1
+      base.writeFile(file, content, ~options?)
+    },
     mkdir: (dir, ~options=?) => base.mkdir(dir, ~options?),
     rm: (dir, ~options=?) => base.rm(dir, ~options?),
     cp: (fromPath, toPath, ~options=?) => base.cp(fromPath, toPath, ~options?),
@@ -24,6 +27,7 @@ let makeDeps = (
   ~cwd: string,
   ~exitCodes: ref<array<int>>,
   ~_loggedMessages: ref<array<string>>,
+  ~shellCalls: ref<int>,
 ): Ports.deps => {
   let fs = NodeJsFileSystem.make()
   let path = NodeJsPath.make()
@@ -44,7 +48,16 @@ let makeDeps = (
       removeSignalListeners: () => (),
       homedir: () => "/tmp/test-home",
     },
-    shell: NodeJsShell.make(),
+    shell: {
+      execAsync: (command, ~options=?) => {
+        shellCalls.contents = shellCalls.contents + 1
+        NodeJsShell.make().execAsync(command, ~options?)
+      },
+      execFileAsync: (file, ~args=?, ~options=?) => {
+        shellCalls.contents = shellCalls.contents + 1
+        NodeJsShell.make().execFileAsync(file, ~args?, ~options?)
+      },
+    },
     interactiveIO: {
       ask: _ => Promise.resolve(""),
       askConfirm: (~question as _, ~defaultYes as _=?) => Promise.resolve(false),
@@ -62,12 +75,14 @@ suite("Commands", () => {
   testAsync("runGenerate: invalid timeout exits before discovery runs", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let readdirCalls = ref(0)
+    let writeCalls = ref(0)
+    let shellCalls = ref(0)
     let exitCodes = ref([])
     let loggedMessages: ref<array<string>> = ref([])
   // Store reference so the raw JS can push to it
   let _ = %raw("globalThis.__testMessages = []")
-  let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages)
+  let fs = makeTrackingFs(~readdirCalls, ~writeCalls)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages, ~shellCalls)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
@@ -109,12 +124,14 @@ suite("Commands", () => {
   testAsync("runGenerate: shell enabled without tools exits before discovery runs", resolve => {
     let tmpDir = NodeJs.Os.makeStagingDir()
     let readdirCalls = ref(0)
+    let writeCalls = ref(0)
+    let shellCalls = ref(0)
     let exitCodes = ref([])
     let loggedMessages: ref<array<string>> = ref([])
   // Store reference so the raw JS can push to it
   let _ = %raw("globalThis.__testMessages = []")
-  let fs = makeTrackingFs(~readdirCalls)
-    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages)
+  let fs = makeTrackingFs(~readdirCalls, ~writeCalls)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages, ~shellCalls)
     let path = NodeJsPath.make()
 
     NodeJs.Fs.writeFile(
@@ -144,6 +161,101 @@ suite("Commands", () => {
         switch Array.get(msgs, 0) {
         | Some(msg) => msg->String.includes("Error: shell.enabled=true requires tools to be defined")
         | None => false
+        }
+      )
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("runGenerate: malformed project config fails closed before discovery or writes", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let readdirCalls = ref(0)
+    let writeCalls = ref(0)
+    let shellCalls = ref(0)
+    let exitCodes = ref([])
+    let loggedMessages: ref<array<string>> = ref([])
+    let _ = %raw("globalThis.__testMessages = []")
+    let fs = makeTrackingFs(~readdirCalls, ~writeCalls)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages, ~shellCalls)
+    let path = NodeJsPath.make()
+    let configPath = NodeJs.Path.join(tmpDir, ".blueprint.yaml")
+
+    NodeJs.Fs.writeFile(configPath, "dry_run: [unclosed")
+    ->Promise.then(_ =>
+      Commands.runGenerate(
+        ~fs,
+        ~path,
+        ~deps,
+        ~classification="component",
+        ~name="Button",
+        ~force=false,
+        ~outputDir=NodeJs.Path.join(tmpDir, "out"),
+        ~cliAttributes=Dict.make(),
+      )
+    )
+    ->Promise.then(_ => {
+      assert_eq(Array.length(exitCodes.contents), 1)
+      assert_eq(exitCodes.contents[0], Some(1))
+      assert_eq(readdirCalls.contents, 0)
+      assert_eq(writeCalls.contents, 0)
+      assert_eq(shellCalls.contents, 0)
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_true(
+        switch Array.get(msgs, 0) {
+        | Some(msg) => msg->String.includes("Invalid project config " ++ configPath)
+        | None => false
+        }
+      )
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("loadConfigContext: valid dry_run project config is preserved", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let path = NodeJsPath.make()
+    let exitCodes = ref([])
+    let loggedMessages: ref<array<string>> = ref([])
+    let shellCalls = ref(0)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages, ~shellCalls)
+
+    NodeJs.Fs.writeFile(NodeJs.Path.join(tmpDir, ".blueprint.yaml"), "dry_run: true\n")
+    ->Promise.then(_ => ConfigContext.loadConfigContext(~deps, ~fs, ~path))
+    ->Promise.then(result => {
+      assert_true(
+        switch result {
+        | Ok(ctx) => ctx.merged.dryRun
+        | Error(_) => false
+        }
+      )
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("loadConfigContext: absent project config uses defaults", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let fs = NodeJsFileSystem.make()
+    let path = NodeJsPath.make()
+    let exitCodes = ref([])
+    let loggedMessages: ref<array<string>> = ref([])
+    let shellCalls = ref(0)
+    let deps = makeDeps(~cwd=tmpDir, ~exitCodes, ~_loggedMessages=loggedMessages, ~shellCalls)
+
+    ConfigContext.loadConfigContext(~deps, ~fs, ~path)
+    ->Promise.then(result => {
+      assert_true(
+        switch result {
+        | Ok(ctx) => !ctx.merged.dryRun && ctx.projectConfig == None
+        | Error(_) => false
         }
       )
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
