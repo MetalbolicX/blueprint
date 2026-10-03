@@ -13,6 +13,10 @@ let deps: Ports.deps = {
   argParser: NodeJsArgParser.make(),
   yamlParser: NodeJsYamlParser.make(),
   ejs: NodeJsEjs.make(),
+  fetcher: NodeJsFetcher.make(),
+  pathSecurity: NodeJsPathSecurity.make(),
+  shellBuilder: NodeJsShellBuilder.make(),
+  envFilter: NodeJsEnvFilter.make(),
 }
 
 let staleThresholdMs = 5 * 60 * 1000
@@ -836,6 +840,10 @@ suite("Engine", () => {
       argParser: deps.argParser,
       yamlParser: deps.yamlParser,
       ejs: deps.ejs,
+      fetcher: deps.fetcher,
+      pathSecurity: deps.pathSecurity,
+      shellBuilder: deps.shellBuilder,
+      envFilter: deps.envFilter,
     }
     let gen: Discovery.generator = {
       name: "component",

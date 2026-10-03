@@ -24,6 +24,10 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
   ~tmpRoot: string=?,
   ~commitRollbackRef: ref<option<unit => promise<unit>>>=?,
 ) => promise<result<phase2Result, phase2Error>> = async (
@@ -36,6 +40,10 @@ let run: (
   ~path,
   ~process,
   ~shell,
+  ~fetcher,
+  ~pathSecurity,
+  ~shellBuilder,
+  ~envFilter,
   ~tmpRoot=?,
   ~commitRollbackRef=?,
 ) => {
@@ -109,6 +117,10 @@ let run: (
         ~path,
         ~process,
         ~shell,
+        ~fetcher,
+        ~pathSecurity,
+        ~shellBuilder,
+        ~envFilter,
       )
 
       switch shellResult {

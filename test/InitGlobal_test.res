@@ -33,6 +33,10 @@ let makeDeps = (
     },
     yamlParser: NodeJsYamlParser.make(),
     ejs: NodeJsEjs.make(),
+    fetcher: NodeJsFetcher.make(),
+    pathSecurity: NodeJsPathSecurity.make(),
+    shellBuilder: NodeJsShellBuilder.make(),
+    envFilter: NodeJsEnvFilter.make(),
   }
 }
 

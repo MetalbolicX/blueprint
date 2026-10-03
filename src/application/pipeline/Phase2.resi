@@ -13,6 +13,10 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
 ) => promise<result<int, string>>
 
 let run: (
@@ -25,6 +29,10 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
   ~tmpRoot: string=?,
   ~commitRollbackRef: ref<option<unit => promise<unit>>>=?,
 ) => promise<result<phase2Result, Commit.phase2Error>>

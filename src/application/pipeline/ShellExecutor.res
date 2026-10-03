@@ -69,10 +69,11 @@ let executeFetch = (
   ~stagingDir: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~fetcher: Ports.fetcher,
   ~tmpFiles: array<string>,
   ~countRef: ref<int>,
 ) => {
-  Fetcher.fetch(url)->Promise.then(result => {
+  fetcher.fetch(url)->Promise.then(result => {
     switch result {
     | Ok(content) => {
         let fetchFileName = fetchStagingFileName(url)
@@ -148,6 +149,7 @@ let executeInlineCommand = (
   ~cwd: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~pathSecurity: Ports.pathSecurity,
   ~shellConfig: option<Config.shellConfig>,
   ~shell: Ports.shell,
   ~countRef: ref<int>,
@@ -180,7 +182,7 @@ let executeInlineCommand = (
         Promise.resolve(Error("Command contains shell syntax; use a ToolCall with structured args instead (tools allowlist): " ++ command))
       } else {
         let resolvedCmd = path.resolve(cwd, baseCmd)
-        PathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
+        pathSecurity.isWithinTree(resolvedCmd, cwd, path, fs)->Promise.then(isWithin => {
           if !isWithin {
             Promise.resolve(Error("Command path outside project tree: " ++ baseCmd))
           } else {
@@ -208,6 +210,7 @@ let executeScriptFile = (
   ~cwd: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~pathSecurity: Ports.pathSecurity,
   ~safeEnv: dict<string>,
   ~shell: Ports.shell,
   ~countRef: ref<int>,
@@ -220,7 +223,7 @@ let executeScriptFile = (
     Promise.resolve(Error("Shell execution disabled"))
   } else {
     let resolvedPath = path.resolve(cwd, cmdPath)
-    PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
+    pathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
       if !isWithin {
         Promise.resolve(Error("Script path outside project tree: " ++ cmdPath))
       } else {
@@ -269,6 +272,10 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
   ) => promise<result<int, string>> = (
   ~commands,
   ~cwd,
@@ -278,13 +285,17 @@ let executeShellCommands: (
   ~path,
   ~process,
   ~shell,
+  ~fetcher,
+  ~pathSecurity,
+  ~shellBuilder,
+  ~envFilter,
 ) => {
   let count = ref(0)
   let tmpFiles: array<string> = []
 
   // Build safe env for child process execution
-  let envFilterConfig = shellConfig->Option.flatMap(s => s.env->Option.map(ShellBuilder.buildEnvFilterConfig))
-  let safeEnv = EnvFilter.buildSafeEnv(envFilterConfig, process.env())
+  let envFilterConfig = shellConfig->Option.flatMap(s => s.env->Option.map(shellBuilder.buildEnvFilterConfig))
+  let safeEnv = envFilter.buildSafeEnv(envFilterConfig, process.env())
 
   let promise = commands->Array.reduce(Promise.resolve(Ok()), (acc, cmd) => {
     acc->Promise.then(r => {
@@ -297,6 +308,7 @@ let executeShellCommands: (
             ~stagingDir,
             ~path,
             ~fs,
+            ~fetcher,
             ~tmpFiles,
             ~countRef=count,
           )
@@ -316,6 +328,7 @@ let executeShellCommands: (
             ~fs,
             ~shellConfig,
             ~shell,
+            ~pathSecurity,
             ~countRef=count,
           )
         | ScriptFile(cmdPath) => executeScriptFile(
@@ -326,6 +339,7 @@ let executeShellCommands: (
             ~fs,
             ~safeEnv,
             ~shell,
+            ~pathSecurity,
             ~countRef=count,
           )
         }

@@ -38,6 +38,10 @@ let runConflictGeneration = (~tmpDir, ~templates, ~answer, ~force, ~askCount) =>
     argParser: NodeJsArgParser.make(),
     yamlParser: TestPorts.stubYamlParser,
     ejs: TestPorts.stubEjs,
+    fetcher: NodeJsFetcher.make(),
+    pathSecurity: NodeJsPathSecurity.make(),
+    shellBuilder: NodeJsShellBuilder.make(),
+    envFilter: NodeJsEnvFilter.make(),
   }
   let gen: Discovery.generator = {name: "conflict-test", path: tmpDir, templates}
   Engine.run(

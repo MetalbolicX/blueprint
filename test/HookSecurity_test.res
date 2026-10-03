@@ -521,6 +521,10 @@ suite("HookSecurity", () => {
         execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
         execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
