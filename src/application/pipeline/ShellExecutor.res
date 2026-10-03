@@ -104,32 +104,40 @@ let executeToolCall = (
   ~shell: Ports.shell,
   ~countRef: ref<int>,
 ) => {
-  let toolsAllowlist: array<string> = switch shellConfig {
-  | Some(cfg) =>
-    switch cfg.tools {
-    | Some(tools) => tools->Array.map(tool => tool.command)
+  let shellEnabled = switch shellConfig {
+  | Some(cfg) => cfg.enabled
+  | None => false
+  }
+  if !shellEnabled {
+    Promise.resolve(Error("Shell execution disabled"))
+  } else {
+    let toolsAllowlist: array<string> = switch shellConfig {
+    | Some(cfg) =>
+      switch cfg.tools {
+      | Some(tools) => tools->Array.map(tool => tool.command)
+      | None => [toolDef.command]
+      }
     | None => [toolDef.command]
     }
-  | None => [toolDef.command]
-  }
-  switch ExecPolicy.decide(~command=toolDef.command, ~args=toolDef.args, ~allowlist=toolsAllowlist) {
-  | Reject(reason) => Promise.resolve(Error(reason))
-  | ExecFile(command, args) => execToolAsync(
-      ~run=(~options) => shell.execFileAsync(command, ~args, ~options),
-      ~cwd,
-      ~safeEnv,
-      ~timeout=ExecPolicy.defaultTimeout,
-      ~name,
-      ~countRef,
-    )
-  | ShellExact(command) => execToolAsync(
-      ~run=(~options) => shell.execFileAsync(command, ~options),
-      ~cwd,
-      ~safeEnv,
-      ~timeout=ExecPolicy.defaultTimeout,
-      ~name,
-      ~countRef,
-    )
+    switch ExecPolicy.decide(~command=toolDef.command, ~args=toolDef.args, ~allowlist=toolsAllowlist) {
+    | Reject(reason) => Promise.resolve(Error(reason))
+    | ExecFile(command, args) => execToolAsync(
+        ~run=(~options) => shell.execFileAsync(command, ~args, ~options),
+        ~cwd,
+        ~safeEnv,
+        ~timeout=ExecPolicy.defaultTimeout,
+        ~name,
+        ~countRef,
+      )
+    | ShellExact(command) => execToolAsync(
+        ~run=(~options) => shell.execFileAsync(command, ~options),
+        ~cwd,
+        ~safeEnv,
+        ~timeout=ExecPolicy.defaultTimeout,
+        ~name,
+        ~countRef,
+      )
+    }
   }
 }
 
@@ -195,6 +203,7 @@ let executeInlineCommand = (
 // Handler: ScriptFile — validates path security and file existence,
 // then executes via execFileAsync. Increments count on success.
 let executeScriptFile = (
+  ~shellConfig: option<Config.shellConfig>,
   ~cmdPath: string,
   ~cwd: string,
   ~path: Ports.path,
@@ -203,43 +212,51 @@ let executeScriptFile = (
   ~shell: Ports.shell,
   ~countRef: ref<int>,
 ) => {
-  let resolvedPath = path.resolve(cwd, cmdPath)
-  PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
-    if !isWithin {
-      Promise.resolve(Error("Script path outside project tree: " ++ cmdPath))
-    } else {
-      fs.fileExists(resolvedPath)->Promise.then(exists => {
-        if !exists {
-          Promise.resolve(Error("Script file not found: " ++ cmdPath))
-        } else {
-          let execFileOpts: Ports.shellOptions = {
-            cwd: cwd,
-            env: safeEnv,
-            encoding: "utf8",
-            timeout: ExecPolicy.defaultTimeout,
-          }
-          shell.execFileAsync(resolvedPath, ~options=execFileOpts)->Promise.then(result => {
-            if result.killed {
-              Promise.resolve(Error("Script timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms: " ++ cmdPath))
-            } else {
-              switch result.status {
-              | Some(0) => {
-                  countRef.contents = countRef.contents + 1
-                  Promise.resolve(Ok())
-                }
-              | status => {
-                  Promise.resolve(Error("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath))
+  let shellEnabled = switch shellConfig {
+  | Some(cfg) => cfg.enabled
+  | None => false
+  }
+  if !shellEnabled {
+    Promise.resolve(Error("Shell execution disabled"))
+  } else {
+    let resolvedPath = path.resolve(cwd, cmdPath)
+    PathSecurity.isWithinTree(resolvedPath, cwd, path, fs)->Promise.then(isWithin => {
+      if !isWithin {
+        Promise.resolve(Error("Script path outside project tree: " ++ cmdPath))
+      } else {
+        fs.fileExists(resolvedPath)->Promise.then(exists => {
+          if !exists {
+            Promise.resolve(Error("Script file not found: " ++ cmdPath))
+          } else {
+            let execFileOpts: Ports.shellOptions = {
+              cwd: cwd,
+              env: safeEnv,
+              encoding: "utf8",
+              timeout: ExecPolicy.defaultTimeout,
+            }
+            shell.execFileAsync(resolvedPath, ~options=execFileOpts)->Promise.then(result => {
+              if result.killed {
+                Promise.resolve(Error("Script timed out after " ++ Int.toString(ExecPolicy.defaultTimeout) ++ "ms: " ++ cmdPath))
+              } else {
+                switch result.status {
+                | Some(0) => {
+                    countRef.contents = countRef.contents + 1
+                    Promise.resolve(Ok())
+                  }
+                | status => {
+                    Promise.resolve(Error("Script exited with code " ++ Int.toString(status->Option.getOr(-1)) ++ ": " ++ cmdPath))
+                  }
                 }
               }
-            }
-          })->Promise.catch(e => {
-            let msg = Errors.extractErrorMessage(e)
-            Promise.resolve(Error("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")"))
-          })
-        }
-      })
-    }
-  })
+            })->Promise.catch(e => {
+              let msg = Errors.extractErrorMessage(e)
+              Promise.resolve(Error("Script execution failed: " ++ msg ++ " (" ++ cmdPath ++ ")"))
+            })
+          }
+        })
+      }
+    })
+  }
 }
 
 // Execute all queued shell commands
@@ -302,6 +319,7 @@ let executeShellCommands: (
             ~countRef=count,
           )
         | ScriptFile(cmdPath) => executeScriptFile(
+            ~shellConfig,
             ~cmdPath,
             ~cwd,
             ~path,

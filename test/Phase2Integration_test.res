@@ -474,7 +474,8 @@ suite("Phase2 Integration", () => {
         ~outputDir,
         ~renderedFiles,
         ~shellCommands,
-        ~shellConfig=None,
+        // shell.enabled gate (plan 039)
+        ~shellConfig=Some({enabled: true}),
         ~fs,
         ~path,
         ~process=processAdapter,
