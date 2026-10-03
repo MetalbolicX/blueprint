@@ -10,6 +10,7 @@ let runPhase0: (
   ~force: bool,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>>
 
 let runPhase1: (
@@ -21,6 +22,7 @@ let runPhase1: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<Phase1.phase1Result, string>>

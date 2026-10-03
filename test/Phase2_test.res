@@ -524,7 +524,7 @@ suite("Phase2", () => {
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(exists => {
       assert_true(exists)
-      Commit.rollback(tmpDir, ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make())
+      Commit.rollback(tmpDir, ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs=NodeJsFileSystem.make())
     })
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(existsAfter => {
@@ -548,7 +548,7 @@ suite("Phase2", () => {
       {outputPath: "/output/fail.txt", backupPath: "/backups/fail.txt"},
     ]
 
-    rollbackOutput(~committedFiles, ~backups, ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
+    rollbackOutput(~committedFiles, ~backups, ~outputDir="/output", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -583,7 +583,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == outputNew ? Some("cannot delete") : None,
     )
 
-    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
+    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~outputDir="/output", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -611,7 +611,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == "/tmp/locked-staging" ? Some("permission denied") : None,
     )
 
-    rollback("/tmp/locked-staging", ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~fs)
+    rollback("/tmp/locked-staging", ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)

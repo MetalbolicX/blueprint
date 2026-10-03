@@ -19,6 +19,7 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>>

@@ -48,6 +48,7 @@ suite("TemplateRenderer provenance gate", () => {
       ~conflictDecisions=None,
       ~fs=NodeJsFileSystem.make(),
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
       ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )

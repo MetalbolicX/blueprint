@@ -279,6 +279,7 @@ suite("HookSecurity", () => {
         ~shellConfig=None,
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
         ~ejs=NodeJsEjs.make(),
         ~process=NodeJsProcess.make(),
       )
@@ -327,6 +328,7 @@ suite("HookSecurity", () => {
         ~shellConfig=Some({enabled: true}),
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
         ~ejs=NodeJsEjs.make(),
         ~process=NodeJsProcess.make(),
       )

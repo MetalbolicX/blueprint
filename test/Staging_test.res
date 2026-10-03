@@ -68,6 +68,7 @@ let testWriteStagedFileDeniesTraversal = () => {
       ~targetPath="../../etc/evil",
       ~renderedBody="evil content",
       ~path=mockPath,
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {
@@ -121,6 +122,7 @@ let testWriteStagedFileAcceptsInTreePath = () => {
       ~targetPath="src/index.ts",
       ~renderedBody="export const x = 1",
       ~path=mockPath,
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {

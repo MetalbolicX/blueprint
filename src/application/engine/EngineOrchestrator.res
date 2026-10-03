@@ -132,6 +132,7 @@ let run: (
         ~force,
         ~fs,
         ~path,
+        ~pathSecurity,
       ) {
       | Error(e) => Error({Commit.message: e})
       | Ok((p0, decisions)) => {
@@ -171,6 +172,7 @@ let run: (
         ~shellConfig,
         ~fs,
         ~path,
+        ~pathSecurity,
         ~ejs,
         ~process=proc,
       ) {
@@ -193,7 +195,7 @@ let run: (
         Console.log(
           "Dry run — would generate " ++ Int.toString(p1.renderedFiles->Array.length) ++ " file(s)",
         )
-        switch await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs) {
+        switch await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
         | Ok() => ()
         | Error(message) => Console.warn("Warning: could not clean staging directory " ++ p1.stagingDir ++ ": " ++ message)
         }

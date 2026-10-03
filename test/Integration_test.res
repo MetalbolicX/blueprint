@@ -230,6 +230,7 @@ suite("Integration", () => {
         ~attributes=Dict.make(),
         ~fs=fsAdapter,
         ~path=pathAdapter,
+        ~pathSecurity=TestPorts.stubPathSecurity,
       )
     })
     ->Promise.then(result => {

@@ -16,6 +16,7 @@ let render: (
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<option<renderedOutput>, string>>

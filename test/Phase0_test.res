@@ -12,6 +12,7 @@ let detectRenderedConflicts = async (~templates, ~outputDir, ~force, ~fs, ~path)
     ~attributes=Dict.make(),
     ~fs,
     ~path,
+    ~pathSecurity=TestPorts.stubPathSecurity,
   ) {
   | Ok(conflicts) => conflicts
   | Error(_) => {

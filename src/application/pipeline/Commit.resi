@@ -24,6 +24,7 @@ let commitFiles: (
   ~renderedFiles: array<(string, string)>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~onCommitting: (string, option<backupEntry>) => unit=?,
 ) => promise<result<(int, array<backupEntry>), phase2Error>>
 
@@ -33,6 +34,13 @@ let rollbackOutput: (
   ~outputDir: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<unit, array<rollbackFailure>>>
 
-let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~fs: Ports.fileSystem) => promise<result<unit, string>>
+let rollback: (
+  string,
+  ~tmpRoot: string,
+  ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
+  ~fs: Ports.fileSystem,
+) => promise<result<unit, string>>
