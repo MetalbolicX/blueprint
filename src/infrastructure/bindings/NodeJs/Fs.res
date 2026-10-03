@@ -26,6 +26,9 @@ external writeFile: (string, string, ~options: writeFileOptions=?) => promise<un
 external mkdir: (string, ~options: mkdirOptions=?) => promise<string> = "mkdir"
 
 @module("node:fs") @scope("promises")
+external mkdtemp: string => promise<string> = "mkdtemp"
+
+@module("node:fs") @scope("promises")
 external rm: (string, ~options: rmOptions=?) => promise<unit> = "rm"
 
 @module("node:fs") @scope("promises")

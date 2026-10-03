@@ -139,10 +139,48 @@ let testWriteStagedFileAcceptsInTreePath = () => {
   })
 }
 
+let testMakeStagingDirUsesExclusivePrivateDirectories = () => {
+  testAsync("makeStagingDir: honors prefix, creates unique existing 0700 directories", resolve => {
+    let fs = NodeJsFileSystem.make()
+    let ts = Date.now()->Float.toInt->Int.toString
+    let prefix = "blueprint-" ++ ts ++ "-"
+    fs.makeStagingDir(prefix)
+    ->Promise.then(first => {
+      fs.makeStagingDir(prefix)
+      ->Promise.then(second => {
+        assert_true(first != second)
+        let expectedPrefix = NodeJs.Path.join(NodeJs.Os.tmpdir(), prefix)
+        assert_true(first->String.startsWith(expectedPrefix))
+        assert_true(second->String.startsWith(expectedPrefix))
+        Promise.all([fs.fileExists(first), fs.fileExists(second)])
+        ->Promise.then(exists => {
+          assert_true(Array.get(exists, 0)->Option.getOr(false))
+          assert_true(Array.get(exists, 1)->Option.getOr(false))
+          NodeJs.Fs.stat(first)->Promise.then(stat => {
+            let isPosix: bool = %raw(`process.platform !== "win32"`)
+            if isPosix {
+              let mode: int = Obj.magic(stat)["mode"]
+              let permissionBits: int => int = %raw("mode => mode & 0o777")
+              assert_eq(permissionBits(mode), 0o700)
+            }
+            Promise.all([
+              NodeJs.Fs.rm(first, ~options={recursive: true}),
+              NodeJs.Fs.rm(second, ~options={recursive: true}),
+            ])
+            ->Promise.then(_ => { resolve(); Promise.resolve() })
+          })
+        })
+      })
+    })
+    ->Promise.catch(_ => { assert_false(true); resolve(); Promise.resolve() })->ignore
+  })
+}
+
 let suite = () => {
   suite("Staging", () => {
     testWriteStagedFileDeniesTraversal()
     testWriteStagedFileAcceptsInTreePath()
+    testMakeStagingDirUsesExclusivePrivateDirectories()
   })
 }
 

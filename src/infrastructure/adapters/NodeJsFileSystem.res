@@ -77,18 +77,8 @@ let make: unit => Ports.fileSystem = () => {
   },
   fileExists: NodeJs.Fs.fileExists,
   realpath: realpath,
-  makeStagingDir: async _prefix => {
-    let ts = Date.now()->Float.toInt->Int.toString
-    let r = Math.random()->Float.toString
-    let r2 = String.split(r, ".")->Array.get(1)->Option.getOr("x")
-    let dir = "blueprint-" ++ ts ++ "-" ++ r2
-    let tmp = NodeJs.Os.tmpdir()
-    let fullPath = NodeJs.Path.join(tmp, dir)
-    try {
-      let _ = await NodeJs.Fs.mkdir(fullPath, ~options={recursive: true})
-      fullPath
-    } catch {
-    | _ => fullPath
-    }
+  makeStagingDir: async prefix => {
+    let tmpPrefix = NodeJs.Path.join(NodeJs.Os.tmpdir(), prefix)
+    await NodeJs.Fs.mkdtemp(tmpPrefix)
   },
 }

@@ -113,7 +113,7 @@ Feature implementation complete (six implementation work units, two verifier fix
 6. Stale ExecPolicy ShellExact doc comment; dead defensive ShellExact branch; unused `execAsync` port + raw `exec` binding (removal candidates).
 7. Empty output-dir mkdir when a hook is rejected post-kill-switch (benign, empty-only).
 8. Rollback leaves created-but-empty dirs (audit M1, unchanged).
-9. makeStagingDir fail-open + predictable name (audit M1/M2, unchanged this feature; out of scope).
+9. makeStagingDir fail-open + predictable name (audit M1/M2) — closed by plan 045: adapter now uses exclusive private mkdtemp; NodeJs/Os.res remains unchanged as a test-only sync convenience helper (26 test callers); plan 045's Math.random grep criterion applies to the adapter only.
 10. Orphan sweep: active run idle >15 min between writes could be swept (heartbeat marker follow-up).
 11. One transient full-suite flake observed once across 5 runs post-747 (never reproduced ×3; likely timing; watch in CI).
 12. Readline micro-tests (buffer-before-question, ask-after-close unit variants) — behavior empirically covered by integration tests.

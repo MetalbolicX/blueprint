@@ -105,7 +105,8 @@ let run: (
   ~ejs as _ejs,
   ~process,
 ) => {
-  let tmpDir = await fs.makeStagingDir("blueprint")
+  let ts = Date.now()->Float.toInt->Int.toString
+  let tmpDir = await fs.makeStagingDir("blueprint-" ++ ts ++ "-")
   switch await Staging.create(~tmpDir, ~fs) {
   | Error(message) =>
     Error({stagingDir: "", message: "Failed to create staging dir: " ++ message})
