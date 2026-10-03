@@ -244,11 +244,12 @@ let render: (
       let hasProvenance = await fs.fileExists(provenancePath)
       let unsafe = hasProvenance && EjsSafety.isUnsafe(resolvedBody)
       if unsafe {
-        Error(
-          "Registry-installed template was blocked by the provenance gate: " ++ template.sourcePath ++
-          ". Unsafe EJS tags (<% or <%-) are not allowed; inspect the template before removing its .blueprint-provenance marker.",
+        Console.warn(
+          "Advisory: registry template uses EJS control-flow tags (<% or <%-): "
+          ++ template.sourcePath
+          ++ ". Registry templates run with your permissions — review generators at install (ADR 0001).",
         )
-      } else {
+      }
       let renderCtx = Context.toRenderContext(context)
       switch Renderer.render({...template, body: resolvedBody}, renderCtx) {
       | Error(e) => Error("Failed to render template " ++ template.sourcePath ++ ": " ++ e)
@@ -284,7 +285,6 @@ let render: (
             }
           }
         }
-      }
       }
     }
     }
