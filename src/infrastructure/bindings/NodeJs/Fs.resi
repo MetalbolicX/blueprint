@@ -21,6 +21,7 @@ type accessOptions = {mode: int}
 let readFile: (string, ~options: readFileOptions=?) => promise<string>
 let writeFile: (string, string, ~options: writeFileOptions=?) => promise<unit>
 let mkdir: (string, ~options: mkdirOptions=?) => promise<string>
+let mkdtemp: string => promise<string>
 let rm: (string, ~options: rmOptions=?) => promise<unit>
 let cp: (string, string, ~options: cpOptions=?) => promise<unit>
 let readdir: (string, ~options: readdirOptions=?) => promise<array<string>>

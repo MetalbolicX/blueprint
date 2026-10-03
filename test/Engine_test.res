@@ -645,7 +645,8 @@ suite("Engine", () => {
   testAsync("cleanupOrphans: removes staging dirs old by name and mtime", resolve => {
     let nowMs = Date.now()->Float.toInt
     let tmpRoot = "/tmp/engine-cleanup-stale"
-    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-stale"
+    // plan 045: mkdtemp appends a random suffix after the timestamp-bearing prefix.
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-mkdtemp-stale"
     let target = deps.path.join(tmpRoot, name)
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~removed)
@@ -657,6 +658,27 @@ suite("Engine", () => {
       Promise.resolve()
     })
     ->ignore
+  })
+
+  testAsync("cleanupOrphans: round-trips timestamp from an mkdtemp-generated name", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let oldTs = nowMs - 31 * 60 * 1000
+    let generatedPrefix = "blueprint-" ++ Int.toString(oldTs) ++ "-"
+    deps.fs.makeStagingDir(generatedPrefix)
+    ->Promise.then(generatedDir => {
+      let name = deps.path.basename(generatedDir)
+      let tmpRoot = "/tmp/engine-cleanup-roundtrip"
+      let target = deps.path.join(tmpRoot, name)
+      let removed = ref([])
+      let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~removed)
+      cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+      ->Promise.then(_ => {
+        assert_eq(Array.get(removed.contents, 0), Some(target))
+        NodeJs.Fs.rm(generatedDir, ~options={recursive: true})
+        ->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+    ->Promise.catch(_ => { assert_false(true); resolve(); Promise.resolve() })->ignore
   })
 
   testAsync("cleanupOrphans: removes stale blueprint staging dirs", _resolve => {
