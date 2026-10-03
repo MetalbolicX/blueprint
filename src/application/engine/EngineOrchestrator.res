@@ -40,9 +40,13 @@ let run: (
   let tmpRoot = path.dirname(tmpRootProbe)
   await EngineLifecycle.cleanupPath(~target=tmpRootProbe, ~fs)
 
+  let isDryRun = config->Option.flatMap(c => c.dryRun)->Option.getOr(false)
+
   // Phase 0: setup (unconditional)
   Fetcher.clearCache()
-  await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path, ~tmpRoot)
+  if !isDryRun {
+    await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path, ~tmpRoot)
+  }
 
   let context = await EngineContext.buildInitialContext(
     ~fs,
@@ -182,8 +186,6 @@ let run: (
       let stagingDirRef = ref(Some(p1.stagingDir))
       let commitRollbackRef: ref<option<unit => promise<unit>>> = ref(None)
       EngineLifecycle.registerSignalHandlers(~process=proc, ~stagingDirRef, ~commitRollbackRef, ~fs)
-      let isDryRun = config->Option.flatMap(c => c.dryRun)->Option.getOr(false)
-
       if isDryRun {
         stagingDirRef.contents = None
         proc.removeSignalListeners()

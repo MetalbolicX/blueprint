@@ -86,6 +86,7 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
   }
 
   if backupExists {
+    Console.warn("Removing legacy backup dir: " ++ backupDir)
     await cleanupPath(~target=backupDir, ~fs)
   }
 }
