@@ -43,6 +43,26 @@ let makeExecutionCaptureShell = (calls: ref<array<capturedExec>>): Ports.shell =
   },
 }
 
+let makeWindowsAwarePath = (): Ports.path => {
+  let nativePath = NodeJsPath.make()
+  let normalizeSeparators: string => string = %raw(`value => value.replace(/\\/g, "/")`)
+  {
+    join: (left, right) => nativePath.join(left, normalizeSeparators(right)),
+    resolve: (base, target) => {
+      let normalized = normalizeSeparators(target)
+      let absolute = if String.startsWith(normalized, "C:/") || String.startsWith(normalized, "c:/") {
+        "/" ++ normalized
+      } else {
+        normalized
+      }
+      nativePath.resolve(base, absolute)
+    },
+    dirname: nativePath.dirname,
+    isAbsolute: value => nativePath.isAbsolute(normalizeSeparators(value)),
+    basename: (value, ~ext=?) => nativePath.basename(normalizeSeparators(value), ~ext=?ext),
+  }
+}
+
 let makeProcess = (): Ports.process => {
   cwd: () => "/workspace/project",
   env: () => Dict.make(),
@@ -69,6 +89,88 @@ let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.sh
 }
 
 suite("HookSecurity", () => {
+  testAsync("executeHook: backslash-relative script resolves, checks containment, and executes resolved path", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let scriptPath = NodeJs.Path.join(tmpDir, "local.cmd")
+    let calls: ref<array<capturedExec>> = ref([])
+    NodeJs.Fs.writeFile(scriptPath, "script")
+    ->Promise.then(_ => Hooks.executeHook(
+      ~hook={command: ".\\local.cmd"}, ~scriptRoot=tmpDir, ~cwd=tmpDir, ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_eq(calls.contents[0]->Option.map(call => call.command), Some(scriptPath))
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeHook: backslash traversal is rejected by containment", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let safeDir = NodeJs.Path.join(tmpDir, "safe")
+    let calls: ref<array<capturedExec>> = ref([])
+    NodeJs.Fs.mkdir(safeDir, ~options={recursive: true})
+    ->Promise.then(_ => Hooks.executeHook(
+      ~hook={command: "..\\..\\escape.cmd"}, ~scriptRoot=safeDir, ~cwd=safeDir, ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(Array.length(calls.contents), 0)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("executeHook: drive-letter absolute script is rejected by containment", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    Hooks.executeHook(
+      ~hook={command: "C:\\absolute\\x.cmd"}, ~scriptRoot="/workspace/project", ~cwd="/workspace/project", ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
+    )->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "outside project tree"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(Array.length(calls.contents), 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+  // Pins plan 051 classification WITHOUT a backslash: drive-relative form
+  // ("C:name.cmd") must take the path branch (resolve + containment +
+  // existence) — never the tokenized non-path run of a literal filename.
+  testAsync("executeHook: drive-relative form without backslash is classified as a path", resolve => {
+    let calls: ref<array<capturedExec>> = ref([])
+    Hooks.executeHook(
+      ~hook={command: "C:name.cmd"}, ~scriptRoot="/workspace/project", ~cwd="/workspace/project", ~timeout=1000,
+      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
+    )->Promise.then(result => {
+      // Path branch: resolution + existence fail (file does not exist) -> Error,
+      // and execFile is never invoked with the literal command.
+      switch result {
+      | Error(_) => assert_true(true)
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(Array.length(calls.contents), 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
   testAsync("executeHook: script outside project tree is blocked", resolve => {
     let hook: Config.hookCommand = {command: "/etc/malicious.sh"}
 
