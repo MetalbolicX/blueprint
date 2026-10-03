@@ -17,13 +17,15 @@ type phase0Result = {
 // Check if a file exists at target path
 
 // Detect conflicts for all templates with "to" directive
-let detectConflicts: (
+let detectRenderedConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
+  ~ejs: Ports.ejs,
+  ~attributes: dict<string>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<array<conflictFile>> = async (~templates, ~outputDir, ~force as _force, ~fs, ~path) => {
+) => promise<result<array<conflictFile>, string>> = async (~templates, ~outputDir, ~force as _force, ~ejs, ~attributes, ~fs, ~path) => {
   // Collect all To directive checks as a flat array.
   // unless_exists templates are intentionally excluded from conflict detection,
   // because existing target files should be silently skipped.
@@ -49,29 +51,42 @@ let detectConflicts: (
       }
     })
 
-  // Build an array of promises for existence checks
-  let checkPromises: array<promise<option<conflictFile>>> =
-    toChecks->Array.map(((sourcePath, targetPath)) => {
-      let fullTarget = path.join(outputDir, targetPath)
-      fs.fileExists(fullTarget)->Promise.then(exists =>
-        if exists {
-          Promise.resolve(Some({sourcePath, targetPath: fullTarget}))
-        } else {
-          Promise.resolve(None)
-        }
-      )
-    })
-
-  // Await all promises and filter out None values
-  let results = await Promise.all(checkPromises)
-  let allConflicts: array<conflictFile> = []
-  results->Array.forEach(opt => {
-    switch opt {
-    | Some(cf) => allConflicts->Array.push(cf)->ignore
-    | None => ()
+  // Resolve each To with the exact attribute vocabulary used by rendering.
+  let firstError: ref<option<string>> = ref(None)
+  let resolvedChecks = toChecks->Array.filterMap(((sourcePath, to)) =>
+    switch TemplateRenderer.renderTargetPath(~to, ~ejs, ~attributes) {
+    | Error(msg) => {
+      if firstError.contents == None {
+        firstError.contents = Some("Failed to render 'to' path in template " ++ sourcePath ++ ": " ++ msg)
+      }
+      None
     }
-  })
-  allConflicts
+    | Ok(targetPath) => Some((sourcePath, path.join(outputDir, targetPath)))
+    }
+  )
+  switch firstError.contents {
+  | Some(msg) => Error(msg)
+  | None => {
+      let checkPromises: array<promise<option<conflictFile>>> = resolvedChecks->Array.map(((sourcePath, fullTarget)) =>
+        fs.fileExists(fullTarget)->Promise.then(exists =>
+          if exists {
+            Promise.resolve(Some({sourcePath, targetPath: fullTarget}))
+          } else {
+            Promise.resolve(None)
+          }
+        )
+      )
+      let results = await Promise.all(checkPromises)
+      let allConflicts: array<conflictFile> = []
+      results->Array.forEach(opt => {
+        switch opt {
+        | Some(cf) => allConflicts->Array.push(cf)->ignore
+        | None => ()
+        }
+      })
+      Ok(allConflicts)
+    }
+  }
 }
 
 // Run Phase0: resolve prompts and detect conflicts
@@ -117,9 +132,22 @@ let run: (
 
   switch resolvedAttributesResult {
   | Ok(resolvedAttributes) => {
-      // Detect file conflicts
-      let conflicts = await detectConflicts(~templates=generator.templates, ~outputDir, ~force, ~fs, ~path)
-      Ok({resolvedAttributes, conflicts})
+      // Prompt answers override the already-stringified base context for target rendering.
+      let mergedAttributes = Dict.make()
+      baseContext->Dict.toArray->Array.forEach(((k, v)) => Dict.set(mergedAttributes, k, v))
+      resolvedAttributes->Dict.toArray->Array.forEach(((k, v)) => Dict.set(mergedAttributes, k, v))
+      switch await detectRenderedConflicts(
+        ~templates=generator.templates,
+        ~outputDir,
+        ~force,
+        ~ejs,
+        ~attributes=mergedAttributes,
+        ~fs,
+        ~path,
+      ) {
+      | Error(e) => Error(e)
+      | Ok(conflicts) => Ok({resolvedAttributes, conflicts})
+      }
     }
   | Error(Expression.EvaluationError({prompt, field, message})) =>
     Error(

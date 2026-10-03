@@ -13,45 +13,45 @@ type stageVerdict =
   | StageProceed
   | StageSkip
 
+let renderTargetPath: (~to: string, ~ejs: Ports.ejs, ~attributes: dict<string>) => result<string, string> = (
+  ~to,
+  ~ejs,
+  ~attributes,
+) => {
+  let data = Dict.make()
+  attributes->Dict.toArray->Array.forEach(((k, v)) => Dict.set(data, k, v))
+  Dict.set(data, "h", FuncMap.makeHelpersDict()->Obj.magic)
+
+  switch ejs.renderString(~template=to, ~context=data) {
+  | Ok(rendered) => Ok(rendered)
+  | Error(msg) => Error(msg)
+  }
+}
+
 let resolveTargetPath: (~ejs: Ports.ejs, Template.directive, Context.context) => result<string, string> = (
   ~ejs,
   directive,
   ctx,
-) => {
+) =>
   switch directive {
-  | To(path) => {
-      // Render the path template with context.
-      // WS4: cwd and actionfolder are intentionally NOT injected into the
-      // template-facing data. They remain on the internal `context` type for
-      // shell exec but templates must never see host filesystem paths.
-      let data = Dict.make()
-      Dict.set(data, "name", ctx.nameVariants.name)
-      Dict.set(data, "Name", ctx.nameVariants.pascalName)
-      Dict.set(data, "names", ctx.nameVariants.names)
-      Dict.set(data, "Names", ctx.nameVariants.pluralPascalName)
-
-      // Add attributes (convert attrValue to string)
-      ctx.attributes
-      ->Dict.toArray
-      ->Array.forEach(((k, v)) => {
-        let strValue = switch v {
+  | To(to) => {
+      // Match the render context while keeping cwd/actionfolder private.
+      let attributes = Dict.make()
+      Dict.set(attributes, "name", ctx.nameVariants.name)
+      Dict.set(attributes, "Name", ctx.nameVariants.pascalName)
+      Dict.set(attributes, "names", ctx.nameVariants.names)
+      Dict.set(attributes, "Names", ctx.nameVariants.pluralPascalName)
+      ctx.attributes->Dict.toArray->Array.forEach(((k, v)) => {
+        let value = switch v {
         | Context.Scalar(s) => s
         | Context.Values(arr) => arr->Array.join(",")
         }
-        Dict.set(data, k, strValue)
+        Dict.set(attributes, k, value)
       })
-
-      // Add h helper functions (pascalCase, kebabCase, etc.)
-      Dict.set(data, "h", FuncMap.makeHelpersDict()->Obj.magic)
-
-      switch ejs.renderString(~template=path, ~context=data) {
-      | Ok(rendered) => Ok(rendered)
-      | Error(msg) => Error(msg)
-      }
+      renderTargetPath(~to, ~ejs, ~attributes)
     }
   | _ => Error("No 'to' directive")
   }
-}
 
 let hasUnlessExists: template => bool = template => {
   template.directives->Array.some(d => {

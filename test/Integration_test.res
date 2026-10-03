@@ -192,9 +192,10 @@ suite("Integration", () => {
 
   // --- Conflict detection integration ---
 
-  testAsync("detectConflicts: multi-template returns all conflicts", resolve => {
+  // plan 043
+  testAsync("detectRenderedConflicts: multi-template returns all conflicts", resolve => {
     // When multiple templates target existing files, all should be reported
-    // This tests the integration of Phase0.detectConflicts with the conflict resolution flow
+    // plan 043: exercises the rendered-target API before conflict resolution
     let tmpDir = NodeJs.Os.makeStagingDir()
     let outDir = NodeJs.Path.join(tmpDir, "out")
 
@@ -221,10 +222,21 @@ suite("Integration", () => {
     ->Promise.then(_ => {
       let fsAdapter = NodeJsFileSystem.make()
       let pathAdapter = NodeJsPath.make()
-      Phase0.detectConflicts(~templates, ~outputDir=outDir, ~force=false, ~fs=fsAdapter, ~path=pathAdapter)
+      Phase0.detectRenderedConflicts(
+        ~templates,
+        ~outputDir=outDir,
+        ~force=false,
+        ~ejs=TestPorts.stubEjs,
+        ~attributes=Dict.make(),
+        ~fs=fsAdapter,
+        ~path=pathAdapter,
+      )
     })
-    ->Promise.then(conflicts => {
-      assert_eq(Array.length(conflicts), 2)
+    ->Promise.then(result => {
+      switch result {
+      | Ok(conflicts) => assert_eq(Array.length(conflicts), 2)
+      | Error(_) => assert_false(true)
+      }
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()
