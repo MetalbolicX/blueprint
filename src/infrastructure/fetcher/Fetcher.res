@@ -96,6 +96,14 @@ module Impl = {
     }
   `)
 
+  let cancelBody: 'response => promise<unit> = %raw(`
+    async function(response) {
+      if (response && response.body && typeof response.body.cancel === "function") {
+        await response.body.cancel().catch(() => {});
+      }
+    }
+  `)
+
   let redirectStatus: int => bool = status => status >= 300 && status <= 399
 
   let rec httpGetHop: (string, int, 'signal) => promise<result<string, string>> = async (
@@ -120,7 +128,10 @@ module Impl = {
                   let nextUrl = href(resolveUrl(location, url))
                   switch validateUrl(nextUrl) {
                   | Error(message) => Error(message)
-                  | Ok() => await httpGetHop(nextUrl, redirects + 1, signal)
+                  | Ok() => {
+                      await cancelBody(response)
+                      await httpGetHop(nextUrl, redirects + 1, signal)
+                    }
                   }
                 } catch {
                 | JsExn(_) => Error("Invalid redirect Location: " ++ location)
@@ -130,6 +141,7 @@ module Impl = {
         } else if response["ok"] {
           Ok(await readBoundedBody(response))
         } else {
+          await cancelBody(response)
           Error("HTTP " ++ Int.toString(status) ++ ": " ++ response["statusText"])
         }
       }

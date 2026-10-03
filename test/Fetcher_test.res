@@ -81,19 +81,26 @@ let installResponseSequence: array<string> => unit = %raw(`
     globalThis.__BLUEPRINT_SEQUENCE__ = descriptors;
     globalThis.__BLUEPRINT_SEQUENCE_CALLS__ = [];
     globalThis.__BLUEPRINT_BODY_READS__ = 0;
+    globalThis.__BLUEPRINT_BODY_CANCELS__ = 0;
+    globalThis.__BLUEPRINT_CANCEL_COUNT_AT_SECOND_FETCH__ = null;
     globalThis.fetch = async function(url, options) {
       globalThis.__BLUEPRINT_SEQUENCE_CALLS__.push({url, redirect: options && options.redirect});
+      if (globalThis.__BLUEPRINT_SEQUENCE_CALLS__.length === 2) {
+        globalThis.__BLUEPRINT_CANCEL_COUNT_AT_SECOND_FETCH__ = globalThis.__BLUEPRINT_BODY_CANCELS__;
+      }
       const descriptor = globalThis.__BLUEPRINT_SEQUENCE__[globalThis.__BLUEPRINT_SEQUENCE_CALLS__.length - 1] || "200|done";
-      const [statusText, value, length] = descriptor.split("|");
+      const [statusText, value, length, bodyMode] = descriptor.split("|");
       const status = Number(statusText);
       return {
         ok: status >= 200 && status < 300,
         status,
-        statusText: status === 200 ? "OK" : "Redirect",
+        statusText: status === 200 ? "OK" : (status === 500 ? "Internal Server Error" : "Redirect"),
         headers: { get(name) { return name.toLowerCase() === "location" ? value : (name.toLowerCase() === "content-length" ? length : null); } },
         body: value === "stream-over-cap" ? new ReadableStream({
           start(controller) { controller.enqueue(new Uint8Array(10 * 1024 * 1024 + 1)); controller.close(); }
-        }) : undefined,
+        }) : bodyMode === "cancel" ? {
+          cancel: async function() { globalThis.__BLUEPRINT_BODY_CANCELS__++; }
+        } : undefined,
         text: async function() { globalThis.__BLUEPRINT_BODY_READS__++; return value || ""; }
       };
     };
@@ -110,6 +117,14 @@ let getRedirectModeForFirstCall: unit => string = %raw(`
 
 let getBodyReadCount: unit => int = %raw(`
   function() { return globalThis.__BLUEPRINT_BODY_READS__ || 0; }
+`)
+
+let getBodyCancelCount: unit => int = %raw(`
+  function() { return globalThis.__BLUEPRINT_BODY_CANCELS__ || 0; }
+`)
+
+let getCancelCountAtSecondFetch: unit => int = %raw(`
+  function() { return globalThis.__BLUEPRINT_CANCEL_COUNT_AT_SECOND_FETCH__; }
 `)
 
 let restoreFetch: unit => unit = %raw(`
@@ -337,6 +352,78 @@ suite("Fetcher", () => {
       restoreFetch()
       resolve()
       Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("redirect body is cancelled before the next fetch", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["301|http://1.1.1.1/final||cancel", "200|final body"])
+    Fetcher.fetch("http://8.8.8.8/start")
+    ->Promise.then(result => {
+      switch result {
+      | Ok(body) => assert_eq(body, "final body")
+      | Error(_) => assert_false(true)
+      }
+      assert_eq(getCancelCountAtSecondFetch(), 1)
+      assert_eq(getBodyCancelCount(), 1)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("non-ok response body is cancelled and returns HTTP error", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["500|failure||cancel", "500|failure||cancel", "500|failure||cancel"])
+    Fetcher.fetch("http://8.8.8.8/failure")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "HTTP 500"))
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(getBodyCancelCount(), 3)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("ok response body is consumed without cancelling", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["200|ok body||cancel"])
+    Fetcher.fetch("http://8.8.8.8/ok")
+    ->Promise.then(result => {
+      switch result {
+      | Ok(body) => assert_eq(body, "ok body")
+      | Error(_) => assert_false(true)
+      }
+      assert_eq(getBodyCancelCount(), 0)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("responses without a body retain existing behavior", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["200|bodyless success", "404|bodyless failure"])
+    Fetcher.fetch("http://8.8.8.8/bodyless-success")
+    ->Promise.then(firstResult => {
+      switch firstResult {
+      | Ok(body) => assert_eq(body, "bodyless success")
+      | Error(_) => assert_false(true)
+      }
+      Fetcher.clearCache()
+      Fetcher.fetch("http://8.8.8.8/bodyless-failure")
+      ->Promise.then(secondResult => {
+        switch secondResult {
+        | Error(msg) => assert_true(String.includes(msg, "HTTP 404"))
+        | Ok(_) => assert_false(true)
+        }
+        restoreFetch()
+        resolve()
+        Promise.resolve()
+      })
     })->ignore
   })
 
