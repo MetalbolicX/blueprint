@@ -116,6 +116,12 @@ let extractAttributes: (~args: array<string>) => dict<Context.attrValue> = (~arg
 
 // ─── Per-command handlers ─────────────────────────────────────────────────────
 
+let reportUsageError = (~deps: Ports.deps, ~message: string): unit => {
+  Console.error(message)
+  Help.printUsage()
+  deps.process.exit(1)
+}
+
 let routeVersion: (~deps: Ports.deps) => promise<unit> = async (~deps) => {
   // Resolve from this module's URL, never argv[1]: installed bins invoke the
   // bundle through a node_modules/.bin symlink, and the old argv-based path
@@ -173,15 +179,11 @@ let routeGenerate: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = 
   let classification = switch args[1] {
   | Some(c) if !String.startsWith(c, "-") => c
   | Some(c) if String.startsWith(c, "-") => {
-      Console.error("Error: 'generate' requires a classification argument")
-      Help.printUsage()
-      deps.process.exit(1)
+      reportUsageError(~deps, ~message="Error: 'generate' requires a classification argument")
       ""
     }
   | _ => {
-      Console.error("Error: 'generate' requires a classification argument")
-      Help.printUsage()
-      deps.process.exit(1)
+      reportUsageError(~deps, ~message="Error: 'generate' requires a classification argument")
       ""
     }
   }
@@ -239,9 +241,7 @@ let routeTemplate: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = 
     }
   | Some(a) => a
   | None => {
-      Console.error("Error: 'template' requires an action: copy | list | remove")
-      Help.printUsage()
-      deps.process.exit(1)
+      reportUsageError(~deps, ~message="Error: 'template' requires an action: copy | list | remove")
       ""
     }
   }
@@ -252,9 +252,7 @@ let routeTemplate: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = 
       let name = switch args[2] {
       | Some(n) if !String.startsWith(n, "-") => n
       | _ => {
-          Console.error("Error: 'template copy' requires a name")
-          Help.printUsage()
-          deps.process.exit(1)
+          reportUsageError(~deps, ~message="Error: 'template copy' requires a name")
           ""
         }
       }
@@ -266,18 +264,14 @@ let routeTemplate: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = 
       let name = switch args[2] {
       | Some(n) if !String.startsWith(n, "-") => n
       | _ => {
-          Console.error("Error: 'template remove' requires a name")
-          Help.printUsage()
-          deps.process.exit(1)
+          reportUsageError(~deps, ~message="Error: 'template remove' requires a name")
           ""
         }
       }
       await Commands.runTemplateRemove(~deps, ~fs, ~path=pathAdapter, ~name)
     }
   | _ => {
-      Console.error("Error: unknown template action \"" ++ action ++ "\"")
-      Help.printUsage()
-      deps.process.exit(1)
+      reportUsageError(~deps, ~message="Error: unknown template action \"" ++ action ++ "\"")
     }
   }
   deps.process.exit(0)
@@ -316,9 +310,7 @@ let routeHelp: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = asyn
 }
 
 let routeUnknown: (~deps: Ports.deps, ~command: string) => promise<unit> = async (~deps, ~command) => {
-  Console.error("Error: unknown command \"" ++ command ++ "\"")
-  Help.printUsage()
-  deps.process.exit(1)
+  reportUsageError(~deps, ~message="Error: unknown command \"" ++ command ++ "\"")
 }
 
 // ─── Main dispatcher ─────────────────────────────────────────────────────────

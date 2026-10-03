@@ -23,8 +23,8 @@ Branch: `fix/code-health-batch-1` (from `main`). Verification: test-first (RED �
 - **3a behavior:** `route` treats `-v`/`--version` only when it is `args[0]`; `blueprint generate comp -v` must route to generate, not version. Files: `src/interfaces/cli/Router.res`, `test/Router_test.res` (and `test/Main_test.res` if covered there).
 - **3b refactor:** extract one usage-failure helper for the ≥7 repeated `Console.error → Help.printUsage → exit(1)` blocks; no behavior change; existing tests GREEN.
 - **Acceptance:** 3a RED→GREEN with a dedicated test; 3b keeps the full Router/Main suites GREEN.
-- **Status:** pending
-- **Evidence:** —
+- **Status:** in_progress (3a done)
+- **Evidence:** 3a RED: 2 new later-position tests failing → GREEN: Router_test.res.mjs 20/20, Main_test.res.mjs 2/2; no existing fixture asserted the old behavior. Commit `beb64d7`. 3b pending.
 
 ## Commit plan (work units)
 
