@@ -74,6 +74,7 @@ let runGenerate: (
             ~outputDir,
             ~force,
             ~config=effectiveConfig,
+            ~projectRoot=deps.process.cwd(),
             ~deps,
           )
 

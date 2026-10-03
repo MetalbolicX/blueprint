@@ -9,5 +9,6 @@ let run: (
   ~outputDir: string,
   ~force: bool,
   ~config: Config.config=?,
+  ~projectRoot: string=?,
   ~deps: Ports.deps,
 ) => promise<result<generateResult, Commit.phase2Error>>
