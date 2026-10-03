@@ -36,16 +36,29 @@ let runGenerate: (
         ~registry=ctx.globalConfig.registry,
         ~globalTemplates=ctx.merged.templates,
       )
-      let generators = await Discovery.discover(~fs, ~path, ~yamlParser=deps.yamlParser, ~searchPaths=allPaths, ())
+      let generatorMetas = await Discovery.discoverGenerators(
+        ~fs,
+        ~path,
+        ~yamlParser=deps.yamlParser,
+        ~searchPaths=allPaths,
+        (),
+      )
 
-      switch Discovery.findByClassification(generators, classification) {
+      switch Discovery.findByClassificationMeta(generatorMetas, classification) {
       | None => {
           Console.error(
             "Error: generator not found for classification \"" ++ classification ++ "\"",
           )
           deps.process.exit(1)
         }
-      | Some(generator) => {
+      | Some(meta) => {
+          let templates = await Discovery.loadGeneratorTemplates(~fs, ~path, meta.path)
+          let generator: Discovery.generator = {
+            name: meta.name,
+            path: meta.path,
+            templates,
+            manifest: ?meta.manifest,
+          }
           // Build effective config for Engine (using merged timeout)
           // Keep project hooks as-is but use merged timeout
           let effectiveConfig: Config.config = {

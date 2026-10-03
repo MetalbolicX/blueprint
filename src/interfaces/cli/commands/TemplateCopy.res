@@ -10,14 +10,27 @@ let runTemplateCopy: (
 
   let projectPaths = ["_templates", "templates", "generators"]
   let sourceSearchPaths = projectPaths->Array.concat(ctx.merged.templates)
-  let generators = await Discovery.discover(~fs, ~path, ~yamlParser=deps.yamlParser, ~searchPaths=sourceSearchPaths, ())
+  let generatorMetas = await Discovery.discoverGenerators(
+    ~fs,
+    ~path,
+    ~yamlParser=deps.yamlParser,
+    ~searchPaths=sourceSearchPaths,
+    (),
+  )
 
-  switch Discovery.findByClassification(generators, name) {
+  switch Discovery.findByClassificationMeta(generatorMetas, name) {
   | None => {
       Console.error("Error: template not found: " ++ name)
       deps.process.exit(1)
     }
-    | Some(generator) => {
+    | Some(meta) => {
+      let templates = await Discovery.loadGeneratorTemplates(~fs, ~path, meta.path)
+      let generator: Discovery.generator = {
+        name: meta.name,
+        path: meta.path,
+        templates,
+        manifest: ?meta.manifest,
+      }
       let registryRoot = Utils.globalTemplateRegistryRoot(~deps)
       let configPath = Utils.globalConfigPath(~deps)
       let confirmed = await deps.interactiveIO.askConfirm(

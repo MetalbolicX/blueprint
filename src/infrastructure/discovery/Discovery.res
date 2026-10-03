@@ -10,6 +10,12 @@ type generator = {
   manifest?: Manifest.manifest, // manifest.yaml if present
 }
 
+type generatorMeta = {
+  name: string,
+  path: string,
+  manifest: option<Manifest.manifest>,
+}
+
 let isManifestFile: string => bool = filename => {
   filename == "manifest.yaml"
 }
@@ -118,6 +124,54 @@ let _loadManifest: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports
   }
 }
 
+// Load every template under one generator directory.
+let loadGeneratorTemplates: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise<array<template>> = async (
+  ~fs,
+  ~path,
+  genPath,
+) => {
+  let actionEntries = try {
+    await fs.readdir(genPath, ~options={withFileTypes: false})
+  } catch {
+  | JsExn(_) => []
+  }
+
+  let actionTmplPromises = actionEntries->Array.map(async actionName => {
+    let actionPath = path.join(genPath, actionName)
+    let actionStat = try {
+      Some(await fs.stat(actionPath))
+    } catch {
+    | _ => None
+    }
+
+    switch actionStat {
+    | Some(dirStat) if dirStat.isDirectory() => {
+      let files = try {
+        await fs.readdir(actionPath, ~options={withFileTypes: false})
+      } catch {
+      | JsExn(_) => []
+      }
+
+      let filePromises = files->Array.map(fname => {
+        if isTemplateFile(fname) {
+          let fpath = path.join(actionPath, fname)
+          _loadTemplate(~fs, ~path, fpath)
+        } else {
+          Promise.resolve(None)
+        }
+      })
+
+      let loaded = await Promise.all(filePromises)
+      loaded->Array.filterMap(x => x)
+    }
+    | _ => []
+    }
+  })
+
+  let allActionTemplates = await Promise.all(actionTmplPromises)
+  allActionTemplates->Array.reduce([], (acc, t) => acc->Array.concat(t))
+}
+
 // Discover all generators under a base directory
 let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports.yamlParser, string) => promise<array<generator>> = async (
   ~fs,
@@ -143,48 +197,7 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports.ya
         switch stat {
         | Some(s) if s.isDirectory() => {
           // Hygen convention: _templates/<generator>/<action>/<template>.ejs.t
-          let actionEntries = try {
-            await fs.readdir(genPath, ~options={withFileTypes: false})
-          } catch {
-          | JsExn(_) => []
-          }
-
-          let actionTmplPromises = actionEntries->Array.map(async actionName => {
-            let actionPath = path.join(genPath, actionName)
-            let actionStat = try {
-              Some(await fs.stat(actionPath))
-            } catch {
-            | _ => None
-            }
-
-            switch actionStat {
-            | Some(dirStat) if dirStat.isDirectory() => {
-              let files = try {
-                await fs.readdir(actionPath, ~options={withFileTypes: false})
-              } catch {
-              | JsExn(_) => []
-              }
-
-              let filePromises = files->Array.map(fname => {
-                if isTemplateFile(fname) {
-                  let fpath = path.join(actionPath, fname)
-                  _loadTemplate(~fs, ~path, fpath)
-                } else {
-                  Promise.resolve(None)
-                }
-              })
-
-              let loaded = await Promise.all(filePromises)
-              loaded->Array.filterMap(x => x)
-            }
-            | _ => []
-            }
-          })
-
-          let allActionTemplates = await Promise.all(actionTmplPromises)
-          let templates = allActionTemplates->Array.reduce([], (acc, t) =>
-            acc->Array.concat(t)
-          )
+          let templates = await loadGeneratorTemplates(~fs, ~path, genPath)
 
           // Fail-fast: if the manifest fails to parse or validate, skip this
           // generator entirely (with a visible warning) instead of silently
@@ -225,6 +238,92 @@ let discoverIn: (~fs: Ports.fileSystem, ~path: Ports.path, ~yamlParser: Ports.ya
     }
   }
 }
+
+// Discover generator metadata without reading template bodies.
+let discoverGenerators: (
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~yamlParser: Ports.yamlParser,
+  ~searchPaths: array<string>=?,
+  unit,
+) => promise<array<generatorMeta>> = async (~fs, ~path, ~yamlParser, ~searchPaths=?, ()) => {
+  let defaultPaths = ["_templates", "templates", "generators"]
+  let paths = switch searchPaths {
+  | Some(p) => p
+  | None => defaultPaths
+  }
+
+  let discoveredPaths = await Promise.all(paths->Array.map(async baseDir => {
+    let exists = await fs.fileExists(baseDir)
+    if !exists {
+      []
+    } else {
+      try {
+        let entries = await fs.readdir(baseDir, ~options={withFileTypes: false})
+        let metadata = await Promise.all(entries->Array.map(async entry => {
+          let genPath = path.join(baseDir, entry)
+          let stat = try {
+            Some(await fs.stat(genPath))
+          } catch {
+          | _ => None
+          }
+
+          switch stat {
+          | Some(s) if s.isDirectory() => {
+              // Validate the manifest before inspecting actions or reading any templates.
+              switch await _loadManifest(~fs, ~path, ~yamlParser, genPath) {
+              | Error(reason) => {
+                  Console.warn("Skipping generator " ++ entry ++ ": " ++ reason)
+                  None
+                }
+              | Ok(manifest) => {
+                  // Match full discovery's action-entry stat/isDirectory checks without reading files.
+                  let actionEntries = try {
+                    await fs.readdir(genPath, ~options={withFileTypes: false})
+                  } catch {
+                  | JsExn(_) => []
+                  }
+                  let actionChecks = await Promise.all(actionEntries->Array.map(async actionName => {
+                    let actionPath = path.join(genPath, actionName)
+                    try {
+                      let actionStat = await fs.stat(actionPath)
+                      actionStat.isDirectory()
+                    } catch {
+                    | _ => false
+                    }
+                  }))
+                  let _hasActionDirectory = actionChecks->Array.some(isDirectory => isDirectory)
+                  Some({name: entry, path: genPath, manifest})
+                }
+              }
+            }
+          | _ => None
+          }
+        }))
+        metadata->Array.filterMap(x => x)
+      } catch {
+      | JsExn(obj) =>
+        let msg = switch JsExn.message(obj) {
+        | Some(m) => m
+        | None => ""
+        }
+        if String.startsWith(msg, "Parse error in ") {
+          Console.warn(msg)
+          []
+        } else {
+          []
+        }
+      }
+    }
+  }))
+
+  discoveredPaths->Array.reduce([], (acc, gens) => acc->Array.concat(gens))
+}
+
+let findByClassificationMeta: (array<generatorMeta>, string) => option<generatorMeta> = (
+  generators,
+  classification,
+) => generators->Array.find(g => g.name == classification)
 
 // Discover generators across standard search paths
 let discover: (
