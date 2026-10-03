@@ -311,7 +311,7 @@ Hooks run through `execFile` without shell interpretation. They retain their con
 - **Rollback**: on any failure (render error, shell error), staged files are cleaned up
 - **Conflict resolution**: bulk prompt — `[y]es to all, [n]o to all, [s]elect individually, [a]bort`
 
-Local templates remain fully trusted. Registry templates require install-time confirmation and receive a `.blueprint-provenance` marker; marked templates are rendered only when they use safe EJS interpolation tags (`<%= %>`). The marker is advisory state, not protection against a local attacker: after reviewing a template, remove the marker to opt out of the gate.
+Local templates remain fully trusted. Registry templates are trusted code too: they run with your permissions when you generate with them, so **review a generator at install time** — install requires an explicit confirmation of a local source path (default NO). Installed templates receive a `.blueprint-provenance` marker; the marker is provenance information, not a security boundary, and the associated tag check is advisory. See [ADR 0001](docs/adr/0001-registry-template-trust-model.md) for the trust-model decision and its rationale.
 
 ## Global template registry
 
