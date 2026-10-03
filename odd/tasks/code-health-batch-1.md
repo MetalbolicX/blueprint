@@ -16,8 +16,8 @@ Branch: `fix/code-health-batch-1` (from `main`). Verification: test-first (RED �
 - **Files:** `src/application/engine/EngineOrchestrator.res`, `test/Engine_test.res`
 - **Behavior:** `preResult` must be `Error` when `hookAttributes` is `Error` (malformed hook stdout), matching the documented fail-closed intent. Currently `EngineOrchestrator.res:151–154` maps `Error(_) => None` and the run proceeds — with `io` already closed. Update the stale comment at the `preResult` binding.
 - **Acceptance:** failing test first (malformed pre-hook stdout → run fails with parse error), then GREEN; existing pre-hook success tests stay GREEN.
-- **Status:** pending
-- **Evidence:** —
+- **Status:** done
+- **Evidence:** RED: 1 failing regression test (run returned Ok + file generated) → GREEN: Engine_test.res.mjs 29/29, EngineIntegration_test.res.mjs 5/5. Success fixtures fixed from `echo ok` to `printf '{}'` (they relied on the swallow). Commit `918d6c5`.
 
 ### T3 — Router: scope version flag + dedupe usage-error blocks (H3)
 - **3a behavior:** `route` treats `-v`/`--version` only when it is `args[0]`; `blueprint generate comp -v` must route to generate, not version. Files: `src/interfaces/cli/Router.res`, `test/Router_test.res` (and `test/Main_test.res` if covered there).

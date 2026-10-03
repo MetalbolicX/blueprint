@@ -324,7 +324,7 @@ let routeUnknown: (~deps: Ports.deps, ~command: string) => promise<unit> = async
 // ─── Main dispatcher ─────────────────────────────────────────────────────────
 
 let route: (~deps: Ports.deps, ~args: array<string>) => promise<unit> = async (~deps, ~args) => {
-  if args->Array.includes("--version") || args->Array.includes("-v") {
+  if args[0] == Some("--version") || args[0] == Some("-v") {
     await routeVersion(~deps)
   } else if Array.length(args) == 0 {
     Help.printUsage()
