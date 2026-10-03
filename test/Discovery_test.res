@@ -22,6 +22,71 @@ let makeCountingFs = (readPaths: ref<array<string>>): Ports.fileSystem => {
   }
 }
 
+let rejectFsError: string => promise<'a> = %raw(`message => Promise.reject(Object.assign(new Error(message), {code: message.split(":")[0]}))`)
+
+let makeObservedFs = (~peak: ref<int>, ~inFlight: ref<int>, ~failRead: option<(string, string)>, ~failReaddir: option<(string, string)>): Ports.fileSystem => {
+  let base = NodeJsFileSystem.make()
+  {
+    ...base,
+    readFile: async (file, ~options=?) => {
+      switch failRead {
+      | Some((failedPath, message)) if file == failedPath => await rejectFsError(message)
+      | _ =>
+        inFlight := inFlight.contents + 1
+        if inFlight.contents > peak.contents { peak := inFlight.contents }
+        try {
+          let content = await base.readFile(file, ~options?)
+          inFlight := inFlight.contents - 1
+          content
+        } catch {
+        | exn =>
+          inFlight := inFlight.contents - 1
+          throw(exn)
+        }
+      }
+    },
+    readdir: (dir, ~options=?) => switch failReaddir {
+    | Some((failedPath, message)) if dir == failedPath => rejectFsError(message)
+    | _ => base.readdir(dir, ~options?)
+    },
+  }
+}
+
+let captureWarnings: (unit => promise<'a>) => promise<(array<string>, 'a)> = %raw(`async run => {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try { return [warnings, await run()]; }
+  finally { console.warn = original; }
+}`)
+
+let makeTemplateFixture = (~count: int): promise<(string, string)> => {
+  let tmpDir = NodeJs.Os.makeStagingDir()
+  let genDir = NodeJs.Path.join(tmpDir, "component")
+  NodeJs.Fs.mkdir(genDir, ~options={recursive: true})
+  ->Promise.then(_ => NodeJs.Fs.writeFile(
+    NodeJs.Path.join(genDir, "manifest.yaml"),
+    "name: test\nclassification: component\nprompts: []\n",
+  ))
+  ->Promise.then(_ => {
+    let rec setupActions = i => {
+      if i >= count {
+        Promise.resolve()
+      } else {
+        let actionDir = NodeJs.Path.join(genDir, "action" ++ Int.toString(i))
+        NodeJs.Fs.mkdir(actionDir, ~options={recursive: true})
+        ->Promise.then(_ => NodeJs.Fs.writeFile(
+          NodeJs.Path.join(actionDir, "file.txt.ejs.t"),
+          "---\nto: file.txt\n---\nbody",
+        ))
+        ->Promise.then(_ => setupActions(i + 1))
+      }
+    }
+    setupActions(0)
+  })
+  ->Promise.then(_ => Promise.resolve((tmpDir, genDir)))
+}
+
 suite("Discovery", () => {
   let fs = NodeJsFileSystem.make()
   let pathAdapter = NodeJsPath.make()
@@ -205,6 +270,76 @@ suite("Discovery", () => {
     ->Promise.catch(exn => {
       NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => {
         throw(exn)
+      })
+    })
+  })
+
+  testAsync("template EACCES warns and skips only the unreadable template", resolve => {
+    let _ = makeTemplateFixture(~count=2)->Promise.then(fixture => {
+      let (tmpDir, genDir) = fixture
+      let failed = NodeJs.Path.join(genDir, "action0/file.txt.ejs.t")
+      let peak = ref(0)
+      let inFlight = ref(0)
+      let faultFs = makeObservedFs(~peak, ~inFlight, ~failRead=Some((failed, "EACCES: permission denied")), ~failReaddir=None)
+      captureWarnings(() => Discovery.discoverIn(~fs=faultFs, ~path=pathAdapter, ~yamlParser, tmpDir))
+      ->Promise.then(((warnings, gens)) => {
+        assert_eq(Array.length(gens), 1)
+        let gen = gens[0]->Option.getOr({Discovery.name: "", path: "", templates: []})
+        assert_eq(Array.length(gen.templates), 1)
+        assert_true(warnings->Array.some(w => String.includes(w, failed)))
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+  })
+
+  testAsync("template ENOENT remains a silent skip", resolve => {
+    let _ = makeTemplateFixture(~count=2)->Promise.then(fixture => {
+      let (tmpDir, genDir) = fixture
+      let failed = NodeJs.Path.join(genDir, "action0/file.txt.ejs.t")
+      let peak = ref(0)
+      let inFlight = ref(0)
+      let faultFs = makeObservedFs(~peak, ~inFlight, ~failRead=Some((failed, "ENOENT: no such file or directory")), ~failReaddir=None)
+      captureWarnings(() => Discovery.discoverIn(~fs=faultFs, ~path=pathAdapter, ~yamlParser, tmpDir))
+      ->Promise.then(((warnings, gens)) => {
+        assert_eq(Array.length(warnings), 0)
+        switch gens[0] {
+        | Some(gen) => assert_eq(Array.length(gen.templates), 1)
+        | None => assert_false(true)
+        }
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+  })
+
+  testAsync("action directory EACCES warns and keeps other actions", resolve => {
+    let _ = makeTemplateFixture(~count=2)->Promise.then(fixture => {
+      let (tmpDir, genDir) = fixture
+      let failed = NodeJs.Path.join(genDir, "action0")
+      let peak = ref(0)
+      let inFlight = ref(0)
+      let faultFs = makeObservedFs(~peak, ~inFlight, ~failRead=None, ~failReaddir=Some((failed, "EACCES: permission denied")))
+      captureWarnings(() => Discovery.discoverIn(~fs=faultFs, ~path=pathAdapter, ~yamlParser, tmpDir))
+      ->Promise.then(((warnings, gens)) => {
+        assert_true(warnings->Array.some(w => String.includes(w, failed)))
+        switch gens[0] {
+        | Some(gen) => assert_eq(Array.length(gen.templates), 1)
+        | None => assert_false(true)
+        }
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+  })
+
+  testAsync("template reads are bounded to eight in flight", resolve => {
+    let _ = makeTemplateFixture(~count=20)->Promise.then(fixture => {
+      let (tmpDir, _genDir) = fixture
+      let peak = ref(0)
+      let inFlight = ref(0)
+      let observedFs = makeObservedFs(~peak, ~inFlight, ~failRead=None, ~failReaddir=None)
+      Discovery.discoverIn(~fs=observedFs, ~path=pathAdapter, ~yamlParser, tmpDir)
+      ->Promise.then(_ => {
+        assert_true(peak.contents <= 8)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
       })
     })
   })
