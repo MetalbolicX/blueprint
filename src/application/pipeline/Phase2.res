@@ -166,9 +166,11 @@ let run: (
       }
     }
   | Error(err) => {
+      let rollbackTargets = err.partialCommit->Option.getOr([])->Array.concat(err.failedTargets->Option.getOr([]))
+      let rollbackBackups = err.backups->Option.getOr([])->Array.concat(err.failedBackups->Option.getOr([]))
       switch await Commit.rollbackOutput(
-        ~committedFiles=err.partialCommit->Option.getOr([]),
-        ~backups=err.backups->Option.getOr([]),
+        ~committedFiles=rollbackTargets,
+        ~backups=rollbackBackups,
         ~outputDir,
         ~path,
         ~fs,

@@ -19,6 +19,8 @@ type phase2Error = {
   catastrophic?: bool,
   failedRollbackFiles?: array<string>,
   backups?: array<backupEntry>,
+  failedTargets?: array<string>,
+  failedBackups?: array<backupEntry>,
 }
 
 let backupDirName = ".blueprint-backup"
@@ -94,10 +96,10 @@ let commitFiles: (
 
     let isWithin = await PathSecurity.isWithinTree(destPath, outputDir, path, fs)
     if !isWithin {
-      Error(("Target path outside output tree: " ++ targetPath, None))
+      Error(("Target path outside output tree: " ++ targetPath, None, None))
     } else {
       switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
-      | Error(e) => Error((e, None))
+      | Error(e) => Error((e, None, None))
       | Ok(backupOpt) => {
           switch onCommitting {
           | Some(callback) => callback(destPath, backupOpt)
@@ -110,7 +112,7 @@ let commitFiles: (
           try {
             let stagedStat = await fs.lstat(stagedPath)
             if stagedStat.isSymbolicLink() {
-              Error(("Refusing to copy symbolic link: " ++ stagedPath, None))
+              Error(("Refusing to copy symbolic link: " ++ stagedPath, backupOpt, Some(destPath)))
             } else {
               let _ = await fs.mkdir(destDir, ~options={recursive: true})
               await fs.cp(stagedPath, destPath, ~options={recursive: false})
@@ -122,7 +124,7 @@ let commitFiles: (
             | Some(m) => m
             | None => "Copy failed"
             }
-            Error(("Failed to commit " ++ targetPath ++ ": " ++ msg, None))
+            Error(("Failed to commit " ++ targetPath ++ ": " ++ msg, backupOpt, Some(destPath)))
           }
         }
       }
@@ -130,7 +132,10 @@ let commitFiles: (
   })
 
   let allResults = await Promise.all(workItems->Array.map(fn => fn()))
-  let errors = allResults->Array.filterMap(r => switch r { | Error((e, _)) => Some(e) | Ok(_) => None })
+  let errors = allResults->Array.filterMap(r => switch r { | Error((e, _, _)) => Some(e) | Ok(_) => None })
+  let failed = allResults->Array.filterMap(r => switch r { | Error((_, backup, target)) => target->Option.map(t => (t, backup)) | Ok(_) => None })
+  let failedTargets = failed->Array.map(((target, _)) => target)
+  let failedBackups = failed->Array.filterMap(((_, backup)) => backup)
   let successful = allResults->Array.filterMap(r => switch r { | Ok(x) => Some(x) | Error(_) => None })
   let partialCommit = successful->Array.map(((path, _)) => path)
   let backups: array<backupEntry> = successful->Array.map(((path, backup)) => (path, backup))->Array.filterMap(((_, backup)) => {
@@ -142,21 +147,14 @@ let commitFiles: (
 
   if errors->Array.length > 0 {
     let firstError = errors[0]->Option.getOr("Unknown error")
-    let err: phase2Error = {message: firstError}
-    switch partialCommit->Array.length {
-    | 0 =>
-      if backups->Array.length > 0 {
-        Error({...err, backups: ?Some(backups)})
-      } else {
-        Error(err)
-      }
-    | _ =>
-      if backups->Array.length > 0 {
-        Error({...err, partialCommit: ?Some(partialCommit), backups: ?Some(backups)})
-      } else {
-        Error({...err, partialCommit: ?Some(partialCommit)})
-      }
+    let err: phase2Error = {
+      message: firstError,
+      partialCommit: ?(partialCommit->Array.length > 0 ? Some(partialCommit) : None),
+      backups: ?(backups->Array.length > 0 ? Some(backups) : None),
+      failedTargets: ?(failedTargets->Array.length > 0 ? Some(failedTargets) : None),
+      failedBackups: ?(failedBackups->Array.length > 0 ? Some(failedBackups) : None),
     }
+    Error(err)
   } else {
     Ok((partialCommit->Array.length, backups))
   }
@@ -211,7 +209,11 @@ let rollbackOutput: (
             | Some(m) => m
             | None => "unknown error"
             }
-            Error({path: outputPath, reason: msg})
+            if String.includes(msg, "ENOENT") {
+              Ok()
+            } else {
+              Error({path: outputPath, reason: msg})
+            }
           | _ => Error({path: outputPath, reason: "unknown error"})
           }
         }

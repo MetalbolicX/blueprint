@@ -24,6 +24,19 @@ let makeProcess = (): Ports.process => {
   homedir: () => "/home/test",
 }
 
+let waitForSignalRollback: (
+  ~exitRecorded: unit => bool,
+  ~diagnosticPresent: unit => bool,
+) => promise<unit> = %raw(`(exitRecorded, diagnosticPresent) => new Promise((resolve, reject) => {
+  let attempts = 0;
+  const poll = () => {
+    if (exitRecorded() && diagnosticPresent()) return resolve();
+    if (++attempts >= 400) return reject(new Error("rollback chain did not settle"));
+    setTimeout(poll, 5);
+  };
+  poll();
+})`)
+
 let makeSignalProcess = (~handler: ref<option<unit => unit>>, ~exitCodes: ref<array<int>>): Ports.process => {
   {
     ...makeProcess(),
@@ -346,6 +359,10 @@ suite("Phase2", () => {
       ~shell=NodeJsShell.make(),
       ~tmpRoot=NodeJs.Os.tmpdir(),
       ~commitRollbackRef=rollbackRef,
+    ))
+    ->Promise.then(_ => waitForSignalRollback(
+      ~exitRecorded=() => Array.get(exitCodes.contents, 0) == Some(1),
+      ~diagnosticPresent=() => %raw("globalThis.__testMessages.some(msg => String(msg).includes('Signal rollback failed'))"),
     ))
     ->Promise.then(_ => {
       let _ = %raw("console.error = globalThis.__signalOriginalError")
@@ -1214,6 +1231,84 @@ suite("Phase2", () => {
       })
       ->Promise.then(newExists => {
         assert_false(newExists)
+        NodeJs.Fs.fileExists(stagingDir)
+      })
+      ->Promise.then(stagingExists => {
+        assert_false(stagingExists)
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("run: failed commit copy restores its backup and removes other partial output", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let path = NodeJsPath.make()
+    let stagingDir = NodeJs.Path.join(tmpDir, "staging")
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let stagedA = NodeJs.Path.join(stagingDir, "a.txt")
+    let stagedB = NodeJs.Path.join(stagingDir, "b.txt")
+    let outputA = NodeJs.Path.join(outputDir, "a.txt")
+    let outputB = NodeJs.Path.join(outputDir, "b.txt")
+    let base = NodeJsFileSystem.make()
+    let fs: Ports.fileSystem = {
+      ...base,
+      cp: (fromPath, toPath, ~options=?) =>
+        if fromPath == stagedB && toPath == outputB {
+          base.writeFile(outputB, "corrupt")->Promise.then(_ => rejectError("copy failed after partial write"))
+        } else {
+          base.cp(fromPath, toPath, ~options?)
+        },
+    }
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedA, "new-a"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedB, "new-b"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(outputB, "original-b"))
+    ->Promise.then(_ => Phase2.run(
+      ~stagingDir,
+      ~outputDir,
+      ~renderedFiles=[("a.t.ejs", "a.txt"), ("b.t.ejs", "b.txt")],
+      ~shellCommands=[],
+      ~shellConfig=None,
+      ~fs,
+      ~path,
+      ~process=makeProcess(),
+      ~shell=NodeJsShell.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(err) => {
+          switch err.failedTargets {
+          | Some(targets) => assert_eq(targets, [outputB])
+          | None => assert_false(true)
+          }
+          switch err.failedBackups {
+          | Some(backups) => {
+              assert_eq(Array.length(backups), 1)
+              assert_eq(backups[0]->Option.map(backup => backup.outputPath), Some(outputB))
+            }
+          | None => assert_false(true)
+          }
+        }
+      }
+      NodeJs.Fs.fileExists(outputA)
+      ->Promise.then(aExists => {
+        assert_false(aExists)
+        NodeJs.Fs.readFile(outputB, ~options={encoding: "utf8"})
+      })
+      ->Promise.then(content => {
+        assert_eq(content, "original-b")
         NodeJs.Fs.fileExists(stagingDir)
       })
       ->Promise.then(stagingExists => {
