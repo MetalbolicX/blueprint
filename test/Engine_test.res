@@ -83,6 +83,13 @@ let invokeHandler = (handlerRef: ref<option<unit => unit>>) => {
 
 let waitForSignalCleanup: unit => promise<unit> = %raw(`() => new Promise(resolve => setTimeout(resolve, 20))`)
 
+let withCapturedWarnings: (array<string> => promise<unit>) => promise<unit> = %raw(`run => {
+  const warnings = []
+  const originalWarn = console.warn
+  console.warn = (...args) => warnings.push(args.join(" "))
+  return Promise.resolve(run(warnings)).finally(() => { console.warn = originalWarn })
+}`)
+
 suite("Engine", () => {
   test("generateResult: structure", () => {
     let result: generateResult = {
@@ -564,6 +571,69 @@ suite("Engine", () => {
     ->ignore
   })
 
+  testAsync("run: dry run preserves legacy backup dir without output mutations", resolve => {
+    let outputDir = "/tmp/engine-dry-run-output"
+    let backupDir = deps.path.join(outputDir, ".blueprint-backup")
+    let backupExists = ref(true)
+    let outputMutations = ref([])
+    let recordOutputMutation = target =>
+      if target == outputDir || String.startsWith(target, outputDir ++ "/") {
+        outputMutations.contents->Array.push(target)->ignore
+      }
+    let fs: Ports.fileSystem = {
+      ...deps.fs,
+      rm: (target, ~options=?) => {
+        recordOutputMutation(target)
+        if target == backupDir {
+          backupExists.contents = false
+          Promise.resolve()
+        } else {
+          deps.fs.rm(target, ~options?)
+        }
+      },
+      writeFile: (target, content, ~options=?) => {
+        recordOutputMutation(target)
+        deps.fs.writeFile(target, content, ~options?)
+      },
+      mkdir: (target, ~options=?) => {
+        recordOutputMutation(target)
+        deps.fs.mkdir(target, ~options?)
+      },
+      cp: (source, target, ~options=?) => {
+        recordOutputMutation(target)
+        deps.fs.cp(source, target, ~options?)
+      },
+      fileExists: target => target == backupDir ? Promise.resolve(true) : deps.fs.fileExists(target),
+    }
+    let testDeps = {...deps, fs}
+    let generator: Discovery.generator = {
+      name: "component",
+      path: "/tmp/blueprint-test-nonexistent",
+      templates: [],
+    }
+
+    Engine.run(
+      ~generator,
+      ~name="Button",
+      ~cliAttributes=Dict.make(),
+      ~outputDir,
+      ~force=true,
+      ~config={dryRun: true},
+      ~deps=testDeps,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => ()
+      | Error(_) => assert_false(true)
+      }
+      assert_true(backupExists.contents)
+      assert_eq(Array.length(outputMutations.contents), 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("cleanupOrphans: removes blueprint backup leak dirs", resolve => {
     let tmpRoot = "/tmp/engine-cleanup-backup"
     let outputDir = "/tmp/output-with-backup"
@@ -571,13 +641,15 @@ suite("Engine", () => {
     let removed = ref([])
     let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[], ~existingPaths=[backupDir], ~removed)
 
-    cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
-    ->Promise.then(_ => {
-      assert_eq(Array.get(removed.contents, 0), Some(backupDir))
-      resolve()
-      Promise.resolve()
-    })
-    ->ignore
+    withCapturedWarnings(warnings =>
+      cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
+      ->Promise.then(_ => {
+        assert_eq(Array.get(removed.contents, 0), Some(backupDir))
+        assert_true(Array.some(warnings, warning => String.includes(warning, "Removing legacy backup dir: " ++ backupDir)))
+        resolve()
+        Promise.resolve()
+      })
+    )->ignore
   })
 
   testAsync("cleanupOrphans: no stale dirs does not remove tmp paths", resolve => {
