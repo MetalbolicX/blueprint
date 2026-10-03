@@ -31,7 +31,7 @@ let run: (
   ~projectRoot=?,
   ~deps,
 ) => {
-  let {fs, path, process: proc, shell, interactiveIO: io, ejs, yamlParser} = deps
+  let {fs, path, process: proc, shell, interactiveIO: io, ejs, yamlParser, fetcher, pathSecurity, shellBuilder, envFilter} = deps
   let resolvedProjectRoot = projectRoot->Option.getOr(proc.cwd())
 
   // Derive the shared OS temp root through the filesystem port, whose Node adapter
@@ -43,7 +43,7 @@ let run: (
   let isDryRun = config->Option.flatMap(c => c.dryRun)->Option.getOr(false)
 
   // Phase 0: setup (unconditional)
-  Fetcher.clearCache()
+  fetcher.clearCache()
   if !isDryRun {
     await EngineLifecycle.cleanupOrphans(~outputDir, ~fs, ~path, ~tmpRoot)
   }
@@ -87,6 +87,7 @@ let run: (
   let preHookResult = switch await EngineHooks.runPreHook(
     ~config,
     ~projectRoot=resolvedProjectRoot,
+    ~hooks=deps.hooks,
     ~shell,
     ~process=proc,
     ~path,
@@ -131,6 +132,7 @@ let run: (
         ~force,
         ~fs,
         ~path,
+        ~pathSecurity,
       ) {
       | Error(e) => Error({Commit.message: e})
       | Ok((p0, decisions)) => {
@@ -170,6 +172,7 @@ let run: (
         ~shellConfig,
         ~fs,
         ~path,
+        ~pathSecurity,
         ~ejs,
         ~process=proc,
       ) {
@@ -192,7 +195,7 @@ let run: (
         Console.log(
           "Dry run — would generate " ++ Int.toString(p1.renderedFiles->Array.length) ++ " file(s)",
         )
-        switch await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs) {
+        switch await Commit.rollback(p1.stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
         | Ok() => ()
         | Error(message) => Console.warn("Warning: could not clean staging directory " ++ p1.stagingDir ++ ": " ++ message)
         }
@@ -213,6 +216,10 @@ let run: (
           ~path,
           ~process=proc,
           ~shell,
+          ~fetcher,
+          ~pathSecurity,
+          ~shellBuilder,
+          ~envFilter,
           ~tmpRoot,
           ~commitRollbackRef,
         )
@@ -261,6 +268,7 @@ let run: (
               ~config,
               ~projectRoot=resolvedProjectRoot,
               ~result,
+              ~hooks=deps.hooks,
               ~shell,
               ~process=proc,
               ~path,

@@ -10,8 +10,9 @@ let runPhase0: (
   ~force: bool,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>> = async (~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path) => {
-  let phase0Result = await Phase0.run(~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path)
+  ~pathSecurity: Ports.pathSecurity,
+) => promise<result<(Phase0.phase0Result, array<ConflictResolver.conflictDecision>), string>> = async (~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path, ~pathSecurity) => {
+  let phase0Result = await Phase0.run(~io, ~ejs, ~generator, ~context, ~outputDir, ~force, ~fs, ~path, ~pathSecurity)
 
   switch phase0Result {
   | Error(e) =>
@@ -44,9 +45,10 @@ let runPhase1: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
-) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~conflictDecisions, ~shellConfig, ~fs, ~path, ~ejs, ~process) => {
+) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~conflictDecisions, ~shellConfig, ~fs, ~path, ~pathSecurity, ~ejs, ~process) => {
   let phase1Result = await Phase1.run(
     ~templates,
     ~context=mergedContext,
@@ -55,6 +57,7 @@ let runPhase1: (
     ~shellConfig,
     ~fs,
     ~path,
+    ~pathSecurity,
     ~ejs,
     ~process,
   )

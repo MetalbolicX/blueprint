@@ -16,14 +16,16 @@ application→infrastructure module imports (e.g. `ShellExecutor` importing
 
 - **Ports-only consumption remains the TARGET for both layers.** The
   Purpose above is not weakened.
-- **Enforcement is staged.** Today's guard asserts the binding-reference
-  requirements below for domain AND application (they hold against real
-  sources). Routing application-layer MODULE imports (`Fetcher`, `Hooks`,
-  …) behind Ports is deferred to a dedicated Ports-extraction plan (L
-  effort; also removes `FetchSecurity_test`'s `globalThis.fetch`
-  monkey-patching by providing the injection seam). Until that plan lands,
-  `AGENTS.md`'s `application → domain + infrastructure` arrow describes
-  current reality and the guard MUST NOT assert module-import routing.
+- **Enforcement reached (2026-10-02, plan 055):** the Ports-extraction
+  landed — application-layer module imports (`Fetcher`, `PathSecurity`,
+  `ShellBuilder`, `EnvFilter`, `Hooks`) moved behind `Ports` members, and
+  the guard now ASSERTS the module-reference patterns for the application
+  tree in addition to domain (anchored at identifier boundaries;
+  fixture-tested). `AGENTS.md`'s architecture arrow is updated to
+  `application → domain + Ports → infrastructure`.
+- **Enforcement was staged** until plan 055 landed: binding-pattern
+  requirements held for domain AND application while module-import routing
+  was deferred.
 - **Guard amendments landed with this ruling** (implementation parity, see
   the guard test): scans cover `.res` AND `.resi`; a missing or unreadable
   scan root FAILS the guard (never a vacuous pass); the domain pattern set

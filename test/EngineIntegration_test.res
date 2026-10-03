@@ -11,6 +11,11 @@ let deps: Ports.deps = {
   argParser: NodeJsArgParser.make(),
   yamlParser: NodeJsYamlParser.make(),
   ejs: NodeJsEjs.make(),
+  fetcher: NodeJsFetcher.make(),
+  pathSecurity: NodeJsPathSecurity.make(),
+  shellBuilder: NodeJsShellBuilder.make(),
+  envFilter: NodeJsEnvFilter.make(),
+  hooks: NodeJsHooks.make(),
 }
 
 suite("Engine Integration", () => {

@@ -1,13 +1,8 @@
 // Hooks — pre/post generate lifecycle hook execution
 // Mirrors Go version's hooks/hooks.go
 
-type hookType = PreGenerate | PostGenerate
-
-type hookResult = {
-  hookType: hookType,
-  output: string,
-  exitCode: int,
-}
+type hookType = Ports.hookType
+type hookResult = Ports.hookResult
 
 // Windows-style separators and drive roots are paths too (plan 051).
 // Drive-letter check is an explicit char test: RegExp pattern-string APIs
@@ -71,11 +66,11 @@ let executeHook: (
     | Some(c) => c
     | None => 0
     }
-    {hookType, output: execResult.stdout, exitCode}
+    {Ports.hookType: hookType, output: execResult.stdout, exitCode}
   }
 
   let result = if hook.command == "" {
-    Ok({hookType, output: "", exitCode: 0})
+    Ok({Ports.hookType: hookType, output: "", exitCode: 0})
   } else {
     let explicitArgs = hook.args
     let tokenized = switch explicitArgs {
@@ -197,8 +192,8 @@ let run: (
   }
 
   switch hookCmd {
-  | None => Ok({hookType, output: "", exitCode: 0})
-  | Some(hook) if hook.command == "" => Ok({hookType, output: "", exitCode: 0})
+  | None => Ok({Ports.hookType: hookType, output: "", exitCode: 0})
+  | Some(hook) if hook.command == "" => Ok({Ports.hookType: hookType, output: "", exitCode: 0})
   | Some(hook) =>
     switch shellConfig {
     | Some(cfg) if !cfg.enabled =>

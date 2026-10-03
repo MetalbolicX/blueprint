@@ -43,3 +43,25 @@ let stubEjs: ejs = {
   },
   renderFile: (~path as _path, ~context as _context) => Promise.resolve(Error("stubEjs.renderFile not implemented in TestPorts")),
 }
+
+let stubFetcher: fetcher = {
+  fetch: _url => Promise.resolve(Error("stubFetcher.fetch not implemented in TestPorts")),
+  clearCache: () => (),
+}
+
+let stubPathSecurity: pathSecurity = {
+  isWithinTree: (candidate, root, path, fs) => PathSecurity.isWithinTree(candidate, root, path, fs),
+}
+
+let stubShellBuilder: shellBuilder = {
+  buildEnvFilterConfig: shellEnv => {
+    let config = ShellBuilder.buildEnvFilterConfig(shellEnv)
+    {vars: config.vars->Array.map(entry => ({key: entry.key, value: entry.value} :> Ports.shellEnvEntry))}
+  },
+}
+
+let stubEnvFilter: envFilter = {
+  buildSafeEnv: (config, inheritedEnv) => NodeJsEnvFilter.make().buildSafeEnv(config, inheritedEnv),
+}
+
+let stubHooks: hooks = {run: Hooks.run}

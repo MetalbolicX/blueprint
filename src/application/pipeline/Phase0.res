@@ -25,7 +25,8 @@ let detectRenderedConflicts: (
   ~attributes: dict<string>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
-) => promise<result<array<conflictFile>, string>> = async (~templates, ~outputDir, ~force as _force, ~ejs, ~attributes, ~fs, ~path) => {
+  ~pathSecurity: Ports.pathSecurity,
+) => promise<result<array<conflictFile>, string>> = async (~templates, ~outputDir, ~force as _force, ~ejs, ~attributes, ~fs, ~path, ~pathSecurity as _pathSecurity) => {
   // Collect all To directive checks as a flat array.
   // unless_exists templates are intentionally excluded from conflict detection,
   // because existing target files should be silently skipped.
@@ -99,6 +100,7 @@ let run: (
   ~force: bool,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<phase0Result, string>> = async (
   ~io,
   ~ejs,
@@ -108,6 +110,7 @@ let run: (
   ~force,
   ~fs,
   ~path,
+  ~pathSecurity,
 ) => {
   // Get manifest prompts
   let prompts = switch generator.manifest {
@@ -144,6 +147,7 @@ let run: (
         ~attributes=mergedAttributes,
         ~fs,
         ~path,
+        ~pathSecurity,
       ) {
       | Error(e) => Error(e)
       | Ok(conflicts) => Ok({resolvedAttributes, conflicts})

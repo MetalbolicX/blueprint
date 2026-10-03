@@ -16,7 +16,7 @@ pnpm bundle          # rolldown -c (bundle only, assumes ReScript already compil
 
 ## Architecture
 
-- **Hexagonal/Clean**: `interfaces/` → `application/` → `domain/` + `infrastructure/`
+- **Hexagonal/Clean**: `interfaces/` → `application/` → `domain/` + `Ports` → `infrastructure/` (application consumes infrastructure only through injected `Ports` members — enforced by the architecture guard since plan 055)
 - **3-phase pipeline**: Phase0 (prompt resolution + conflict detection), Phase1 (render to staging + shell), Phase2 (atomic commit to output + cleanup)
 - **Transactional**: renders to `os.TempDir()` staging — on error, `Phase2.rollback(stagingDir)` removes it. No partial writes reach output.
 - **Conflict resolution**: bulk y/n/s/a per file. Use `--force` to skip.

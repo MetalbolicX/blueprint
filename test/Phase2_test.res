@@ -161,6 +161,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process,
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
       ~tmpRoot=NodeJs.Os.tmpdir(),
     ))
     ->Promise.then(result => {
@@ -200,6 +204,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process,
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     ))
     ->Promise.then(result => {
       switch result {
@@ -273,6 +281,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process,
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
       ~tmpRoot=NodeJs.Os.tmpdir(),
       ~commitRollbackRef=rollbackRef,
     ))
@@ -357,6 +369,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process,
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
       ~tmpRoot=NodeJs.Os.tmpdir(),
       ~commitRollbackRef=rollbackRef,
     ))
@@ -508,7 +524,7 @@ suite("Phase2", () => {
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(exists => {
       assert_true(exists)
-      Commit.rollback(tmpDir, ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make())
+      Commit.rollback(tmpDir, ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs=NodeJsFileSystem.make())
     })
     ->Promise.then(_ => NodeJs.Fs.fileExists(tmpDir))
     ->Promise.then(existsAfter => {
@@ -532,7 +548,7 @@ suite("Phase2", () => {
       {outputPath: "/output/fail.txt", backupPath: "/backups/fail.txt"},
     ]
 
-    rollbackOutput(~committedFiles, ~backups, ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
+    rollbackOutput(~committedFiles, ~backups, ~outputDir="/output", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -567,7 +583,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == outputNew ? Some("cannot delete") : None,
     )
 
-    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~outputDir="/output", ~path=NodeJsPath.make(), ~fs)
+    rollbackOutput(~committedFiles=[outputNew], ~backups=[], ~outputDir="/output", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -595,7 +611,7 @@ suite("Phase2", () => {
       ~rmFailure=target => target == "/tmp/locked-staging" ? Some("permission denied") : None,
     )
 
-    rollback("/tmp/locked-staging", ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~fs)
+    rollback("/tmp/locked-staging", ~tmpRoot="/tmp", ~path=NodeJsPath.make(), ~pathSecurity=NodeJsPathSecurity.make(), ~fs)
     ->Promise.then(result => {
       switch result {
       | Ok() => assert_false(true)
@@ -668,6 +684,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -703,6 +723,10 @@ suite("Phase2", () => {
         ~path=NodeJsPath.make(),
         ~process=NodeJsProcess.make(),
         ~shell=NodeJsShell.make(),
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     })
     ->Promise.then(result => {
@@ -734,6 +758,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -766,6 +794,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -798,6 +830,10 @@ suite("Phase2", () => {
         ~renderedFiles,
         ~shellCommands,
         ~shellConfig=None,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
         ~fs,
         ~path,
         ~process=processAdapter,
@@ -865,6 +901,10 @@ suite("Phase2", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -925,6 +965,10 @@ suite("Phase2", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -1003,6 +1047,10 @@ suite("Phase2", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -1072,6 +1120,10 @@ suite("Phase2", () => {
         ~path,
         ~process=makeProcess(),
         ~shell=makeShell(~status=17),
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -1141,6 +1193,10 @@ suite("Phase2", () => {
         ~path,
         ~process=makeProcess(),
         ~shell=NodeJsShell.make(),
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -1211,6 +1267,10 @@ suite("Phase2", () => {
         ~path,
         ~process=makeProcess(),
         ~shell=NodeJsShell.make(),
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -1284,6 +1344,10 @@ suite("Phase2", () => {
       ~path,
       ~process=makeProcess(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     ))
     ->Promise.then(result => {
       switch result {
@@ -1345,6 +1409,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -1400,6 +1468,10 @@ suite("Phase2", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {

@@ -69,6 +69,7 @@ let commitFiles: (
   ~renderedFiles: array<(string, string)>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~onCommitting: (string, option<backupEntry>) => unit=?,
 ) => promise<result<(int, array<backupEntry>), phase2Error>> = async (
   ~stagingDir,
@@ -76,6 +77,7 @@ let commitFiles: (
   ~renderedFiles,
   ~fs,
   ~path,
+  ~pathSecurity,
   ~onCommitting=?,
 ) => {
   let seenTargets: ref<dict<string>> = ref(Dict.make())
@@ -94,7 +96,7 @@ let commitFiles: (
     let destPath = path.join(outputDir, targetPath)
     let destDir = path.dirname(destPath)
 
-    let isWithin = await PathSecurity.isWithinTree(destPath, outputDir, path, fs)
+    let isWithin = await pathSecurity.isWithinTree(destPath, outputDir, path, fs)
     if !isWithin {
       Error(("Target path outside output tree: " ++ targetPath, None, None))
     } else {
@@ -166,12 +168,14 @@ let rollbackOutput: (
   ~outputDir: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<unit, array<rollbackFailure>>> = async (
   ~committedFiles,
   ~backups,
   ~outputDir,
   ~path,
   ~fs,
+  ~pathSecurity,
 ) => {
   let backupByOutput: dict<backupEntry> = Dict.make()
   backups->Array.forEach(backup => backupByOutput->Dict.set(backup.outputPath, backup))
@@ -180,7 +184,7 @@ let rollbackOutput: (
     // Re-validate containment: each outputPath must be within outputDir.
     // Without this check, a future caller could pass unvalidated paths and
     // rm/cp outside the committed output tree during rollback.
-    let isWithin = await PathSecurity.isWithinTree(outputPath, outputDir, path, fs)
+    let isWithin = await pathSecurity.isWithinTree(outputPath, outputDir, path, fs)
     if !isWithin {
       Error({path: outputPath, reason: "output path outside output tree during rollback"})
     } else {
@@ -237,10 +241,10 @@ let rollbackOutput: (
 
 // Rollback: remove staging directory
 // Asserts staging dir is within tmpRoot before rm to prevent catastrophic deletion.
-let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~fs: Ports.fileSystem) => promise<result<unit, string>> = async (stagingDir, ~tmpRoot, ~path, ~fs) => {
+let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~pathSecurity: Ports.pathSecurity, ~fs: Ports.fileSystem) => promise<result<unit, string>> = async (stagingDir, ~tmpRoot, ~path, ~pathSecurity, ~fs) => {
   // Guard: staging dir must be within the known tmpdir tree.
   // Without this, a caller passing a path like /usr could wipe system directories.
-  let isWithin = await PathSecurity.isWithinTree(stagingDir, tmpRoot, path, fs)
+  let isWithin = await pathSecurity.isWithinTree(stagingDir, tmpRoot, path, fs)
   if !isWithin {
     Error("Refusing to remove staging dir outside temp directory: " ++ stagingDir)
   } else {

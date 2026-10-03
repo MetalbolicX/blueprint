@@ -26,6 +26,15 @@ let checkLine: string => bool = line => {
   Js.String.match_(/NodeJs\.[A-Z]/, line) != None ||
   Js.String.match_(/Deno\.[A-Z]/, line) != None ||
   Js.String.match_(/Ejs\.[A-Z]/, line) != None ||
+  // Plan 055: application-layer module references move behind Ports.
+  // Wrapper-module patterns are case-sensitive on the module name and
+  // anchored at a non-identifier boundary (so `EngineHooks.` does not
+  // match the `Hooks.` pattern). `Ports.fetcher`/`hooks` never match.
+  Js.String.match_(/(?<![A-Za-z])Fetcher\./, line) != None ||
+  Js.String.match_(/(?<![A-Za-z])PathSecurity\./, line) != None ||
+  Js.String.match_(/(?<![A-Za-z])ShellBuilder\./, line) != None ||
+  Js.String.match_(/(?<![A-Za-z])EnvFilter\./, line) != None ||
+  Js.String.match_(/(?<![A-Za-z])Hooks\./, line) != None ||
   String.includes(line, "@module(\"node:")
 }
 
@@ -104,6 +113,22 @@ suite("Architecture guard", () => {
       assert_eq(Array.length(violations), 2)
       assert_true(Array.some(violations, violation => String.includes(violation, "Fixture.res:1")))
       assert_true(Array.some(violations, violation => String.includes(violation, "Fixture.resi:1")))
+      NodeJs.Fs.rm(root, ~options={recursive: true})->Promise.then(_ => {
+        resolve()
+        Promise.resolve()
+      })
+    })
+    ->ignore
+  })
+
+  testAsync("scanner flags application-layer infrastructure module references (plan 055)", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let appPath = NodeJs.Path.join(root, "AppFixture.res")
+    NodeJs.Fs.writeFile(appPath, "let go = () => Fetcher.fetch(\"https://example.com\")")
+    ->Promise.then(_ => {
+      let violations = scanForForbiddenRefs(~root)
+      assert_eq(Array.length(violations), 1)
+      assert_true(Array.some(violations, violation => String.includes(violation, "AppFixture.res:1")))
       NodeJs.Fs.rm(root, ~options={recursive: true})->Promise.then(_ => {
         resolve()
         Promise.resolve()

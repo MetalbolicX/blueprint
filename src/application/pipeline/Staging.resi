@@ -7,6 +7,7 @@ let writeStagedFile: (
   ~targetPath: string,
   ~renderedBody: string,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, string>>
 

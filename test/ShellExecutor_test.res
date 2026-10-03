@@ -90,19 +90,10 @@ let path = NodeJsPath.make()
 
 suite("ShellExecutor fetch staging names", () => {
   testAsync("distinct fetched URLs receive distinct staging filenames", resolve => {
-    Fetcher.clearCache()
-    let installFetchMock: unit => unit = %raw(`
-      function() {
-        globalThis.__SHELL_ORIGINAL_FETCH__ = globalThis.fetch;
-        globalThis.fetch = async function() {
-          return {ok: true, status: 200, statusText: "OK", text: async () => "body"};
-        };
-      }
-    `)
-    let restoreFetchMock: unit => unit = %raw(`
-      function() { globalThis.fetch = globalThis.__SHELL_ORIGINAL_FETCH__; delete globalThis.__SHELL_ORIGINAL_FETCH__; }
-    `)
-    installFetchMock()
+    let fetcher: Ports.fetcher = {
+      fetch: _url => Promise.resolve(Ok("body")),
+      clearCache: () => (),
+    }
     let writtenPaths: ref<array<string>> = ref([])
     let base = NodeJsFileSystem.make()
     let fs: Ports.fileSystem = {
@@ -126,13 +117,16 @@ suite("ShellExecutor fetch staging names", () => {
       ~path,
       ~process=makeProcess(),
       ~shell=makeShell(),
+      ~fetcher,
+      ~pathSecurity=TestPorts.stubPathSecurity,
+      ~shellBuilder=TestPorts.stubShellBuilder,
+      ~envFilter=TestPorts.stubEnvFilter,
     )->Promise.then(result => {
       switch result {
       | Ok(_) => assert_eq(writtenPaths.contents->Array.length, 2)
       | Error(_) => assert_false(true)
       }
       assert_true(writtenPaths.contents[0] != writtenPaths.contents[1])
-      restoreFetchMock()
       NodeJs.Fs.rm(stagingDir, ~options={recursive: true})->ignore
       resolve()
       Promise.resolve()
@@ -243,6 +237,10 @@ let runShellCommands = (
     ~path=NodeJsPath.make(),
     ~process=makeProcess(),
     ~shell,
+    ~fetcher=TestPorts.stubFetcher,
+    ~pathSecurity=TestPorts.stubPathSecurity,
+    ~shellBuilder=TestPorts.stubShellBuilder,
+    ~envFilter=TestPorts.stubEnvFilter,
   )
 }
 
@@ -545,6 +543,10 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
       ~shellConfig=Some({enabled: true, tools: [{name: "danger", command: dangerous}]}),
       ~fs=NodeJsFileSystem.make(), ~path=NodeJsPath.make(), ~process=NodeJsProcess.make(),
       ~shell=NodeJsShell.make(),
+      ~fetcher=TestPorts.stubFetcher,
+      ~pathSecurity=TestPorts.stubPathSecurity,
+      ~shellBuilder=TestPorts.stubShellBuilder,
+      ~envFilter=TestPorts.stubEnvFilter,
     )->Promise.then(result => {
       switch result {
       | Ok(_) => assert_false(true)
@@ -946,6 +948,10 @@ suite("ShellExecutor.executeShellCommands — ScriptFile", () => {
       ~path,
       ~process=makeProcess(),
       ~shell=tracking.shell,
+      ~fetcher=TestPorts.stubFetcher,
+      ~pathSecurity=TestPorts.stubPathSecurity,
+      ~shellBuilder=TestPorts.stubShellBuilder,
+      ~envFilter=TestPorts.stubEnvFilter,
     )
     ->Promise.then(_ => {
       assert_true(String.startsWith(tracking.execFileAsyncCalls[0]->Option.getOr(""), cwd ++ "/"))

@@ -96,7 +96,7 @@ suite("HookSecurity", () => {
     NodeJs.Fs.writeFile(scriptPath, "script")
     ->Promise.then(_ => Hooks.executeHook(
       ~hook={command: ".\\local.cmd"}, ~scriptRoot=tmpDir, ~cwd=tmpDir, ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
     ))
     ->Promise.then(result => {
@@ -118,7 +118,7 @@ suite("HookSecurity", () => {
     NodeJs.Fs.mkdir(safeDir, ~options={recursive: true})
     ->Promise.then(_ => Hooks.executeHook(
       ~hook={command: "..\\..\\escape.cmd"}, ~scriptRoot=safeDir, ~cwd=safeDir, ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
     ))
     ->Promise.then(result => {
@@ -138,7 +138,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     Hooks.executeHook(
       ~hook={command: "C:\\absolute\\x.cmd"}, ~scriptRoot="/workspace/project", ~cwd="/workspace/project", ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
     )->Promise.then(result => {
       switch result {
@@ -157,7 +157,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     Hooks.executeHook(
       ~hook={command: "C:name.cmd"}, ~scriptRoot="/workspace/project", ~cwd="/workspace/project", ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=makeWindowsAwarePath(), ~fs=NodeJsFileSystem.make(),
     )->Promise.then(result => {
       // Path branch: resolution + existence fail (file does not exist) -> Error,
@@ -178,7 +178,7 @@ suite("HookSecurity", () => {
       ~hook,
       ~cwd="/workspace/project",
       ~timeout=1000,
-      ~hookType=Hooks.PreGenerate,
+      ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
       ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
       ~process=makeProcess(),
@@ -213,7 +213,7 @@ suite("HookSecurity", () => {
       ~hook,
       ~cwd="/workspace/project",
       ~timeout=100,
-      ~hookType=Hooks.PreGenerate,
+      ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
       ~shell=makeShell(~execAsyncResult=Error("hook timed out")),
       ~process=makeProcess(),
@@ -238,7 +238,7 @@ suite("HookSecurity", () => {
       ~hook,
       ~cwd="/workspace/project",
       ~timeout=1000,
-      ~hookType=Hooks.PreGenerate,
+      ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
       ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
       ~process=makeProcess(),
@@ -279,6 +279,7 @@ suite("HookSecurity", () => {
         ~shellConfig=None,
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
         ~ejs=NodeJsEjs.make(),
         ~process=NodeJsProcess.make(),
       )
@@ -327,6 +328,7 @@ suite("HookSecurity", () => {
         ~shellConfig=Some({enabled: true}),
         ~fs=NodeJsFileSystem.make(),
         ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
         ~ejs=NodeJsEjs.make(),
         ~process=NodeJsProcess.make(),
       )
@@ -382,7 +384,7 @@ suite("HookSecurity", () => {
       ~hook,
       ~cwd="/tmp",
       ~timeout=5000,
-      ~hookType=Hooks.PreGenerate,
+      ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
       ~shell=makeEnvCapturingShell(capturedEnv),
       ~process=sensitiveProcess,
@@ -428,7 +430,7 @@ suite("HookSecurity", () => {
         ~hook,
         ~cwd=tmpDir,
         ~timeout=1000,
-        ~hookType=Hooks.PreGenerate,
+        ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
         ~shell=makeRecordingShell(recorded, ~status=0),
         ~process=makeProcess(),
@@ -472,7 +474,7 @@ suite("HookSecurity", () => {
         ~hook,
         ~cwd=tmpDir,
         ~timeout=1000,
-        ~hookType=Hooks.PreGenerate,
+        ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
         ~shell=makeRecordingShell(ref(("init", [])), ~status=42),
         ~process=makeProcess(),
@@ -521,6 +523,10 @@ suite("HookSecurity", () => {
         execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
         execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },
+      ~fetcher=NodeJsFetcher.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~shellBuilder=NodeJsShellBuilder.make(),
+      ~envFilter=NodeJsEnvFilter.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -549,7 +555,7 @@ suite("HookSecurity", () => {
         ~scriptRoot=safeDir,
         ~cwd=tmpDir,  // cwd is different from scriptRoot
         ~timeout=5000,
-        ~hookType=Hooks.PreGenerate,
+        ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
         ~shell=makeShell(~execAsyncResult=Ok({stdout: "ok", stderr: "", status: Some(0), signalCode: None, killed: false})),
         ~process=makeProcess(),
@@ -591,7 +597,7 @@ suite("HookSecurity", () => {
     ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(outputHooks, "pre.sh"), "output"))
     ->Promise.then(_ => Hooks.executeHook(
       ~hook={command: "./hooks/pre.sh"}, ~scriptRoot=generatorDir, ~cwd=outputDir, ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
     ))
     ->Promise.then(result => {
@@ -609,7 +615,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     Hooks.executeHook(
       ~hook={command: "npm", args: ["test"]}, ~cwd="/workspace/project", ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
       ~toolsAllowlist=Some([]),
     )->Promise.then(result => {
@@ -630,7 +636,7 @@ suite("HookSecurity", () => {
     NodeJs.Fs.writeFile(script, "script")
     ->Promise.then(_ => Hooks.executeHook(
       ~hook={command: "./pre.sh"}, ~scriptRoot=tmpDir, ~cwd=tmpDir, ~timeout=1000,
-      ~hookType=Hooks.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
+      ~hookType=Ports.PreGenerate, ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
       ~toolsAllowlist=Some(["another-tool"]),
     ))
@@ -650,7 +656,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     let config: Config.config = {hooks: {preGenerate: {command: "npm test"}}}
     Hooks.run(
-      ~config, ~projectRoot="/workspace/project", ~hookType=Hooks.PreGenerate,
+      ~config, ~projectRoot="/workspace/project", ~hookType=Ports.PreGenerate,
       ~shellConfig=Some({enabled: false}), ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
     )->Promise.then(result => {
@@ -668,7 +674,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     let config: Config.config = {hooks: {preGenerate: {command: "npm test"}, timeout: 999999}}
     Hooks.run(
-      ~config, ~projectRoot="/workspace/project", ~hookType=Hooks.PreGenerate, ~cwd=".",
+      ~config, ~projectRoot="/workspace/project", ~hookType=Ports.PreGenerate, ~cwd=".",
       ~shellConfig=Some({enabled: true, tools: [{name: "npm", command: "npm"}]}),
       ~toolsAllowlist=Some(["npm"]), ~shell=makeExecutionCaptureShell(calls),
       ~process=makeProcess(), ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
@@ -686,7 +692,7 @@ suite("HookSecurity", () => {
     let calls: ref<array<capturedExec>> = ref([])
     let cwd = "/declared/hook-directory"
     Hooks.executeHook(
-      ~hook={command: "npm test"}, ~cwd, ~timeout=1000, ~hookType=Hooks.PreGenerate,
+      ~hook={command: "npm test"}, ~cwd, ~timeout=1000, ~hookType=Ports.PreGenerate,
       ~shellEnv=None, ~shell=makeExecutionCaptureShell(calls), ~process=makeProcess(),
       ~path=NodeJsPath.make(), ~fs=NodeJsFileSystem.make(),
     )->Promise.then(result => {
@@ -711,7 +717,7 @@ suite("HookSecurity", () => {
         ~scriptRoot=safeDir,
         ~cwd=safeDir,
         ~timeout=5000,
-        ~hookType=Hooks.PreGenerate,
+        ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
         ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
         ~process=makeProcess(),

@@ -69,6 +69,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -121,6 +125,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -170,6 +178,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -226,6 +238,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -287,6 +303,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -361,6 +381,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {
@@ -423,6 +447,10 @@ suite("Phase2 Integration", () => {
         ~renderedFiles,
         ~shellCommands,
         ~shellConfig=None,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
         ~fs,
         ~path,
         ~process=processAdapter,
@@ -490,6 +518,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => waitForRollback(() => (
@@ -562,6 +594,10 @@ suite("Phase2 Integration", () => {
         ~path,
         ~process=processAdapter,
         ~shell,
+        ~fetcher=NodeJsFetcher.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~shellBuilder=NodeJsShellBuilder.make(),
+        ~envFilter=NodeJsEnvFilter.make(),
       )
     )
     ->Promise.then(result => {

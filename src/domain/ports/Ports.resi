@@ -1,63 +1,27 @@
-/**
- * Ports — dependency inversion interfaces for runtime I/O operations.
- *
- * These record types define the contracts that runtime adapters must satisfy.
- * Application and infrastructure layers depend on these abstractions,
- * not on concrete Node.js bindings.
- *
- * Usage: pass port instances as labeled arguments or bundle into a deps record:
- *   type deps = { fs: fileSystem, path: path, process: process, shell: shell }
- */
-
 type readFileOptions = {encoding: string}
 type writeFileOptions = {encoding: string}
 type mkdirOptions = {recursive: bool}
 type rmOptions = {recursive: bool}
 type cpOptions = {recursive: bool}
 type readdirOptions = {withFileTypes: bool}
-type statResult = {
-  isDirectory: unit => bool,
-  isFile: unit => bool,
-  mtimeMs?: float,
-}
-type lstatResult = {
-  isDirectory: unit => bool,
-  isFile: unit => bool,
-  isSymbolicLink: unit => bool,
-}
+type statResult = {isDirectory: unit => bool, isFile: unit => bool, mtimeMs?: float}
+type lstatResult = {isDirectory: unit => bool, isFile: unit => bool, isSymbolicLink: unit => bool}
 
 type hookType = PreGenerate | PostGenerate
-
-type hookResult = {
-  hookType: hookType,
-  output: string,
-  exitCode: int,
-}
-
-type yamlParser = {
-  parse: string => result<JSON.t, string>,
-}
-
+type hookResult = {hookType: hookType, output: string, exitCode: int}
+type yamlParser = {parse: string => result<JSON.t, string>}
 type ejs = {
   renderString: (~template: string, ~context: dict<string>) => result<string, string>,
   renderFile: (~path: string, ~context: dict<string>) => promise<result<string, string>>,
 }
-
 type fetcher = {
   fetch: string => promise<result<string, string>>,
   clearCache: unit => unit,
 }
-
 type shellEnvEntry = {key: string, value: string}
 type shellEnvConfig = {vars: array<shellEnvEntry>}
-
-type shellBuilder = {
-  buildEnvFilterConfig: ConfigTypes.shellEnv => shellEnvConfig,
-}
-
-type envFilter = {
-  buildSafeEnv: (option<shellEnvConfig>, dict<string>) => dict<string>,
-}
+type shellBuilder = {buildEnvFilterConfig: ConfigTypes.shellEnv => shellEnvConfig}
+type envFilter = {buildSafeEnv: (option<shellEnvConfig>, dict<string>) => dict<string>}
 
 type fileSystem = {
   readFile: (string, ~options: readFileOptions=?) => promise<string>,
@@ -72,7 +36,6 @@ type fileSystem = {
   realpath: string => promise<string>,
   makeStagingDir: string => promise<string>,
 }
-
 type process = {
   cwd: unit => string,
   env: unit => dict<string>,
@@ -82,27 +45,12 @@ type process = {
   removeSignalListeners: unit => unit,
   homedir: unit => string,
 }
-
-type execResult = {
-  stdout: string,
-  stderr: string,
-  status: option<int>,
-  signalCode: option<string>,
-  killed: bool,
-}
-
-type shellOptions = {
-  cwd?: string,
-  env?: dict<string>,
-  encoding?: string,
-  timeout?: int,
-}
-
+type execResult = {stdout: string, stderr: string, status: option<int>, signalCode: option<string>, killed: bool}
+type shellOptions = {cwd?: string, env?: dict<string>, encoding?: string, timeout?: int}
 type shell = {
   execAsync: (string, ~options: shellOptions=?) => promise<execResult>,
   execFileAsync: (string, ~args: array<string>=?, ~options: shellOptions=?) => promise<execResult>,
 }
-
 type path = {
   join: (string, string) => string,
   resolve: (string, string) => string,
@@ -110,26 +58,14 @@ type path = {
   isAbsolute: string => bool,
   basename: (string, ~ext: string=?) => string,
 }
-
-type pathSecurity = {
-  isWithinTree: (string, string, path, fileSystem) => promise<bool>,
-}
-
+type pathSecurity = {isWithinTree: (string, string, path, fileSystem) => promise<bool>}
 type interactiveIO = {
   ask: string => promise<string>,
   askConfirm: (~question: string, ~defaultYes: bool=?) => promise<bool>,
   close: unit => unit,
 }
-
-type parsedArgs = {
-  values: dict<string>,
-  positionals: array<string>,
-}
-
-type argParser = {
-  parse: (~args: array<string>, ~strict: bool, ~allowPositionals: bool) => result<parsedArgs, string>,
-}
-
+type parsedArgs = {values: dict<string>, positionals: array<string>}
+type argParser = {parse: (~args: array<string>, ~strict: bool, ~allowPositionals: bool) => result<parsedArgs, string>}
 type hooks = {
   run: (
     ~config: ConfigTypes.config,

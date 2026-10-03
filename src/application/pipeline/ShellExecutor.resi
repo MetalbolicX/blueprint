@@ -12,4 +12,8 @@ let executeShellCommands: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
 ) => promise<result<int, string>>

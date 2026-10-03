@@ -39,6 +39,7 @@ let testRollbackOutputDeniesOutOfTree = () => {
       ~outputDir="/home/user/project",
       ~path=NodeJsPath.make(),
       ~fs=mockFs,
+      ~pathSecurity=TestPorts.stubPathSecurity,
     )
     ->Promise.then(result => {
       // Must return Error (path is outside output tree)
@@ -90,6 +91,7 @@ let testRollbackOutputAllowsInTree = () => {
       ~outputDir="/home/user/project",
       ~path=NodeJsPath.make(),
       ~fs=mockFs,
+      ~pathSecurity=TestPorts.stubPathSecurity,
     )
     ->Promise.then(result => {
       switch result {
@@ -137,6 +139,7 @@ let testRollbackDeniesNonTmpdir = () => {
       "/usr",
       ~tmpRoot="/tmp",
       ~path=NodeJsPath.make(),
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {
@@ -185,6 +188,7 @@ let testRollbackAllowsInTmpdir = () => {
       "/tmp/blueprint-test-staging",
       ~tmpRoot="/tmp",
       ~path=NodeJsPath.make(),
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {
@@ -242,6 +246,7 @@ let testCommitFilesRejectsSymlink = () => {
       ~outputDir="/home/user/project",
       ~renderedFiles=[("ignored-source", "src/index.ts")],
       ~path=NodeJsPath.make(),
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {
@@ -293,6 +298,7 @@ let testCommitRejectsSymlinkedExistingOutput = () => {
       ~outputDir="/home/user/project",
       ~renderedFiles=[("ignored-source", "existing.txt")],
       ~path=NodeJsPath.make(),
+      ~pathSecurity=TestPorts.stubPathSecurity,
       ~fs=mockFs,
     )
     ->Promise.then(result => {

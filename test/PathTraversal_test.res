@@ -151,6 +151,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
       ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
@@ -183,6 +184,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
       ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
@@ -214,6 +216,7 @@ suite("PathTraversal", () => {
       ~conflictDecisions=None,
       ~fs=makeMockFs(),
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
       ~ejs=NodeJsEjs.make(),
       ~process=NodeJsProcess.make(),
     )
@@ -242,6 +245,7 @@ suite("PathTraversal", () => {
       ~renderedFiles=[("src.ejs.t", stagedTarget)],
       ~fs,
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
     )
     ->Promise.then(result => {
       switch result {
@@ -268,6 +272,7 @@ suite("PathTraversal", () => {
       ~renderedFiles=[("src.ejs.t", "src/file.txt")],
       ~fs,
       ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
     )
     ->Promise.then(result => {
       switch result {

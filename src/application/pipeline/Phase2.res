@@ -24,6 +24,10 @@ let run: (
   ~path: Ports.path,
   ~process: Ports.process,
   ~shell: Ports.shell,
+  ~fetcher: Ports.fetcher,
+  ~pathSecurity: Ports.pathSecurity,
+  ~shellBuilder: Ports.shellBuilder,
+  ~envFilter: Ports.envFilter,
   ~tmpRoot: string=?,
   ~commitRollbackRef: ref<option<unit => promise<unit>>>=?,
 ) => promise<result<phase2Result, phase2Error>> = async (
@@ -36,6 +40,10 @@ let run: (
   ~path,
   ~process,
   ~shell,
+  ~fetcher,
+  ~pathSecurity,
+  ~shellBuilder,
+  ~envFilter,
   ~tmpRoot=?,
   ~commitRollbackRef=?,
 ) => {
@@ -53,6 +61,7 @@ let run: (
       ~outputDir,
       ~path,
       ~fs,
+      ~pathSecurity,
     )->Promise.then(result => {
         // A failed signal-time rollback must not exit silently: the output
         // tree may be partially committed with its backups about to be
@@ -84,6 +93,7 @@ let run: (
     ~renderedFiles,
     ~fs,
     ~path,
+    ~pathSecurity,
     ~onCommitting=((outputPath, backupOpt) => {
       committingFiles.contents->Array.push(outputPath)->ignore
       switch backupOpt {
@@ -109,11 +119,15 @@ let run: (
         ~path,
         ~process,
         ~shell,
+        ~fetcher,
+        ~pathSecurity,
+        ~shellBuilder,
+        ~envFilter,
       )
 
       switch shellResult {
       | Ok(cmdsExec) => {
-          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
           | Ok() => ()
           | Error(message) => Console.warn("Warning: could not clean staging directory " ++ stagingDir ++ ": " ++ message)
           }
@@ -126,9 +140,9 @@ let run: (
           Ok(result)
         }
       | Error(message) => {
-          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~outputDir, ~path, ~fs) {
+          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~outputDir, ~path, ~fs, ~pathSecurity) {
           | Ok() =>
-            switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+            switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
             | Ok() => {
                 let err: phase2Error = {message, partialCommit: committedFiles}
                 Error(err)
@@ -150,7 +164,7 @@ let run: (
                 failedRollbackFiles: failedPaths,
               }
 
-              switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+              switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
               | Ok() => Error(catastrophicError)
               | Error(rollbackMessage) => {
                   let err: phase2Error = {
@@ -174,9 +188,10 @@ let run: (
         ~outputDir,
         ~path,
         ~fs,
+        ~pathSecurity,
       ) {
       | Ok() =>
-        switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+        switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
         | Ok() => Error(err)
         | Error(rollbackMessage) => {
             let e: phase2Error = {
@@ -194,7 +209,7 @@ let run: (
             catastrophic: true,
             failedRollbackFiles: ?Some(failedPaths),
           }
-          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs) {
+          switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
           | Ok() => Error(catastrophicError)
           | Error(rollbackMessage) =>
             Error({...catastrophicError, message: err.message ++ " | rollback failed: " ++ rollbackMessage})

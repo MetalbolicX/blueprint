@@ -151,6 +151,20 @@ suite("Ports", () => {
         renderString: (~template as _, ~context as _) => Ok("rendered"),
         renderFile: (~path as _, ~context as _) => Promise.resolve(Ok("rendered")),
       },
+      fetcher: {
+        fetch: _ => Promise.resolve(Ok("")),
+        clearCache: () => (),
+      },
+      pathSecurity: {
+        isWithinTree: (_, _, _, _) => Promise.resolve(true),
+      },
+      shellBuilder: {
+        buildEnvFilterConfig: _ => {vars: []},
+      },
+      envFilter: {
+        buildSafeEnv: (_, inheritedEnv) => inheritedEnv,
+      },
+      hooks: TestPorts.stubHooks,
     }
     assert_true(true)
   })

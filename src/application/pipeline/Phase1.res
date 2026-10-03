@@ -36,6 +36,7 @@ let _prepareTemplate: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<option<(string, string, string, array<shellCommand>)>, string>> = async (
@@ -46,6 +47,7 @@ let _prepareTemplate: (
   ~shellConfig,
   ~fs,
   ~path,
+  ~pathSecurity,
   ~ejs,
   ~process,
 ) => {
@@ -56,6 +58,7 @@ let _prepareTemplate: (
     ~conflictDecisions,
     ~fs,
     ~path,
+    ~pathSecurity,
     ~ejs,
     ~process,
   )
@@ -92,6 +95,7 @@ let run: (
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<phase1Result, phase1Error>> = async (
@@ -102,6 +106,7 @@ let run: (
   ~shellConfig,
   ~fs,
   ~path,
+  ~pathSecurity,
   ~ejs as _ejs,
   ~process,
 ) => {
@@ -120,6 +125,7 @@ let run: (
         ~shellConfig,
         ~fs,
         ~path,
+        ~pathSecurity,
         ~ejs=_ejs,
         ~process,
       ) {
@@ -131,6 +137,7 @@ let run: (
           ~targetPath,
           ~renderedBody,
           ~path,
+          ~pathSecurity,
           ~fs,
         ) {
         | Error(message) => Error("Failed to write staged file: " ++ message)

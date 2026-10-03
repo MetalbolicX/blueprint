@@ -133,7 +133,7 @@ let applyInjection: (
 }
 
 // Resolve template body from inline value or `from:` directive file load
-let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.path) => {
+let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.path, ~pathSecurity: Ports.pathSecurity) => {
   switch template.directives->Array.find(d => {
     switch d {
     | From(_) => true
@@ -148,7 +148,7 @@ let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.p
         path.join(templateDir, fromPath)
       }
 
-      let isWithin = await PathSecurity.isWithinTree(resolvedPath, templateDir, path, fs)
+      let isWithin = await pathSecurity.isWithinTree(resolvedPath, templateDir, path, fs)
       if !isWithin {
         Error("Invalid 'from' path outside template tree: " ++ fromPath)
       } else {
@@ -170,8 +170,8 @@ let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.p
 }
 
 // Validate staging conditions: path security, conflict decisions, unlessExists
-let stageAndValidate = async (template, ~targetPath: string, ~finalTargetPath: string, ~outputDir: string, ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>, ~fs: Ports.fileSystem, ~path: Ports.path) => {
-  let isWithin = await PathSecurity.isWithinTree(finalTargetPath, outputDir, path, fs)
+let stageAndValidate = async (template, ~targetPath: string, ~finalTargetPath: string, ~outputDir: string, ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>, ~fs: Ports.fileSystem, ~path: Ports.path, ~pathSecurity: Ports.pathSecurity) => {
+  let isWithin = await pathSecurity.isWithinTree(finalTargetPath, outputDir, path, fs)
   if !isWithin {
     Error("Rendered 'to' path escapes output tree: " ++ targetPath)
   } else {
@@ -205,6 +205,7 @@ let render: (
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
 ) => promise<result<option<renderedOutput>, string>> = async (
@@ -214,8 +215,9 @@ let render: (
   ~conflictDecisions,
   ~fs,
   ~path,
+  ~pathSecurity,
   ~ejs,
-  ~process as _,
+  ~process as _, 
 ) => {
   // 1. Resolve target path
   let targetPathResult =
@@ -236,7 +238,7 @@ let render: (
     let finalTargetPath = path.join(outputDir, targetPath)
 
     // 2. Resolve template body (inline or from: directive file)
-    switch await resolveTemplateBody(template, ~fs, ~path) {
+    switch await resolveTemplateBody(template, ~fs, ~path, ~pathSecurity) {
     | Error(e) => Error(e)
     | Ok(resolvedBody) =>
       // 3. Render the template body with context
@@ -263,6 +265,7 @@ let render: (
           ~conflictDecisions,
           ~fs,
           ~path,
+          ~pathSecurity,
         ) {
         | Ok(StageSkip) => Ok(None)
         | Error(e) => Error(e)

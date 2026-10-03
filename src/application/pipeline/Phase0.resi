@@ -16,6 +16,7 @@ let detectRenderedConflicts: (
   ~attributes: dict<string>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<array<conflictFile>, string>>
 
 let run: (
@@ -27,4 +28,5 @@ let run: (
   ~force: bool,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
 ) => promise<result<phase0Result, string>>

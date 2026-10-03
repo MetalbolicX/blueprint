@@ -45,6 +45,11 @@ let installGuardDeps = (~fs: Ports.fileSystem): Ports.deps => ({
     interactiveIO: NodeJsInteractiveIO.make(),
     yamlParser: NodeJsYamlParser.make(),
     ejs: NodeJsEjs.make(),
+    fetcher: NodeJsFetcher.make(),
+    pathSecurity: NodeJsPathSecurity.make(),
+    shellBuilder: NodeJsShellBuilder.make(),
+    envFilter: NodeJsEnvFilter.make(),
+    hooks: TestPorts.stubHooks,
   })
 
 let writeGeneratorFixture = (~root: string, ~name: string) => {
@@ -76,6 +81,11 @@ suite("TemplateRegistry", () => {
       interactiveIO: NodeJsInteractiveIO.make(),
       yamlParser: NodeJsYamlParser.make(),
       ejs: NodeJsEjs.make(),
+      fetcher: NodeJsFetcher.make(),
+      pathSecurity: NodeJsPathSecurity.make(),
+      shellBuilder: NodeJsShellBuilder.make(),
+      envFilter: NodeJsEnvFilter.make(),
+      hooks: TestPorts.stubHooks,
     }
     let paths = Cli.buildGenerateSearchPaths(
         ~deps=testDeps,
@@ -127,6 +137,11 @@ suite("TemplateRegistry", () => {
           interactiveIO: NodeJsInteractiveIO.make(),
           yamlParser: NodeJsYamlParser.make(),
           ejs: NodeJsEjs.make(),
+          fetcher: NodeJsFetcher.make(),
+          pathSecurity: NodeJsPathSecurity.make(),
+          shellBuilder: NodeJsShellBuilder.make(),
+          envFilter: NodeJsEnvFilter.make(),
+          hooks: TestPorts.stubHooks,
         },
         ~fs=fsAdapter,
         ~path=pathAdapter,
@@ -222,6 +237,11 @@ suite("TemplateRegistry", () => {
           interactiveIO: NodeJsInteractiveIO.make(),
           yamlParser: NodeJsYamlParser.make(),
           ejs: NodeJsEjs.make(),
+          fetcher: NodeJsFetcher.make(),
+          pathSecurity: NodeJsPathSecurity.make(),
+          shellBuilder: NodeJsShellBuilder.make(),
+          envFilter: NodeJsEnvFilter.make(),
+          hooks: TestPorts.stubHooks,
         },
         ~fs=fsAdapter,
         ~path=pathAdapter,
@@ -405,7 +425,7 @@ suite("TemplateRegistry", () => {
     NodeJs.Fs.mkdir(installed, ~options={recursive: true})
     ->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(installed, "manifest.yaml"), "name: api-route\n"))
     ->Promise.then(_ => Config.saveGlobalAtPath(~fs=fsAdapter, ~path=pathAdapter, ~configPath, cfg))
-    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~deps={fs: fsAdapter, path: pathAdapter, process: NodeJsProcess.make(), shell: NodeJsShell.make(), argParser: NodeJsArgParser.make(), interactiveIO: NodeJsInteractiveIO.make(), yamlParser: NodeJsYamlParser.make(), ejs: NodeJsEjs.make()}, ~fs=fsAdapter, ~path=pathAdapter, ~name="api-route", ~configPath, ~globalConfig=cfg))
+    ->Promise.then(_ => Cli.removeTemplateFromRegistry(~deps={fs: fsAdapter, path: pathAdapter, process: NodeJsProcess.make(), shell: NodeJsShell.make(), argParser: NodeJsArgParser.make(), interactiveIO: NodeJsInteractiveIO.make(), yamlParser: NodeJsYamlParser.make(), ejs: NodeJsEjs.make(), fetcher: NodeJsFetcher.make(), pathSecurity: NodeJsPathSecurity.make(), shellBuilder: NodeJsShellBuilder.make(), envFilter: NodeJsEnvFilter.make(), hooks: TestPorts.stubHooks}, ~fs=fsAdapter, ~path=pathAdapter, ~name="api-route", ~configPath, ~globalConfig=cfg))
     ->Promise.then(result => {
       switch result {
       | Error(_) => {
@@ -456,6 +476,11 @@ suite("TemplateRegistry", () => {
           interactiveIO: NodeJsInteractiveIO.make(),
           yamlParser: NodeJsYamlParser.make(),
           ejs: NodeJsEjs.make(),
+          fetcher: NodeJsFetcher.make(),
+          pathSecurity: NodeJsPathSecurity.make(),
+          shellBuilder: NodeJsShellBuilder.make(),
+          envFilter: NodeJsEnvFilter.make(),
+          hooks: TestPorts.stubHooks,
         },
         ~projectPaths=[localRoot],
         ~registry=[

@@ -23,18 +23,20 @@ let writeStagedFile: (
   ~targetPath: string,
   ~renderedBody: string,
   ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
   ~fs: Ports.fileSystem,
 ) => promise<result<unit, string>> = async (
   ~stagingDir,
   ~targetPath,
   ~renderedBody,
   ~path,
+  ~pathSecurity,
   ~fs,
 ) => {
   let stagedPath = path.join(stagingDir, targetPath)
   // Self-contained containment check: reject paths that escape the staging dir.
   // This guards against a future caller passing an unvalidated traversal path.
-  let isWithin = await PathSecurity.isWithinTree(stagedPath, stagingDir, path, fs)
+  let isWithin = await pathSecurity.isWithinTree(stagedPath, stagingDir, path, fs)
   if !isWithin {
     Error("Staged path escapes staging directory: " ++ targetPath)
   } else {
