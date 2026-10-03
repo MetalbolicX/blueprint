@@ -23,17 +23,13 @@ external makeUrl: string => jsUrl = "URL"
 @get
 external urlProtocol: jsUrl => string = "protocol"
 
-// Path absolute check (uses node:path directly to avoid infrastructure module prefix)
-@module("node:path")
-external pathIsAbsolute: string => bool = "isAbsolute"
-
 let frontmatterRegex: RegExp.t = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/
 
 let directiveRegex: RegExp.t = /^(\w+):\s*(.*)$/
 
 // Reject paths that are absolute or contain parent-segment escapes
-let rejectUnsafePath: string => result<string, string> = value => {
-  if pathIsAbsolute(value) {
+let rejectUnsafePath: (~path: Ports.path, string) => result<string, string> = (~path, value) => {
+  if path.isAbsolute(value) {
     Error("Absolute paths are not allowed: " ++ value)
   } else {
     // Check for ".." segment (parent directory escape) in both / and \ separators
@@ -70,14 +66,14 @@ let requireHttpUrl: string => result<string, string> = value => {
 }
 
 // Helper to check directive type
-let checkDirective: (string, string) => result<directive, string> = (key, value) => {
+let checkDirective: (~path: Ports.path, string, string) => result<directive, string> = (~path, key, value) => {
   if key == "to" {
-    switch rejectUnsafePath(value) {
+    switch rejectUnsafePath(~path, value) {
     | Ok(path) => Ok(To(path))
     | Error(msg) => Error(msg)
     }
   } else if key == "from" {
-    switch rejectUnsafePath(value) {
+    switch rejectUnsafePath(~path, value) {
     | Ok(path) => Ok(From(path))
     | Error(msg) => Error(msg)
     }
@@ -121,7 +117,7 @@ let checkDirective: (string, string) => result<directive, string> = (key, value)
 }
 
 // Parse directive - convert Js.String.t to string explicitly
-let parseDirective: string => result<directive, string> = line => {
+let parseDirective: (~path: Ports.path, string) => result<directive, string> = (~path, line) => {
   let matches = Js.String.match_(directiveRegex, line)
   switch matches {
   | None => Error("Invalid directive syntax: " ++ line)
@@ -135,7 +131,7 @@ let parseDirective: string => result<directive, string> = line => {
       let keyStr: option<string> = Obj.magic(keyOpt)
       let valueStr: option<string> = Obj.magic(valueOpt)
       switch (keyStr, valueStr) {
-      | (Some(k), Some(v)) => checkDirective(k, v)
+      | (Some(k), Some(v)) => checkDirective(~path, k, v)
       | _ => Error("Invalid directive syntax: " ++ line)
       }
     }
@@ -147,7 +143,7 @@ type parsedFrontmatter = {
   body: string,
 }
 
-let parse: string => result<parsedFrontmatter, string> = content => {
+let parse: (~path: Ports.path, string) => result<parsedFrontmatter, string> = (~path, content) => {
   let matches = Js.String.match_(frontmatterRegex, content)
   switch matches {
   | None => Error("Missing or invalid frontmatter delimiter")
@@ -165,7 +161,7 @@ let parse: string => result<parsedFrontmatter, string> = content => {
             switch acc {
             | Error(e) => Error(e)
             | Ok(directives) =>
-              switch parseDirective(line) {
+              switch parseDirective(~path, line) {
               | Ok(directive) => Ok(directives->Array.concat([directive]))
               | Error(e) => Error(e)
               }

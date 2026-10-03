@@ -3,6 +3,6 @@ type parsedFrontmatter = {
   body: string,
 }
 
-let parse: string => result<parsedFrontmatter, string>
+let parse: (~path: Ports.path, string) => result<parsedFrontmatter, string>
 
 
