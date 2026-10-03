@@ -9,8 +9,8 @@ Branch: `fix/code-health-batch-1` (from `main`). Verification: test-first (RED �
 - **Files:** `src/application/pipeline/Phase2.res`, `test/Phase2_test.res`
 - **Behavior:** when `Commit.rollbackOutput` succeeds, the returned `phase2Error.partialCommit` must be cleared (`?None`). Applies to both the shell-error path (`{message, partialCommit: committedFiles}` at ~L147 and its catastrophic staging-fail twin) and the commit-error path (`Error(err)` at ~L193 and its staging-fail twin). Paths where `rollbackOutput` fails keep `partialCommit` (genuinely partial tree).
 - **Acceptance:** failing test first (RED shows `Some(committedFiles)` today), then GREEN; `Generate.res:97–100` no longer prints "Partially committed files" for fully-restored runs.
-- **Status:** pending
-- **Evidence:** —
+- **Status:** done
+- **Evidence:** RED: 2 failing assertions (partialCommit present after rollback) → GREEN: Phase2_test.res.mjs 30/30, Phase2Integration_test.res.mjs 9/9. Commit `b0aad2c`. Generate.res unchanged (reads via option; None suppresses report).
 
 ### T2 — Propagate malformed pre-hook output as run error (H2)
 - **Files:** `src/application/engine/EngineOrchestrator.res`, `test/Engine_test.res`

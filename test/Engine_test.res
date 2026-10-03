@@ -370,10 +370,59 @@ suite("Engine", () => {
     ->ignore
   })
 
+  testAsync("run: aborts when preGenerate hook stdout is malformed", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(root, "output")
+    let generatedFile = NodeJs.Path.join(outputDir, "file.txt")
+    let cfg: Config.config = {
+      hooks: {
+        preGenerate: {command: "printf", args: ["%s", "[1,2,3]"]},
+        timeout: 1,
+      },
+    }
+    let gen: Discovery.generator = {
+      name: "component",
+      path: root,
+      templates: [{
+        sourcePath: NodeJs.Path.join(root, "template.ejs.t"),
+        directives: [Template.To("file.txt"), Template.Force],
+        body: "generated-content",
+      }],
+    }
+
+    Engine.run(
+      ~generator=gen,
+      ~name="Button",
+      ~cliAttributes=Dict.make(),
+      ~outputDir,
+      ~force=true,
+      ~config=cfg,
+      ~deps,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok(_) => assert_false(true)
+      | Error(e) => assert_true(String.includes(e.message, "pre_generate hook stdout must be a JSON object"))
+      }
+      NodeJs.Fs.fileExists(generatedFile)->Promise.then(exists => {
+        assert_false(exists)
+        NodeJs.Fs.rm(root, ~options={recursive: true})
+        ->Promise.then(_ => { resolve(); Promise.resolve() })
+      })
+    })
+    ->Promise.catch(_ => {
+      NodeJs.Fs.rm(root, ~options={recursive: true})->ignore
+      assert_false(true)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("run: returns Ok when preGenerate hook succeeds", resolve => {
     let cfg: Config.config = {
       hooks: {
-        preGenerate: {command: "echo ok"},
+        preGenerate: {command: "printf", args: ["%s", "{}"]},
         timeout: 1,
       },
     }
@@ -407,7 +456,7 @@ suite("Engine", () => {
   testAsync("run: returns Ok when both hooks succeed", resolve => {
     let cfg: Config.config = {
       hooks: {
-        preGenerate: {command: "echo pre-ok"},
+        preGenerate: {command: "printf", args: ["%s", "{}"]},
         postGenerate: {command: "echo post-ok"},
         timeout: 1,
       },
