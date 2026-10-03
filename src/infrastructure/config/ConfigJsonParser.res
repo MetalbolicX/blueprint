@@ -106,7 +106,55 @@ let parseHookCommand: JSON.t => option<hookCommand> = json => {
   }
 }
 
-let parseHooks: JSON.t => option<hooksConfig> = json => {
+let timeoutDurationRegex: RegExp.t = /^([0-9]+)(s|m)$/
+let bareTimeoutRegex: RegExp.t = /^[0-9]+$/
+
+@val external numberIsFinite: float => bool = "Number.isFinite"
+@val external numberIsInteger: float => bool = "Number.isInteger"
+
+let parseTimeout: JSON.t => result<int, string> = value => {
+  switch value {
+  | JSON.Number(n) =>
+    if !numberIsFinite(n) || !numberIsInteger(n) {
+      Error("hooks.timeout must be a finite integer >= 1, got number")
+    } else if n < 1. {
+      Error("timeout must be >= 1, got " ++ Int.toString(Js.Math.floor(n)))
+    } else {
+      Ok(Js.Math.floor(n))
+    }
+  | JSON.String(s) =>
+    switch Js.String.match_(timeoutDurationRegex, s) {
+    | Some(parts) => {
+        let amountOpt: option<string> = Obj.magic(parts[1])
+        let unitOpt: option<string> = Obj.magic(parts[2])
+        switch (amountOpt, unitOpt) {
+        | (Some(amount), Some(unit)) =>
+          switch Int.fromString(amount) {
+          | Some(n) => {
+              let seconds = unit === "m" ? n * 60 : n
+              if seconds >= 1 {
+                Ok(seconds)
+              } else {
+                Error("hooks.timeout must be >= 1, got " ++ s)
+              }
+            }
+          | None => Error("hooks.timeout must be a duration string with a finite integer value, got string")
+          }
+        | _ => Error("hooks.timeout must be a duration string, got string")
+        }
+      }
+    | None if RegExp.test(bareTimeoutRegex, s) =>
+      Error("hooks.timeout " ++ s ++ " is ambiguous; add a unit (s or m)")
+    | None => Error("hooks.timeout must be a duration string such as 30s or 5m, got string")
+    }
+  | JSON.Boolean(_) => Error("hooks.timeout must be a duration string or integer seconds, got boolean")
+  | JSON.Object(_) => Error("hooks.timeout must be a duration string or integer seconds, got object")
+  | JSON.Array(_) => Error("hooks.timeout must be a duration string or integer seconds, got array")
+  | JSON.Null => Error("hooks.timeout must be a duration string or integer seconds, got null")
+  }
+}
+
+let parseHooksResult: JSON.t => result<option<hooksConfig>, string> = json => {
   switch json {
   | JSON.Object(dict) =>
     let preGenerate =
@@ -123,22 +171,29 @@ let parseHooks: JSON.t => option<hooksConfig> = json => {
         | _ => parseHookCommand(v)
         }
       )
-    let timeout =
-      Dict.get(dict, "timeout")->Option.flatMap(v =>
-        switch v {
-        | JSON.Number(n) => Some(Js.Math.floor(n))
-        | _ => None
-        }
-      )
-
-    if preGenerate->Option.isNone && postGenerate->Option.isNone && timeout->Option.isNone {
-      None
-    } else {
-      Some({preGenerate: ?preGenerate, postGenerate: ?postGenerate, timeout: ?timeout})
+    let timeoutResult = switch Dict.get(dict, "timeout") {
+    | None => Ok(None)
+    | Some(value) => parseTimeout(value)->Result.map(timeout => Some(timeout))
     }
-  | _ => None
+
+    switch timeoutResult {
+    | Error(message) => Error(message)
+    | Ok(timeout) =>
+      if preGenerate->Option.isNone && postGenerate->Option.isNone && timeout->Option.isNone {
+        Ok(None)
+      } else {
+        Ok(Some({preGenerate: ?preGenerate, postGenerate: ?postGenerate, timeout: ?timeout}))
+      }
+    }
+  | _ => Ok(None)
   }
 }
+
+let parseHooks: JSON.t => option<hooksConfig> = json =>
+  switch parseHooksResult(json) {
+  | Ok(hooks) => hooks
+  | Error(_) => None
+  }
 
 let parseShellTool: JSON.t => option<shellTool> = json => {
   switch json {

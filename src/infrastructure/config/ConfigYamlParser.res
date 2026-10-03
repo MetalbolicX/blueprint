@@ -56,18 +56,26 @@ let parseConfig: string => result<config, string> = yamlContent => {
 
     switch json {
     | JSON.Object(dict) =>
-      let hooks = Dict.get(dict, "hooks")->Option.flatMap(ConfigJsonParser.parseHooks)
-      let output = switch Dict.get(dict, "output") {
-      | Some(JSON.String(s)) => Some(s)
-      | _ => None
+      let hooksResult = switch Dict.get(dict, "hooks") {
+      | None => Ok(None)
+      | Some(value) => ConfigJsonParser.parseHooksResult(value)
       }
-      let dryRun = switch Dict.get(dict, "dry_run") {
-      | Some(JSON.Boolean(b)) => Some(b)
-      | _ => None
-      }
-      let shell = Dict.get(dict, "shell")->Option.flatMap(ConfigJsonParser.parseShellConfig)
+      switch hooksResult {
+      | Error(message) => Error(message)
+      | Ok(hooks) => {
+          let output = switch Dict.get(dict, "output") {
+          | Some(JSON.String(s)) => Some(s)
+          | _ => None
+          }
+          let dryRun = switch Dict.get(dict, "dry_run") {
+          | Some(JSON.Boolean(b)) => Some(b)
+          | _ => None
+          }
+          let shell = Dict.get(dict, "shell")->Option.flatMap(ConfigJsonParser.parseShellConfig)
 
-      Ok({hooks: ?hooks, output: ?output, dryRun: ?dryRun, shell: ?shell})
+          Ok({hooks: ?hooks, output: ?output, dryRun: ?dryRun, shell: ?shell})
+        }
+      }
     | _ => Ok({})
     }
   } catch {

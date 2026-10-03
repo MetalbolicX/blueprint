@@ -39,7 +39,7 @@ let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConf
 // Validate merged config for fail-fast enforcement
 // Returns Ok if config is valid, Error(message) if not
 let validateMergedConfig: mergedConfig => result<unit, string> = cfg => {
-  if cfg.timeout < 1 {
+  if !(cfg.timeout >= 1) {
     Error("timeout must be >= 1, got " ++ Int.toString(cfg.timeout))
   } else {
     switch cfg.shell {

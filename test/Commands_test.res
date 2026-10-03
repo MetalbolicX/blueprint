@@ -105,12 +105,15 @@ suite("Commands", () => {
       assert_eq(readdirCalls.contents, 0)
       assert_eq(Array.length(exitCodes.contents), 1)
       assert_eq(exitCodes.contents[0], Some(1))
-      // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
       let msgs: array<string> = %raw("globalThis.__testMessages")
       assert_true(Array.length(msgs) >= 1)
+      // plan 052: the invalid timeout is rejected during config parsing, before CLI validation.
       assert_true(
         switch Array.get(msgs, 0) {
-        | Some(msg) => msg->String.includes("Error: timeout must be >= 1")
+        | Some(msg) =>
+          msg->String.includes(
+            "Error: Invalid project config " ++ NodeJs.Path.join(tmpDir, ".blueprint.yaml") ++ ": timeout must be >= 1",
+          )
         | None => false
         }
       )

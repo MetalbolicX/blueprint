@@ -2,6 +2,24 @@
 
 open TestHelpers
 
+let assertHookTimeout = (yaml: string, expected: int): unit => {
+  switch Config.parse(yaml) {
+  | Ok(cfg) =>
+    switch cfg.hooks {
+    | Some(hooks) => assert_eq(hooks.timeout, Some(expected))
+    | None => assert_false(true)
+    }
+  | Error(_) => assert_false(true)
+  }
+}
+
+let assertTimeoutParseError = (yaml: string, expectedMessage: string): unit => {
+  switch Config.parse(yaml) {
+  | Ok(_) => assert_false(true)
+  | Error(message) => assert_true(String.includes(message, expectedMessage))
+  }
+}
+
 suite("Config", () => {
   test("parse: returns Ok with empty hooks when no hooks key", () => {
     let yaml = "output: dist\n"
@@ -41,6 +59,35 @@ suite("Config", () => {
       }
     | Error(_) => assert_false(true)
     }
+  })
+
+  test("parse: hook timeout accepts duration strings", () => {
+    assertHookTimeout("hooks:\n  timeout: 30s\n", 30)
+    assertHookTimeout("hooks:\n  timeout: 5m\n", 300)
+  })
+
+  test("parse: hook timeout accepts numeric seconds", () => {
+    assertHookTimeout("hooks:\n  timeout: 30\n", 30)
+  })
+
+  test("parse: hook timeout rejects zero and negative values", () => {
+    assertTimeoutParseError("hooks:\n  timeout: 0s\n", "hooks.timeout")
+    assertTimeoutParseError("hooks:\n  timeout: \"0\"\n", "hooks.timeout")
+    assertTimeoutParseError("hooks:\n  timeout: -5\n", "timeout must be >= 1")
+  })
+
+  test("parse: hook timeout bare digits asks for a unit", () => {
+    assertTimeoutParseError("hooks:\n  timeout: \"30\"\n", "add a unit")
+  })
+
+  test("parse: hook timeout rejects invalid shapes", () => {
+    assertTimeoutParseError("hooks:\n  timeout: true\n", "hooks.timeout")
+    assertTimeoutParseError("hooks:\n  timeout: abc\n", "hooks.timeout")
+    assertTimeoutParseError("hooks:\n  timeout: 1.5\n", "hooks.timeout")
+  })
+
+  test("parse: hook timeout rejects NaN", () => {
+    assertTimeoutParseError("hooks:\n  timeout: .nan\n", "hooks.timeout")
   })
 
   test("parse: returns Ok with empty object for non-object yaml", () => {
