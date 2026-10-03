@@ -27,7 +27,7 @@ let _loadTemplate: (~fs: Ports.fileSystem, ~path: Ports.path, string) => promise
     if isManifestFile(filename) {
       None
     } else {
-      switch Frontmatter.parse(content) {
+      switch Frontmatter.parse(~path, content) {
       | Ok(parsed) =>
         Some({
           sourcePath,

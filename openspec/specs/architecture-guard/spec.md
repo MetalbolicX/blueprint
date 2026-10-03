@@ -7,6 +7,32 @@ application layers MUST consume infrastructure only through `Ports`. The
 guard scans authored `.res`/`.resi` sources and fails on any direct
 infrastructure binding reference, preventing silent boundary regressions.
 
+## Ruling record (2026-10-02, plan 053)
+
+Maintainer ruling on the spec-vs-AGENTS disagreement about
+application→infrastructure module imports (e.g. `ShellExecutor` importing
+`Fetcher`/`PathSecurity`/`ShellBuilder`/`EnvFilter`, `EngineHooks` importing
+`Hooks`, `EngineOrchestrator` importing `Fetcher`):
+
+- **Ports-only consumption remains the TARGET for both layers.** The
+  Purpose above is not weakened.
+- **Enforcement is staged.** Today's guard asserts the binding-reference
+  requirements below for domain AND application (they hold against real
+  sources). Routing application-layer MODULE imports (`Fetcher`, `Hooks`,
+  …) behind Ports is deferred to a dedicated Ports-extraction plan (L
+  effort; also removes `FetchSecurity_test`'s `globalThis.fetch`
+  monkey-patching by providing the injection seam). Until that plan lands,
+  `AGENTS.md`'s `application → domain + infrastructure` arrow describes
+  current reality and the guard MUST NOT assert module-import routing.
+- **Guard amendments landed with this ruling** (implementation parity, see
+  the guard test): scans cover `.res` AND `.resi`; a missing or unreadable
+  scan root FAILS the guard (never a vacuous pass); the domain pattern set
+  includes raw Node FFI imports (`@module("node:`) in addition to the
+  named binding patterns below; and a fixture-based self-test proves the
+  scanner detects planted violations in both file kinds (anti-regression
+  tripwire). The `src/domain/template/Frontmatter.res` raw `node:path` FFI
+  that motivated the raw-FFI pattern was fixed by threading `Ports.path`.
+
 ## Requirements
 
 ### Requirement: Domain Layer Isolation
