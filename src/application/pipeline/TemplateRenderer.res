@@ -93,14 +93,9 @@ let applyInjection: (
       Ok(await fs.readFile(finalTargetPath, ~options={encoding: "utf8"}))
     } catch {
     | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(m) => m
-      | None => "unknown error"
-      }
-      let code = switch Obj.magic(obj)["code"] {
-      | Some(c) => c
-      | None => ""
-      }
+      let error = JsExn(obj)
+      let msg = Errors.extractErrorMessage(error, ~fallback="unknown error")
+      let code = Errors.extractErrorCode(error)->Option.getOr("")
       if code == "ENOENT" {
         Error("ENOENT")
       } else {
@@ -157,10 +152,7 @@ let resolveTemplateBody = async (template, ~fs: Ports.fileSystem, ~path: Ports.p
           Ok(externalBody)
         } catch {
         | JsExn(obj) =>
-          let msg = switch JsExn.message(obj) {
-          | Some(m) => m
-          | None => "Read failed"
-          }
+          let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Read failed")
           Error("Failed to read 'from' template " ++ resolvedPath ++ ": " ++ msg)
         }
       }

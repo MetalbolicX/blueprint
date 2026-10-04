@@ -53,10 +53,7 @@ let backupIfOverwriting: (
       }
     } catch {
     | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(m) => m
-      | None => "Backup failed"
-      }
+      let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Backup failed")
       Error("Failed to backup existing output " ++ targetPath ++ ": " ++ msg)
     }
   }
@@ -122,10 +119,7 @@ let commitFiles: (
             }
           } catch {
           | JsExn(obj) =>
-            let msg = switch JsExn.message(obj) {
-            | Some(m) => m
-            | None => "Copy failed"
-            }
+            let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Copy failed")
             Error(("Failed to commit " ++ targetPath ++ ": " ++ msg, backupOpt, Some(destPath)))
           }
         }
@@ -195,10 +189,7 @@ let rollbackOutput: (
             Ok()
           } catch {
           | JsExn(obj) =>
-            let msg = switch JsExn.message(obj) {
-            | Some(m) => m
-            | None => "unknown error"
-            }
+            let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="unknown error")
             Error({path: outputPath, reason: msg})
           | _ => Error({path: outputPath, reason: "unknown error"})
           }
@@ -209,10 +200,7 @@ let rollbackOutput: (
             Ok()
           } catch {
           | JsExn(obj) =>
-            let msg = switch JsExn.message(obj) {
-            | Some(m) => m
-            | None => "unknown error"
-            }
+            let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="unknown error")
             if String.includes(msg, "ENOENT") {
               Ok()
             } else {
@@ -253,10 +241,7 @@ let rollback: (string, ~tmpRoot: string, ~path: Ports.path, ~pathSecurity: Ports
       Ok()
     } catch {
     | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(message) => message
-      | None => "Failed to remove staging directory"
-      }
+      let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to remove staging directory")
       Error(msg)
     }
   }

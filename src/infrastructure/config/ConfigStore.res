@@ -30,10 +30,7 @@ let saveGlobalAtPath: (
     Ok(())
   } catch {
   | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => m
-    | None => "Failed to save global config"
-    }
+    let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to save global config")
     Error(msg)
   }
 }
@@ -72,10 +69,7 @@ let loadGlobal: (
       }
     } catch {
     | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(m) => m
-      | None => "Failed to read global config"
-      }
+      let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to read global config")
       Error(msg)
     }
   }
@@ -117,10 +111,7 @@ let loadFrom: (
       }
     } catch {
     | JsExn(obj) =>
-      let msg = switch JsExn.message(obj) {
-      | Some(m) => m
-      | None => "Failed to read config"
-      }
+      let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to read config")
       Error(msg)
     }
   }
