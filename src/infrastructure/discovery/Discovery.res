@@ -339,6 +339,7 @@ let discoverGenerators: (
           Console.warn(msg)
           []
         } else {
+          Console.warn("Skipping search path " ++ baseDir ++ ": " ++ msg)
           []
         }
       }

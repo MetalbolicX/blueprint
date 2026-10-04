@@ -99,7 +99,7 @@ module Impl = {
   let cancelBody: 'response => promise<unit> = %raw(`
     async function(response) {
       if (response && response.body && typeof response.body.cancel === "function") {
-        await response.body.cancel().catch(() => {});
+        try { await response.body.cancel(); } catch (_) {}
       }
     }
   `)

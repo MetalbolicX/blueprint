@@ -60,6 +60,16 @@ let captureWarnings: (unit => promise<'a>) => promise<(array<string>, 'a)> = %ra
   finally { console.warn = original; }
 }`)
 
+let captureMetaWarnings: (unit => promise<array<Discovery.generatorMeta>>) => promise<
+  (array<string>, array<Discovery.generatorMeta>),
+> = %raw(`async run => {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try { return [warnings, await run()]; }
+  finally { console.warn = original; }
+}`)
+
 let makeTemplateFixture = (~count: int): promise<(string, string)> => {
   let tmpDir = NodeJs.Os.makeStagingDir()
   let genDir = NodeJs.Path.join(tmpDir, "component")
@@ -327,6 +337,26 @@ suite("Discovery", () => {
         }
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
       })
+    })
+  })
+
+  testAsync("discoverGenerators warns when a search path is unreadable", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let peak = ref(0)
+    let inFlight = ref(0)
+    let faultFs = makeObservedFs(
+      ~peak,
+      ~inFlight,
+      ~failRead=None,
+      ~failReaddir=Some((tmpDir, "EACCES: permission denied")),
+    )
+    let captured = captureMetaWarnings(() =>
+      Discovery.discoverGenerators(~fs=faultFs, ~path=pathAdapter, ~yamlParser, ~searchPaths=[tmpDir], ()),
+    )
+    let _ = captured->Promise.then(((warnings, metaResults)) => {
+      assert_eq(Array.length(metaResults), 0)
+      assert_true(warnings->Array.some(w => String.includes(w, tmpDir) && String.includes(w, "EACCES")))
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->Promise.then(_ => { resolve(); Promise.resolve() })
     })
   })
 

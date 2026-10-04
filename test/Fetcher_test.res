@@ -100,6 +100,8 @@ let installResponseSequence: array<string> => unit = %raw(`
           start(controller) { controller.enqueue(new Uint8Array(10 * 1024 * 1024 + 1)); controller.close(); }
         }) : bodyMode === "cancel" ? {
           cancel: async function() { globalThis.__BLUEPRINT_BODY_CANCELS__++; }
+        } : bodyMode === "cancel-throws" ? {
+          cancel: function() { throw new Error("cancel failed"); }
         } : undefined,
         text: async function() { globalThis.__BLUEPRINT_BODY_READS__++; return value || ""; }
       };
@@ -382,6 +384,21 @@ suite("Fetcher", () => {
       | Ok(_) => assert_false(true)
       }
       assert_eq(getBodyCancelCount(), 3)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("synchronous body cancel throw does not mask HTTP error", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["500|failure||cancel-throws", "500|failure||cancel-throws", "500|failure||cancel-throws"])
+    Fetcher.fetch("http://8.8.8.8/cancel-throws")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_true(String.includes(msg, "HTTP 500"))
+      | Ok(_) => assert_false(true)
+      }
       restoreFetch()
       resolve()
       Promise.resolve()
