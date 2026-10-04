@@ -109,7 +109,7 @@ suite("Commands", () => {
     ->Promise.then(_ => {
       assert_eq(readdirCalls.contents, 0)
       assert_eq(Array.length(exitCodes.contents), 1)
-      assert_eq(exitCodes.contents[0], Some(1))
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
       let msgs: array<string> = %raw("globalThis.__testMessages")
       assert_true(Array.length(msgs) >= 1)
       // plan 052: the invalid timeout is rejected during config parsing, before CLI validation.
@@ -161,7 +161,7 @@ suite("Commands", () => {
     ->Promise.then(_ => {
       assert_eq(readdirCalls.contents, 0)
       assert_eq(Array.length(exitCodes.contents), 1)
-      assert_eq(exitCodes.contents[0], Some(1))
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
       // Verify validation error message is emitted (Commands.res wraps with "Error: " prefix)
       let msgs: array<string> = %raw("globalThis.__testMessages")
       assert_true(Array.length(msgs) >= 1)
@@ -206,7 +206,7 @@ suite("Commands", () => {
     )
     ->Promise.then(_ => {
       assert_eq(Array.length(exitCodes.contents), 1)
-      assert_eq(exitCodes.contents[0], Some(1))
+      assert_eq(Array.get(exitCodes.contents, 0), Some(1))
       assert_eq(readdirCalls.contents, 0)
       assert_eq(writeCalls.contents, 0)
       assert_eq(shellCalls.contents, 0)
