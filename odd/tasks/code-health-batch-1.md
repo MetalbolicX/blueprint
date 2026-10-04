@@ -23,8 +23,8 @@ Branch: `fix/code-health-batch-1` (from `main`). Verification: test-first (RED �
 - **3a behavior:** `route` treats `-v`/`--version` only when it is `args[0]`; `blueprint generate comp -v` must route to generate, not version. Files: `src/interfaces/cli/Router.res`, `test/Router_test.res` (and `test/Main_test.res` if covered there).
 - **3b refactor:** extract one usage-failure helper for the ≥7 repeated `Console.error → Help.printUsage → exit(1)` blocks; no behavior change; existing tests GREEN.
 - **Acceptance:** 3a RED→GREEN with a dedicated test; 3b keeps the full Router/Main suites GREEN.
-- **Status:** in_progress (3a done)
-- **Evidence:** 3a RED: 2 new later-position tests failing → GREEN: Router_test.res.mjs 20/20, Main_test.res.mjs 2/2; no existing fixture asserted the old behavior. Commit `beb64d7`. 3b pending.
+- **Status:** done
+- **Evidence:** 3a RED: 2 new later-position tests failing → GREEN: Router_test.res.mjs 20/20, Main_test.res.mjs 2/2; no existing fixture asserted the old behavior. Commit `beb64d7`. 3b pure refactor: 7 sites deduped via private `reportUsageError` (13+/21−), no test content changed, Router 20/20 (43 assertions) + Main 2/2. Commit `0ce20aa`.
 
 ## Commit plan (work units)
 
@@ -36,4 +36,6 @@ Branch: `fix/code-health-batch-1` (from `main`). Verification: test-first (RED �
 | 4 | `refactor(router): extract usage-failure helper` | T3b |
 
 ## Close
-- Full `pnpm res:test` + `pnpm build` green; record results; report per ODD close.
+- Full gate GREEN: `pnpm build` (dist/main.mjs, 206,637 B) and `pnpm res:test` **806/806 tests, 1,453 assertions, 0 failed**.
+- Native review: lineage `review-e3ccbd121ed18042`, tier medium, lens `review-reliability`, committed range vs `eb1d7a0` — **approved**, acknowledgement burned (authority consumed). 4 advisory (non-blocking) findings recorded as separate later work: R3-hook-error-precedence-unproved (EngineOrchestrator.res:116–122, suggestion), R3-partialcommit-cleared-on-rollback-failure (Phase2.res:153, warning), R3-router-template-v-weak-assertion (Router_test.res:228, suggestion), R3-taskdoc-status-contradicts-patch (resolved by this update).
+- Note: workspace-wide base-diff (last reviewed base → HEAD) exceeds the native lens context budget; this batch was reviewed as a scoped committed range instead. Larger accumulated history needs chained smaller candidates.
