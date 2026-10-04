@@ -321,27 +321,6 @@ let discoverGenerators: (
                   None
                 }
               | Ok(manifest) => {
-                  // Match full discovery's action-entry stat/isDirectory checks without reading files.
-                  let actionEntries = try {
-                    await fs.readdir(genPath, ~options={withFileTypes: false})
-                  } catch {
-                  | exn =>
-                    let msg = _errorMessage(exn, "Failed to read directory " ++ genPath)
-                    if !_isNotFound(msg) {
-                      Console.warn("Skipping directory " ++ genPath ++ ": " ++ msg)
-                    }
-                    []
-                  }
-                  let actionChecks = await Promise.all(actionEntries->Array.map(async actionName => {
-                    let actionPath = path.join(genPath, actionName)
-                    try {
-                      let actionStat = await fs.stat(actionPath)
-                      actionStat.isDirectory()
-                    } catch {
-                    | _ => false
-                    }
-                  }))
-                  let _hasActionDirectory = actionChecks->Array.some(isDirectory => isDirectory)
                   Some({name: entry, path: genPath, manifest})
                 }
               }

@@ -24,9 +24,7 @@ let defaultGlobalConfig: globalConfig = ConfigTypes.defaultGlobalConfig
 // Function re-exports (from ConfigYaml — WS4 consolidation)
 let parse: string => result<config, string> = ConfigYaml.parse
 let parseGlobal: string => result<globalConfig, string> = ConfigYaml.parseGlobal
-let parseHookCommand: JSON.t => option<hookCommand> = ConfigYaml.JsonParser.parseHookCommand
 let parseHooks: JSON.t => option<hooksConfig> = ConfigYaml.JsonParser.parseHooks
-let parseShellConfig: JSON.t => option<shellConfig> = ConfigYaml.JsonParser.parseShellConfig
 let mergeConfig: (~global: globalConfig, ~project: option<config>) => mergedConfig = ConfigYaml.Logic.mergeConfig
 let validateMergedConfig: mergedConfig => result<unit, string> = ConfigYaml.Logic.validateMergedConfig
 let defaultOutputDir: string = ConfigYaml.defaultOutputDir

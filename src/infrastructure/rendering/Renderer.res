@@ -1,7 +1,6 @@
 // EJS template rendering with func helpers injected as h.*
 
 open Template
-open FuncMap
 
 // WS4: cwd and actionfolder removed from the renderContext type. Template
 // rendering must not expose host filesystem paths; both fields are stripped
@@ -38,8 +37,6 @@ let extractUndefinedVar: string => option<string> = msg => {
 }
 
 let render: (template, renderContext) => result<string, string> = (tmpl, ctx) => {
-  let _helpers = makeHelpers()
-
   // Build EJS data object — merge name variants, attributes, and h helper
   let data = Dict.make()
 
