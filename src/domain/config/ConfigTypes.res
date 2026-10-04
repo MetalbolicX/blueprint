@@ -73,11 +73,13 @@ type mergedConfig = {
   shell?: shellConfig,              // merged shell config
 }
 
+let defaultTimeout: int = 5 // seconds
+
 let defaultGlobalConfig: globalConfig = {
   templates: [],
   forceOverwrite: false,
   dryRun: false,
-  timeout: 5,
+  timeout: defaultTimeout,
   defaultAttributes: Dict.make(),
   registry: [],
 }

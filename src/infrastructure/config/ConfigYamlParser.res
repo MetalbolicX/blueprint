@@ -20,7 +20,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
       }
       let timeout = switch Dict.get(dict, "timeout") {
       | Some(JSON.Number(n)) => Js.Math.floor(n)
-      | _ => 5
+      | _ => ConfigTypes.defaultTimeout
       }
       let defaultAttributes = switch Dict.get(dict, "default_attributes") {
       | Some(v) => ConfigJsonParser.parseDefaultAttributes(v)

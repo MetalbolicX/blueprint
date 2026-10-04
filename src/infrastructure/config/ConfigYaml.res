@@ -17,4 +17,4 @@ let validateMergedConfig = Logic.validateMergedConfig
 
 // Default values that were at the end of the original file
 let defaultOutputDir: string = "generated"
-let defaultTimeout: int = 5 // seconds
+let defaultTimeout: int = ConfigTypes.defaultTimeout // seconds

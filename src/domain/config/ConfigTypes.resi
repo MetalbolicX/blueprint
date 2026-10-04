@@ -71,4 +71,6 @@ type mergedConfig = {
   shell?: shellConfig,
 }
 
+let defaultTimeout: int
+
 let defaultGlobalConfig: globalConfig
