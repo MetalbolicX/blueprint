@@ -158,12 +158,14 @@ let testMakeStagingDirUsesExclusivePrivateDirectories = () => {
         ->Promise.then(exists => {
           assert_true(Array.get(exists, 0)->Option.getOr(false))
           assert_true(Array.get(exists, 1)->Option.getOr(false))
-          NodeJs.Fs.stat(first)->Promise.then(stat => {
+          Promise.all([NodeJs.Fs.stat(first), NodeJs.Fs.stat(second)])->Promise.then(stats => {
             let isPosix: bool = %raw(`process.platform !== "win32"`)
             if isPosix {
-              let mode: int = Obj.magic(stat)["mode"]
               let permissionBits: int => int = %raw("mode => mode & 0o777")
-              assert_eq(permissionBits(mode), 0o700)
+              stats->Array.forEach(stat => {
+                let mode: int = Obj.magic(stat)["mode"]
+                assert_eq(permissionBits(mode), 0o700)
+              })
             }
             Promise.all([
               NodeJs.Fs.rm(first, ~options={recursive: true}),
