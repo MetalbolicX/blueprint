@@ -220,12 +220,16 @@ suite("Router extractAttributes", () => {
 
   testAsync("version flag after template command does not override command routing", resolve => {
     installConsoleLogSpy()
+    installConsoleErrorSpy()
     let exitCodes = ref([])
     let deps = makeProbeDeps(~exitCodes)
     Router.route(~deps, ~args=["template", "-v"])->Promise.then(_ => {
       let msgs: array<string> = %raw("globalThis.__testMessages")
+      let errors: array<string> = %raw("globalThis.__testErrors")
       assert_false(Array.some(msgs, msg => String.includes(msg, "Blueprint ")))
-      assert_true(Array.length(msgs) > 0)
+      assert_true(Array.some(msgs, msg => String.includes(msg, "Usage: blueprint template")))
+      assert_true(Array.some(errors, msg => String.includes(msg, "unknown template action")))
+      restoreConsoleError()
       restoreConsoleLog()
       resolve()
       Promise.resolve()

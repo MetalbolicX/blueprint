@@ -354,6 +354,35 @@ suite("TemplateRegistry", () => {
     })->ignore
   })
 
+  testAsync("copyTemplateToRegistry: refuses sources deeper than the depth cap", resolve => {
+    let base = NodeJsFileSystem.make()
+    let cpCalls = ref(0)
+    let fs: Ports.fileSystem = {
+      ...base,
+      readdir: (_path, ~options as _=?) => Promise.resolve(["nested"]),
+      stat: _ => Promise.resolve({isDirectory: () => true, isFile: () => false}: Ports.statResult),
+      lstat: _ => Promise.resolve({isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false}: Ports.lstatResult),
+      cp: (_src, _dst, ~options as _=?) => {
+        cpCalls := cpCalls.contents + 1
+        Promise.resolve()
+      },
+    }
+    Cli.copyTemplateToRegistry(
+      ~deps=installGuardDeps(~fs), ~fs, ~path=pathAdapter, ~name="guarded", ~sourcePath="/source",
+      ~registryRoot="/registry", ~configPath="/config.yaml",
+      ~globalConfig={templates: [], forceOverwrite: false, dryRun: false, timeout: 5, defaultAttributes: Dict.make(), registry: []},
+      ~force=true, ~confirmOverwrite=_ => Promise.resolve(false),
+    )->Promise.then(result => {
+      switch result {
+      | Error(message) => assert_eq(message, "Refusing to install /source: template tree exceeds depth cap (32)")
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(cpCalls.contents, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
   testAsync("copyTemplateToRegistry: validates before deleting an overwrite target", resolve => {
     let (base, cpCalls, writeCalls, rmCalls) = makeInstallGuardFs(~symlinkPath="/source/templates/x.ejs.t")
     let fs: Ports.fileSystem = {
@@ -378,6 +407,33 @@ suite("TemplateRegistry", () => {
       assert_eq(cpCalls.contents, 0)
       assert_eq(writeCalls.contents, 0)
       assert_eq(rmCalls.contents, 0)
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("copyTemplateToRegistry: removes the target when copy leaves a provenance marker", resolve => {
+    let (base, cpCalls, writeCalls, rmCalls) = makeInstallGuardFs(~symlinkPath="")
+    let markerPath = "/registry/guarded/.blueprint-provenance"
+    let fs: Ports.fileSystem = {
+      ...base,
+      lstat: path => path == markerPath
+        ? Promise.resolve({isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false}: Ports.lstatResult)
+        : base.lstat(path),
+    }
+    Cli.copyTemplateToRegistry(
+      ~deps=installGuardDeps(~fs), ~fs, ~path=pathAdapter, ~name="guarded", ~sourcePath="/source",
+      ~registryRoot="/registry", ~configPath="/config.yaml",
+      ~globalConfig={templates: [], forceOverwrite: false, dryRun: false, timeout: 5, defaultAttributes: Dict.make(), registry: []},
+      ~force=true, ~confirmOverwrite=_ => Promise.resolve(false),
+    )->Promise.then(result => {
+      switch result {
+      | Error(message) => assert_eq(message, "Refusing to install /source: source already contains a .blueprint-provenance marker")
+      | Ok(_) => assert_false(true)
+      }
+      assert_eq(cpCalls.contents, 1)
+      assert_eq(rmCalls.contents, 1)
+      assert_eq(writeCalls.contents, 0)
       resolve()
       Promise.resolve()
     })->ignore

@@ -20,7 +20,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
       }
       let timeout = switch Dict.get(dict, "timeout") {
       | Some(JSON.Number(n)) => Js.Math.floor(n)
-      | _ => 5
+      | _ => ConfigTypes.defaultTimeout
       }
       let defaultAttributes = switch Dict.get(dict, "default_attributes") {
       | Some(v) => ConfigJsonParser.parseDefaultAttributes(v)
@@ -42,10 +42,7 @@ let parseGlobal: string => result<globalConfig, string> = yamlContent => {
     }
   } catch {
   | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => m
-    | None => "Failed to parse global config"
-    }
+    let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to parse global config")
     Error(msg)
   }
 }
@@ -80,10 +77,7 @@ let parseConfig: string => result<config, string> = yamlContent => {
     }
   } catch {
   | JsExn(obj) =>
-    let msg = switch JsExn.message(obj) {
-    | Some(m) => m
-    | None => "Failed to parse config"
-    }
+    let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Failed to parse config")
     Error(msg)
   }
 }

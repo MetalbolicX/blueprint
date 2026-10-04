@@ -8,20 +8,6 @@ let getStringField = (dict: Dict.t<JSON.t>, key: string): option<string> => {
   }
 }
 
-let _getObjectField = (dict: Dict.t<JSON.t>, key: string): option<Dict.t<JSON.t>> => {
-  switch dict->Dict.get(key) {
-  | Some(JSON.Object(o)) => Some(o)
-  | _ => None
-  }
-}
-
-let _getIntField = (dict: Dict.t<JSON.t>, key: string, ~default: int): int => {
-  switch dict->Dict.get(key) {
-  | Some(JSON.Number(n)) => n->Float.toInt
-  | _ => default
-  }
-}
-
 let getBoolField = (dict: Dict.t<JSON.t>, key: string, ~default: bool): bool => {
   switch dict->Dict.get(key) {
   | Some(JSON.Boolean(b)) => b

@@ -294,6 +294,21 @@ suite("ShellExecutor shell.enabled gate", () => {
     })->ignore
   })
 
+  testAsync("enabled config without tools allowlist preserves ToolCall and ScriptFile behavior", resolve => {
+    let tracking = makeTrackingShell()
+    runShellCommands(
+      ~commands=[toolCommand, scriptCommand],
+      ~shellConfig=Some({enabled: true}),
+      ~shell=tracking.shell,
+      ~fs=makeFs(~fileExistsResult=true),
+    )->Promise.then(result => {
+      assert_eq(tracking.execFileAsyncCalls, ["echo|hello", "/workspace/project/scripts/setup.sh|"])
+      assert_eq(result, Ok(2))
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
   testAsync("missing shell config refuses both ToolCall and ScriptFile", resolve => {
     let toolTracking = makeTrackingShell()
     let scriptTracking = makeTrackingShell()

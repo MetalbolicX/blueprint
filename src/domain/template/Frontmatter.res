@@ -8,12 +8,6 @@
 
 open Template
 
-@@warning("-34")
-type parseError = {
-  message: string,
-  line?: int,
-}
-
 // URL type for scheme validation
 type jsUrl
 
