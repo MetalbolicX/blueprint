@@ -144,13 +144,13 @@ let run: (
           | Ok() =>
             switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
             | Ok() => {
-                let err: phase2Error = {message, partialCommit: committedFiles}
+                let err: phase2Error = {message, partialCommit: ?None}
                 Error(err)
               }
             | Error(rollbackMessage) =>
               let err: phase2Error = {
                 message: message ++ " | rollback failed: " ++ rollbackMessage,
-                partialCommit: committedFiles,
+                partialCommit: ?None,
                 catastrophic: true,
               }
               Error(err)
@@ -192,11 +192,12 @@ let run: (
       ) {
       | Ok() =>
         switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
-        | Ok() => Error(err)
+        | Ok() => Error({...err, partialCommit: ?None})
         | Error(rollbackMessage) => {
             let e: phase2Error = {
               ...err,
               message: err.message ++ " | rollback failed: " ++ rollbackMessage,
+              partialCommit: ?None,
               catastrophic: true,
             }
             Error(e)

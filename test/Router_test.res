@@ -202,6 +202,36 @@ suite("Router extractAttributes", () => {
     })->ignore
   })
 
+  testAsync("version flags after generate classification do not override command routing", resolve => {
+    ProbeState.reset()
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    Router.route(~deps, ~args=["generate", "missing-test-generator", "-v"])->Promise.then(_ => {
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_false(Array.some(msgs, msg => String.includes(msg, "Blueprint ")))
+      assert_true(ProbeState.isReady())
+      ProbeState.reset()
+      restoreConsoleLog()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("version flag after template command does not override command routing", resolve => {
+    installConsoleLogSpy()
+    let exitCodes = ref([])
+    let deps = makeProbeDeps(~exitCodes)
+    Router.route(~deps, ~args=["template", "-v"])->Promise.then(_ => {
+      let msgs: array<string> = %raw("globalThis.__testMessages")
+      assert_false(Array.some(msgs, msg => String.includes(msg, "Blueprint ")))
+      assert_true(Array.length(msgs) > 0)
+      restoreConsoleLog()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
   testAsync("findPackageJson walks up past decoy manifests to the blueprint root", resolve => {
     let fs = makeLookupFs([
       ("/x/y/dist/package.json", "{\"name\": \"decoy\", \"version\": \"0.0.1\"}"),

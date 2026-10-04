@@ -112,10 +112,13 @@ let run: (
     }
   }
 
-  // For bindPhase, we pass io if preHook succeeded (errors already handled above)
-  let preResult: result<Ports.interactiveIO, Commit.phase2Error> = switch preHookResult {
-  | Error(e) => Error(e) // already closed above
-  | Ok(_) => Ok(io)
+  // For bindPhase, pass io only when the hook ran and its stdout parsed successfully.
+  let preResult: result<Ports.interactiveIO, Commit.phase2Error> = switch hookAttributes {
+  | Error(e) => Error(e) // malformed hook stdout: io already closed above
+  | Ok(_) => switch preHookResult {
+    | Error(e) => Error(e) // already closed above
+    | Ok(_) => Ok(io)
+    }
   }
 
   // Phase 0: prompt resolution + conflict detection
