@@ -21,6 +21,7 @@ type phase2Error = {
   backups?: array<backupEntry>,
   failedTargets?: array<string>,
   failedBackups?: array<backupEntry>,
+  createdDirs?: array<string>,
 }
 
 let backupDirName = ".blueprint-backup"
@@ -68,7 +69,8 @@ let commitFiles: (
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,
   ~onCommitting: (string, option<backupEntry>) => unit=?,
-) => promise<result<(int, array<backupEntry>), phase2Error>> = async (
+  ~onCreatedDirs: array<string> => unit=?,
+) => promise<result<(int, array<backupEntry>, array<string>), phase2Error>> = async (
   ~stagingDir,
   ~outputDir,
   ~renderedFiles,
@@ -76,8 +78,12 @@ let commitFiles: (
   ~path,
   ~pathSecurity,
   ~onCommitting=?,
+  ~onCreatedDirs=?,
 ) => {
   let seenTargets: ref<dict<string>> = ref(Dict.make())
+  let createdDirs: ref<array<string>> = ref([])
+  let checkedDirs: ref<dict<string>> = ref(Dict.make())
+  let outputRoot = path.resolve(outputDir, ".")
   let dedupedFiles = renderedFiles->Array.filter(((_, targetPath)) => {
     if seenTargets.contents->Dict.has(targetPath) {
       Console.warn("Duplicate target path: " ++ targetPath ++ " — skipping")
@@ -97,9 +103,45 @@ let commitFiles: (
     if !isWithin {
       Error(("Target path outside output tree: " ++ targetPath, None, None))
     } else {
-      switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
-      | Error(e) => Error((e, None, None))
-      | Ok(backupOpt) => {
+      let rec probeDir: string => promise<result<unit, string>> = async dir => {
+        if path.resolve(dir, ".") == outputRoot || checkedDirs.contents->Dict.has(dir) {
+          Ok()
+        } else {
+          try {
+            let _ = await fs.stat(dir)
+            checkedDirs.contents->Dict.set(dir, dir)->ignore
+            Ok()
+          } catch {
+          | JsExn(obj) =>
+            let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Directory probe failed")
+            if String.includes(msg, "ENOENT") {
+              checkedDirs.contents->Dict.set(dir, dir)->ignore
+              if !(createdDirs.contents->Array.some(item => item == dir)) {
+                createdDirs.contents->Array.push(dir)->ignore
+                switch onCreatedDirs {
+                | Some(callback) => callback(createdDirs.contents->Array.map(item => item))
+                | None => ()
+                }
+              }
+              let parent = path.dirname(dir)
+              if parent == dir {
+                Ok()
+              } else {
+                await probeDir(parent)
+              }
+            } else {
+              Error(msg)
+            }
+          | _ => Error("Directory probe failed")
+          }
+        }
+      }
+      switch await probeDir(destDir) {
+      | Error(message) => Error(("Failed to inspect output directory for " ++ targetPath ++ ": " ++ message, None, None))
+      | Ok() => {
+          switch await backupIfOverwriting(~targetPath, ~outputDir, ~stagingDir, ~fs, ~path) {
+          | Error(e) => Error((e, None, None))
+          | Ok(backupOpt) => {
           switch onCommitting {
           | Some(callback) => callback(destPath, backupOpt)
           | None => ()
@@ -122,6 +164,8 @@ let commitFiles: (
           | JsExn(obj) =>
             let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="Copy failed")
             Error(("Failed to commit " ++ targetPath ++ ": " ++ msg, backupOpt, Some(destPath)))
+          }
+          }
           }
         }
       }
@@ -150,16 +194,18 @@ let commitFiles: (
       backups: ?(backups->Array.length > 0 ? Some(backups) : None),
       failedTargets: ?(failedTargets->Array.length > 0 ? Some(failedTargets) : None),
       failedBackups: ?(failedBackups->Array.length > 0 ? Some(failedBackups) : None),
+      createdDirs: ?(createdDirs.contents->Array.length > 0 ? Some(createdDirs.contents) : None),
     }
     Error(err)
   } else {
-    Ok((partialCommit->Array.length, backups))
+    Ok((partialCommit->Array.length, backups, createdDirs.contents))
   }
 }
 
 let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
+  ~createdDirs: array<string>=?,
   ~outputDir: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,
@@ -167,11 +213,13 @@ let rollbackOutput: (
 ) => promise<result<unit, array<rollbackFailure>>> = async (
   ~committedFiles,
   ~backups,
+  ~createdDirs=?,
   ~outputDir,
   ~path,
   ~fs,
   ~pathSecurity,
 ) => {
+  let createdDirs = createdDirs->Option.getOr([])
   let backupByOutput: dict<backupEntry> = Dict.make()
   backups->Array.forEach(backup => backupByOutput->Dict.set(backup.outputPath, backup))
 
@@ -215,12 +263,54 @@ let rollbackOutput: (
   })
 
   let results = await Promise.all(workItems->Array.map(fn => fn()))
-  let failures = results->Array.filterMap(r =>
+  let fileFailures = results->Array.filterMap(r =>
     switch r {
     | Error(f) => Some(f)
     | Ok(_) => None
     }
   )
+  let sortedDirs = createdDirs->Array.map(dir => dir)
+  sortedDirs->Array.sort((left, right) =>
+    Int.toFloat(String.split(right, "/")->Array.length - String.split(left, "/")->Array.length)
+  )
+  let dirFailures: ref<array<rollbackFailure>> = ref([])
+  let rec removeDir: int => promise<unit> = async index => {
+    switch Array.get(sortedDirs, index) {
+    | None => ()
+    | Some(dir) => {
+        let isWithin = await pathSecurity.isWithinTree(dir, outputDir, path, fs)
+        if !isWithin {
+          dirFailures.contents->Array.push({path: dir, reason: "output path outside output tree during rollback"})->ignore
+        } else {
+          try {
+            let entries = await fs.readdir(dir)
+            if entries->Array.length == 0 {
+              try {
+                await fs.rm(dir, ~options={recursive: true})
+              } catch {
+              | JsExn(obj) =>
+                let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="unknown error")
+                if !(String.includes(msg, "ENOENT")) {
+                  dirFailures.contents->Array.push({path: dir, reason: msg})->ignore
+                }
+              | _ => dirFailures.contents->Array.push({path: dir, reason: "unknown error"})->ignore
+              }
+            }
+          } catch {
+          | JsExn(obj) =>
+            let msg = Errors.extractErrorMessage(JsExn(obj), ~fallback="unknown error")
+            if !(String.includes(msg, "ENOENT")) {
+              dirFailures.contents->Array.push({path: dir, reason: msg})->ignore
+            }
+          | _ => dirFailures.contents->Array.push({path: dir, reason: "unknown error"})->ignore
+          }
+        }
+        await removeDir(index + 1)
+      }
+    }
+  }
+  await removeDir(0)
+  let failures = fileFailures->Array.concat(dirFailures.contents)
 
   switch failures->Array.length {
   | 0 => Ok()

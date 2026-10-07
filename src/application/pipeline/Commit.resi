@@ -16,6 +16,7 @@ type phase2Error = {
   backups?: array<backupEntry>,
   failedTargets?: array<string>,
   failedBackups?: array<backupEntry>,
+  createdDirs?: array<string>,
 }
 
 let commitFiles: (
@@ -26,11 +27,13 @@ let commitFiles: (
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,
   ~onCommitting: (string, option<backupEntry>) => unit=?,
-) => promise<result<(int, array<backupEntry>), phase2Error>>
+  ~onCreatedDirs: array<string> => unit=?,
+) => promise<result<(int, array<backupEntry>, array<string>), phase2Error>>
 
 let rollbackOutput: (
   ~committedFiles: array<string>,
   ~backups: array<backupEntry>,
+  ~createdDirs: array<string>=?,
   ~outputDir: string,
   ~path: Ports.path,
   ~fs: Ports.fileSystem,

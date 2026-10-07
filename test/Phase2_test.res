@@ -195,7 +195,7 @@ suite("Phase2", () => {
     ))
     ->Promise.then(result => {
       switch result {
-      | Ok((count, _)) => assert_eq(count, 1)
+      | Ok((count, _, _)) => assert_eq(count, 1)
       | Error(_) => assert_false(true)
       }
       NodeJs.Fs.rm(root, ~options={recursive: true})
@@ -614,6 +614,144 @@ suite("Phase2", () => {
       resolve()
       Promise.resolve()
     })
+  })
+
+  testAsync("rollbackOutput skips a recorded dir that is not empty", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let recordedDir = NodeJs.Path.join(outputDir, "a")
+    let contentPath = NodeJs.Path.join(recordedDir, "keep.txt")
+    let fs = NodeJsFileSystem.make()
+    NodeJs.Fs.mkdir(recordedDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(contentPath, "keep this content"))
+    ->Promise.then(_ =>
+      rollbackOutput(
+        ~committedFiles=[],
+        ~backups=[],
+        ~createdDirs=[recordedDir],
+        ~outputDir,
+        ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~fs,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok() => ()
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.readFile(contentPath, ~options={encoding: "utf8"})
+    })
+    ->Promise.then(content => {
+      assert_eq(content, "keep this content")
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollbackOutput: removes commit-created empty parent dirs deepest-first", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let createdDirs = [
+      NodeJs.Path.join(outputDir, "a"),
+      NodeJs.Path.join(NodeJs.Path.join(outputDir, "a"), "b"),
+      NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(outputDir, "a"), "b"), "c"),
+    ]
+    let filePath = NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(NodeJs.Path.join(outputDir, "a"), "b"), "c"), "file.txt")
+    let fs = NodeJsFileSystem.make()
+    NodeJs.Fs.mkdir(outputDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.dirname(filePath), ~options={recursive: true}))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(filePath, "committed"))
+    ->Promise.then(_ =>
+      rollbackOutput(
+        ~committedFiles=[filePath],
+        ~backups=[],
+        ~createdDirs,
+        ~outputDir,
+        ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~fs,
+      )
+    )
+    ->Promise.then(_ => NodeJs.Fs.fileExists(NodeJs.Path.join(outputDir, "a")))
+    ->Promise.then(parentExists => {
+      assert_false(parentExists)
+      NodeJs.Fs.fileExists(outputDir)
+    })
+    ->Promise.then(outputExists => {
+      assert_true(outputExists)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollbackOutput: rejects created dirs outside the output root", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let outsideDir = NodeJs.Path.join(tmpDir, "outside")
+    let contentPath = NodeJs.Path.join(outsideDir, "keep.txt")
+    let fs = NodeJsFileSystem.make()
+    NodeJs.Fs.mkdir(outsideDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(contentPath, "protected"))
+    ->Promise.then(_ =>
+      rollbackOutput(
+        ~committedFiles=[],
+        ~backups=[],
+        ~createdDirs=[outsideDir],
+        ~outputDir,
+        ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~fs,
+      )
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Ok() => assert_false(true)
+      | Error(failures) => {
+          assert_eq(Array.length(failures), 1)
+          assert_eq(Array.getUnsafe(failures, 0).path, outsideDir)
+        }
+      }
+      NodeJs.Fs.readFile(contentPath, ~options={encoding: "utf8"})
+    })
+    ->Promise.then(content => {
+      assert_eq(content, "protected")
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("rollbackOutput: preserves pre-existing empty dirs", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outputDir = NodeJs.Path.join(tmpDir, "output")
+    let existingDir = NodeJs.Path.join(outputDir, "existing")
+    let fs = NodeJsFileSystem.make()
+    NodeJs.Fs.mkdir(existingDir, ~options={recursive: true})
+    ->Promise.then(_ =>
+      rollbackOutput(
+        ~committedFiles=[],
+        ~backups=[],
+        ~createdDirs=[],
+        ~outputDir,
+        ~path=NodeJsPath.make(),
+        ~pathSecurity=NodeJsPathSecurity.make(),
+        ~fs,
+      )
+    )
+    ->Promise.then(_ => NodeJs.Fs.fileExists(existingDir))
+    ->Promise.then(exists => {
+      assert_true(exists)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   testAsync("rollbackOutput: returns Error with failed restore path when restore throws", resolve => {
@@ -1088,13 +1226,14 @@ suite("Phase2", () => {
     let outputDir = NodeJs.Path.join(tmpDir, "output")
 
     let stagedOverwrite = NodeJs.Path.join(stagingDir, "keep.txt")
-    let stagedNew = NodeJs.Path.join(stagingDir, "new.txt")
+    let stagedNew = NodeJs.Path.join(NodeJs.Path.join(stagingDir, "nested"), "new.txt")
     let outputOverwrite = NodeJs.Path.join(outputDir, "keep.txt")
-    let outputNew = NodeJs.Path.join(outputDir, "new.txt")
+    let outputNew = NodeJs.Path.join(NodeJs.Path.join(outputDir, "nested"), "new.txt")
+    let outputNewParent = NodeJs.Path.dirname(outputNew)
 
     let renderedFiles = [
       ("keep.t.ejs", "keep.txt"),
-      ("new.t.ejs", "new.txt"),
+      ("new.t.ejs", "nested/new.txt"),
     ]
 
     let toolDef: Config.shellTool = {
@@ -1113,7 +1252,8 @@ suite("Phase2", () => {
       },
     ]
 
-    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedOverwrite), ~options={recursive: true})
+    NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedNew), ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.mkdir(NodeJs.Path.dirname(stagedOverwrite), ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.mkdir(outputDir, ~options={recursive: true}))
     ->Promise.then(_ => NodeJs.Fs.writeFile(outputOverwrite, "original-content"))
     ->Promise.then(_ => NodeJs.Fs.writeFile(stagedOverwrite, "updated-content"))
@@ -1154,6 +1294,14 @@ suite("Phase2", () => {
       })
       ->Promise.then(newExists => {
         assert_false(newExists)
+        NodeJs.Fs.fileExists(outputNewParent)
+      })
+      ->Promise.then(parentExists => {
+        assert_false(parentExists)
+        NodeJs.Fs.fileExists(outputDir)
+      })
+      ->Promise.then(outputExists => {
+        assert_true(outputExists)
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         resolve()
         Promise.resolve()

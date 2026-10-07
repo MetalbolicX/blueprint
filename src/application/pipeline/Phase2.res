@@ -50,6 +50,7 @@ let run: (
   let tmpRoot = tmpRoot->Option.getOr(path.dirname(stagingDir))
   let committingFiles: ref<array<string>> = ref([])
   let committingBackups: ref<array<backupEntry>> = ref([])
+  let committingDirs: ref<array<string>> = ref([])
   let setRollback = switch commitRollbackRef {
   | Some(stateRef) => Some(stateRef)
   | None => None
@@ -58,6 +59,7 @@ let run: (
   | Some(stateRef) => stateRef.contents = Some(() => Commit.rollbackOutput(
       ~committedFiles=committingFiles.contents,
       ~backups=committingBackups.contents,
+      ~createdDirs=committingDirs.contents,
       ~outputDir,
       ~path,
       ~fs,
@@ -101,6 +103,7 @@ let run: (
       | None => ()
       }
     }),
+    ~onCreatedDirs=(dirs => committingDirs.contents = dirs),
   )
   switch setRollback {
   | Some(stateRef) => stateRef.contents = None
@@ -108,7 +111,7 @@ let run: (
   }
 
   switch commitResult {
-  | Ok((count, backups)) => {
+  | Ok((count, backups, createdDirs)) => {
       // Execute shell commands
       let shellResult = await ShellExecutor.executeShellCommands(
         ~commands=shellCommands,
@@ -140,7 +143,7 @@ let run: (
           Ok(result)
         }
       | Error(message) => {
-          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~outputDir, ~path, ~fs, ~pathSecurity) {
+          switch await Commit.rollbackOutput(~committedFiles, ~backups, ~createdDirs, ~outputDir, ~path, ~fs, ~pathSecurity) {
           | Ok() =>
             switch await Commit.rollback(stagingDir, ~tmpRoot, ~path, ~fs, ~pathSecurity) {
             | Ok() => {
@@ -182,9 +185,11 @@ let run: (
   | Error(err) => {
       let rollbackTargets = err.partialCommit->Option.getOr([])->Array.concat(err.failedTargets->Option.getOr([]))
       let rollbackBackups = err.backups->Option.getOr([])->Array.concat(err.failedBackups->Option.getOr([]))
+      let rollbackDirs = err.createdDirs->Option.getOr([])
       switch await Commit.rollbackOutput(
         ~committedFiles=rollbackTargets,
         ~backups=rollbackBackups,
+        ~createdDirs=rollbackDirs,
         ~outputDir,
         ~path,
         ~fs,
