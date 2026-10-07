@@ -93,7 +93,7 @@ registered for integration):
 | fix/059-rollback-empty-dir-residue | 3be0c1b | ac6c125 |
 | docs/060-contract-sh-and-shell-enabled | ffa37d9 | 82dcd93 |
 | refactor/061-render-to-once | cbc90d6 | ac6c125 |
-| chore/062-remove-dead-shell-exact | b4ec25b | 7aa2e64 |
+| chore/062-remove-dead-shell-exact | 42a51d2 (b4ec25b + plan-outcome note) | 7aa2e64 |
 | chore/063-remove-test-only-discovery-api | 3073ada | 82dcd93 |
 | fix/064-cancel-fetch-body-failure-arms | 8960ab9 | 7aa2e64 |
 
@@ -119,7 +119,9 @@ separately, candidate by candidate, per the review contract.
 | 061 | review-2f640ba3bd9a1461 | APPROVED + acked, burned | ecb957f5 |
 | 063 | review-0c0df719c4b3468a | APPROVED + acked, burned | c68e2248 |
 | 064 | review-5e519c1aa8434d28 | APPROVED + acked, burned | 2e8e90f7 |
-| 062 | review-8b0f4ca4ed414c05 | **ESCALATED** (native_stop_required, unknown_causality, R3-001) — NO receipt; maintainer decision pending | — |
+| baseline (`test/CliIntegration` fix + campaign docs, range `82dcd93..ac5db4b`) | review-53e9eba2a82ba875 | APPROVED + acked, burned | 8df1b774 |
+| 062 | review-b6974bd8535894d5 | APPROVED + acked, burned (re-review after v1 escalated; stacked `42a51d2` plan-outcome note, no history rewrite) | 8b6c3c74 |
+| ~~062 v1~~ | review-8b0f4ca4ed414c05 | terminal `escalated` — permanent audit record (abandon/reclaim refused; blocks only its own dead identity) | — |
 | 060 | — | skipped (docs-only, sanctioned trivial-passive-documentation skip) | — |
 
 Learnings: policy-derived base spans the whole LAN history → every START
@@ -127,3 +129,12 @@ used explicit baseRef=parent (reduced scope) after the provider's
 lens_context_budget_exceeded remediation; one consent binding expired
 mid-batch (fresh START per provider instruction); one forecast
 acknowledgement failed natively → bound status → escalated state.
+Escalation resolution (2026-10-05): terminal escalated authority refuses
+`review abandon` (terminal) and `review reclaim` (holds admitted lens
+artifact); resolved via the change-candidate-content remedy — stacked
+plan-outcome note commit `42a51d2` on `chore/062` and re-reviewed the
+superset range as `review-b6974bd8535894d5` → approved, burned.
+The dead identity's authority record stands as a persisted audit artifact.
+The main worktree's three prior-session untracked files forced an
+intended-untracked selection that conflicted with reduced baseRef →
+baseline reviewed from a clean detached worktree at `ac5db4b` instead.
