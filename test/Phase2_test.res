@@ -24,19 +24,6 @@ let makeProcess = (): Ports.process => {
   homedir: () => "/home/test",
 }
 
-let waitForSignalRollback: (
-  ~exitRecorded: unit => bool,
-  ~diagnosticPresent: unit => bool,
-) => promise<unit> = %raw(`(exitRecorded, diagnosticPresent) => new Promise((resolve, reject) => {
-  let attempts = 0;
-  const poll = () => {
-    if (exitRecorded() && diagnosticPresent()) return resolve();
-    if (++attempts >= 400) return reject(new Error("rollback chain did not settle"));
-    setTimeout(poll, 5);
-  };
-  poll();
-})`)
-
 let makeSignalProcess = (~handler: ref<option<unit => unit>>, ~exitCodes: ref<array<int>>): Ports.process => {
   {
     ...makeProcess(),
@@ -317,7 +304,19 @@ suite("Phase2", () => {
     let base = NodeJsFileSystem.make()
     let handler = ref(None)
     let exitCodes = ref([])
-    let process = makeSignalProcess(~handler, ~exitCodes)
+    let makeDeferred: unit => (promise<unit>, unit => unit) = %raw(`() => {
+      let resolve;
+      const promise = new Promise(r => { resolve = r; });
+      return [promise, resolve];
+    }`)
+    let (exitDeferred, resolveExit) = makeDeferred()
+    let process: Ports.process = {
+      ...makeSignalProcess(~handler, ~exitCodes),
+      exit: code => {
+        exitCodes.contents->Array.push(code)->ignore
+        if code == 1 { resolveExit() }
+      },
+    }
     // Restore copies read from the backup dir; make them throw so the
     // signal-time rollback cannot restore the output tree.
     let signalFs: Ports.fileSystem = {
@@ -376,10 +375,13 @@ suite("Phase2", () => {
       ~tmpRoot=NodeJs.Os.tmpdir(),
       ~commitRollbackRef=rollbackRef,
     ))
-    ->Promise.then(_ => waitForSignalRollback(
-      ~exitRecorded=() => Array.get(exitCodes.contents, 0) == Some(1),
-      ~diagnosticPresent=() => %raw("globalThis.__testMessages.some(msg => String(msg).includes('Signal rollback failed'))"),
-    ))
+    ->Promise.then(_ => {
+      let hangGuard: promise<unit> = %raw(`new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("rollback chain did not settle")), 10000);
+      })`)
+      let awaitEither: (promise<unit>, promise<unit>) => promise<unit> = %raw("(exitDeferred, hangGuard) => Promise.race([exitDeferred, hangGuard])")
+      awaitEither(exitDeferred, hangGuard)
+    })
     ->Promise.then(_ => {
       let _ = %raw("console.error = globalThis.__signalOriginalError")
       let joined: string = %raw("globalThis.__testMessages.join('\\n')")
