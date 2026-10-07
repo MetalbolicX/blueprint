@@ -108,3 +108,22 @@ adjacencies — 058 before 062 (both touch Phase2_test), 057 before
 
 RDD was ON (global) at close; the native review gate is entered
 separately, candidate by candidate, per the review contract.
+
+## Native review receipts (2026-10-05, reduced-scope per-commit candidates)
+
+| Plan | Lineage | Outcome | Consumed |
+|---|---|---|---|
+| 059 | review-33a1c5635f529122 | APPROVED + acked, burned | beea56db |
+| 057 | review-dc4de0b4dde0fa61 | APPROVED + acked, burned | 0098314f |
+| 058 | review-9664febc1f4ecfc8 | APPROVED + acked, burned | dea21310 |
+| 061 | review-2f640ba3bd9a1461 | APPROVED + acked, burned | ecb957f5 |
+| 063 | review-0c0df719c4b3468a | APPROVED + acked, burned | c68e2248 |
+| 064 | review-5e519c1aa8434d28 | APPROVED + acked, burned | 2e8e90f7 |
+| 062 | review-8b0f4ca4ed414c05 | **ESCALATED** (native_stop_required, unknown_causality, R3-001) — NO receipt; maintainer decision pending | — |
+| 060 | — | skipped (docs-only, sanctioned trivial-passive-documentation skip) | — |
+
+Learnings: policy-derived base spans the whole LAN history → every START
+used explicit baseRef=parent (reduced scope) after the provider's
+lens_context_budget_exceeded remediation; one consent binding expired
+mid-batch (fresh START per provider instruction); one forecast
+acknowledgement failed natively → bound status → escalated state.
