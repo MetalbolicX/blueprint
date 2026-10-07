@@ -9,6 +9,11 @@ type renderedOutput = {
   renderedBody: string,
 }
 
+type resolvedTarget = {
+  sourcePath: string,
+  targetPath: string,
+}
+
 type stageVerdict =
   | StageProceed
   | StageSkip
@@ -195,6 +200,7 @@ let render: (
   ~context: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~preResolvedTargets: array<resolvedTarget> =?,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,
@@ -205,6 +211,7 @@ let render: (
   ~context,
   ~outputDir,
   ~conflictDecisions,
+  ~preResolvedTargets=[],
   ~fs,
   ~path,
   ~pathSecurity,
@@ -220,7 +227,12 @@ let render: (
       | _ => false
       }
     })
-    ->Option.map(d => resolveTargetPath(~ejs, d, context))
+    ->Option.map(d =>
+      switch preResolvedTargets->Array.find(target => target.sourcePath == template.sourcePath) {
+      | Some(target) => Ok(target.targetPath)
+      | None => resolveTargetPath(~ejs, d, context)
+      }
+    )
 
   switch targetPathResult {
   | None => Error("No 'to' directive found in template: " ++ template.sourcePath)

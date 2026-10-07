@@ -42,18 +42,20 @@ let runPhase1: (
   ~mergedContext: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~preResolvedTargets: array<TemplateRenderer.resolvedTarget> =?,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,
   ~ejs: Ports.ejs,
   ~process: Ports.process,
-) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~conflictDecisions, ~shellConfig, ~fs, ~path, ~pathSecurity, ~ejs, ~process) => {
+) => promise<result<Phase1.phase1Result, string>> = async (~io, ~templates, ~mergedContext, ~outputDir, ~conflictDecisions, ~preResolvedTargets=[], ~shellConfig, ~fs, ~path, ~pathSecurity, ~ejs, ~process) => {
   let phase1Result = await Phase1.run(
     ~templates,
     ~context=mergedContext,
     ~outputDir,
     ~conflictDecisions,
+    ~preResolvedTargets,
     ~shellConfig,
     ~fs,
     ~path,

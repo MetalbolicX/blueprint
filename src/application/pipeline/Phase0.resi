@@ -6,6 +6,7 @@ type conflictFile = {
 type phase0Result = {
   resolvedAttributes: dict<string>,
   conflicts: array<conflictFile>,
+  resolvedTargets: array<TemplateRenderer.resolvedTarget>,
 }
 
 let detectRenderedConflicts: (

@@ -12,12 +12,13 @@ type conflictFile = {
 type phase0Result = {
   resolvedAttributes: dict<string>, // merged CLI + prompt answers
   conflicts: array<conflictFile>,
+  resolvedTargets: array<TemplateRenderer.resolvedTarget>,
 }
 
 // Check if a file exists at target path
 
 // Detect conflicts for all templates with "to" directive
-let detectRenderedConflicts: (
+let resolveRenderedTargetsAndDetectConflicts: (
   ~templates: array<Template.template>,
   ~outputDir: string,
   ~force: bool,
@@ -26,35 +27,28 @@ let detectRenderedConflicts: (
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,
-) => promise<result<array<conflictFile>, string>> = async (~templates, ~outputDir, ~force as _force, ~ejs, ~attributes, ~fs, ~path, ~pathSecurity as _pathSecurity) => {
-  // Collect all To directive checks as a flat array.
-  // unless_exists templates are intentionally excluded from conflict detection,
-  // because existing target files should be silently skipped.
-  let toChecks =
-    templates->Array.reduce([], (acc, tmpl) => {
-      let hasUnlessExists = tmpl.directives->Array.some(d => {
-        switch d {
-        | Template.UnlessExists => true
-        | _ => false
-        }
-      })
-
-      if hasUnlessExists {
-        acc
-      } else {
-        let found = tmpl.directives->Array.filterMap(d => {
-          switch d {
-          | To(path) => Some((tmpl.sourcePath, path))
-          | _ => None
-          }
-        })
-        Array.concat(acc, found)
+) => promise<result<(array<conflictFile>, array<TemplateRenderer.resolvedTarget>), string>> = async (~templates, ~outputDir, ~force as _force, ~ejs, ~attributes, ~fs, ~path, ~pathSecurity as _pathSecurity) => {
+  // Resolve every To directive once. UnlessExists targets are retained for Phase1
+  // but remain excluded from conflict detection, where they are silently skipped.
+  let toChecks = templates->Array.reduce([], (acc, tmpl) => {
+    let hasUnlessExists = tmpl.directives->Array.some(d => {
+      switch d {
+      | Template.UnlessExists => true
+      | _ => false
       }
     })
+    let found = tmpl.directives->Array.filterMap(d =>
+      switch d {
+      | To(to) => Some((tmpl.sourcePath, to, hasUnlessExists))
+      | _ => None
+      }
+    )
+    Array.concat(acc, found)
+  })
 
-  // Resolve each To with the exact attribute vocabulary used by rendering.
   let firstError: ref<option<string>> = ref(None)
-  let resolvedChecks = toChecks->Array.filterMap(((sourcePath, to)) =>
+  let resolvedTargets: array<TemplateRenderer.resolvedTarget> = []
+  let resolvedChecks = toChecks->Array.filterMap(((sourcePath, to, unlessExists)) =>
     switch TemplateRenderer.renderTargetPath(~to, ~ejs, ~attributes) {
     | Error(msg) => {
       if firstError.contents == None {
@@ -62,7 +56,11 @@ let detectRenderedConflicts: (
       }
       None
     }
-    | Ok(targetPath) => Some((sourcePath, path.join(outputDir, targetPath)))
+    | Ok(targetPath) => {
+      let fullTarget = path.join(outputDir, targetPath)
+      resolvedTargets->Array.push({sourcePath, targetPath})->ignore
+      if unlessExists {None} else {Some((sourcePath, fullTarget))}
+    }
     }
   )
   switch firstError.contents {
@@ -85,10 +83,25 @@ let detectRenderedConflicts: (
         | None => ()
         }
       })
-      Ok(allConflicts)
+      Ok((allConflicts, resolvedTargets))
     }
   }
 }
+
+let detectRenderedConflicts: (
+  ~templates: array<Template.template>,
+  ~outputDir: string,
+  ~force: bool,
+  ~ejs: Ports.ejs,
+  ~attributes: dict<string>,
+  ~fs: Ports.fileSystem,
+  ~path: Ports.path,
+  ~pathSecurity: Ports.pathSecurity,
+) => promise<result<array<conflictFile>, string>> = async (~templates, ~outputDir, ~force, ~ejs, ~attributes, ~fs, ~path, ~pathSecurity) =>
+  switch await resolveRenderedTargetsAndDetectConflicts(~templates, ~outputDir, ~force, ~ejs, ~attributes, ~fs, ~path, ~pathSecurity) {
+  | Error(message) => Error(message)
+  | Ok((conflicts, _resolvedTargets)) => Ok(conflicts)
+  }
 
 // Run Phase0: resolve prompts and detect conflicts
 let run: (
@@ -139,7 +152,7 @@ let run: (
       let mergedAttributes = Dict.make()
       baseContext->Dict.toArray->Array.forEach(((k, v)) => Dict.set(mergedAttributes, k, v))
       resolvedAttributes->Dict.toArray->Array.forEach(((k, v)) => Dict.set(mergedAttributes, k, v))
-      switch await detectRenderedConflicts(
+      switch await resolveRenderedTargetsAndDetectConflicts(
         ~templates=generator.templates,
         ~outputDir,
         ~force,
@@ -150,7 +163,7 @@ let run: (
         ~pathSecurity,
       ) {
       | Error(e) => Error(e)
-      | Ok(conflicts) => Ok({resolvedAttributes, conflicts})
+      | Ok((conflicts, resolvedTargets)) => Ok({resolvedAttributes, conflicts, resolvedTargets})
       }
     }
   | Error(Expression.EvaluationError({prompt, field, message})) =>

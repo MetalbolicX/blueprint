@@ -488,4 +488,82 @@ suite("Phase0 Integration", () => {
     })
     ->ignore
   })
+
+  let runWithCountingEjs = (~returnedPaths: array<string>, ~existingTarget: option<string>) => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let outDir = NodeJs.Path.join(tmpDir, "out")
+    let count = ref(0)
+    let ejs: Ports.ejs = {
+      renderString: (~template, ~context as _) =>
+        if template == "to-target" {
+          let result = switch returnedPaths[count.contents] {
+          | Some(value) => value
+          | None => returnedPaths[Array.length(returnedPaths) - 1]->Option.getOr("target.txt")
+          }
+          count.contents = count.contents + 1
+          Ok(result)
+        } else {
+          TestPorts.stubEjs.renderString(~template, ~context=Dict.make())
+        },
+      renderFile: (~path as _, ~context as _) => Promise.resolve(Error("unused")),
+    }
+    let deps: Ports.deps = {
+      fs: NodeJsFileSystem.make(),
+      path: NodeJsPath.make(),
+      process: NodeJsProcess.make(),
+      shell: NodeJsShell.make(),
+      interactiveIO: {
+        ask: _ => Promise.resolve("yes"),
+        askConfirm: (~question as _, ~defaultYes=false) => Promise.resolve(defaultYes),
+        close: () => (),
+      },
+      argParser: NodeJsArgParser.make(),
+      yamlParser: TestPorts.stubYamlParser,
+      ejs,
+      fetcher: NodeJsFetcher.make(),
+      pathSecurity: NodeJsPathSecurity.make(),
+      shellBuilder: NodeJsShellBuilder.make(),
+      envFilter: NodeJsEnvFilter.make(),
+      hooks: NodeJsHooks.make(),
+    }
+    let template: Template.template = {
+      sourcePath: NodeJs.Path.join(tmpDir, "one.ejs.t"),
+      directives: [Template.To("to-target")],
+      body: "written",
+    }
+    let existing = switch existingTarget {
+    | Some(target) => NodeJs.Fs.mkdir(outDir, ~options={recursive: true})->Promise.then(_ => NodeJs.Fs.writeFile(NodeJs.Path.join(outDir, target), "existing"))
+    | None => Promise.resolve()
+    }
+    existing->Promise.then(_ =>
+      Engine.run(
+        ~generator={name: "render-once-test", path: tmpDir, templates: [template]},
+        ~name="Test",
+        ~cliAttributes=Dict.make(),
+        ~outputDir=outDir,
+        ~force=false,
+        ~deps,
+      )
+    )->Promise.then(result => Promise.resolve((tmpDir, outDir, count, result)))
+  }
+
+  testAsync("run: renders each to directive once across Phase0 and Phase1", resolve => {
+    runWithCountingEjs(~returnedPaths=["target.txt"], ~existingTarget=None)->Promise.then(((tmpDir, _outDir, count, _result)) => {
+      assert_eq(count.contents, 1)
+      NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("run: writes the exact path checked during Phase0", resolve => {
+    runWithCountingEjs(~returnedPaths=["first.txt", "second.txt"], ~existingTarget=Some("first.txt"))->Promise.then(((tmpDir, outDir, _count, _result)) =>
+      NodeJs.Fs.readFile(NodeJs.Path.join(outDir, "first.txt"), ~options={encoding: "utf8"})->Promise.then(content => {
+        assert_eq(content, "written")
+        NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
+        resolve()
+        Promise.resolve()
+      })
+    )->ignore
+  })
 })

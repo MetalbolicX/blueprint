@@ -172,6 +172,7 @@ let run: (
         ~mergedContext,
         ~outputDir,
         ~conflictDecisions=Some(decisions),
+        ~preResolvedTargets=p0.resolvedTargets,
         ~shellConfig,
         ~fs,
         ~path,

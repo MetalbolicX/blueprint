@@ -26,6 +26,7 @@ suite("Phase0", () => {
     let result = {
       Phase0.resolvedAttributes: Dict.make(),
       conflicts: [],
+      resolvedTargets: [],
     }
 
     assert_true(Dict.toArray(result.resolvedAttributes)->Array.length == 0)

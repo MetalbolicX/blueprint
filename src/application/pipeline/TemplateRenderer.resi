@@ -6,6 +6,11 @@ type renderedOutput = {
   renderedBody: string,
 }
 
+type resolvedTarget = {
+  sourcePath: string,
+  targetPath: string,
+}
+
 let renderTargetPath: (~to: string, ~ejs: Ports.ejs, ~attributes: dict<string>) => result<string, string>
 let resolveTargetPath: (~ejs: Ports.ejs, Template.directive, Context.context) => result<string, string>
 
@@ -14,6 +19,7 @@ let render: (
   ~context: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~preResolvedTargets: array<resolvedTarget> =?,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
   ~pathSecurity: Ports.pathSecurity,

@@ -16,6 +16,7 @@ let run: (
   ~context: Context.context,
   ~outputDir: string,
   ~conflictDecisions: option<array<ConflictResolver.conflictDecision>>,
+  ~preResolvedTargets: array<TemplateRenderer.resolvedTarget> =?,
   ~shellConfig: option<Config.shellConfig>,
   ~fs: Ports.fileSystem,
   ~path: Ports.path,
