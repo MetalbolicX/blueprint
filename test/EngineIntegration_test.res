@@ -271,29 +271,38 @@ suite("Engine Integration", () => {
     )
     // Discover the real create-res-project generator from examples/
     ->Promise.then(_ =>
-      Discovery.discoverIn(
+      Discovery.discoverGenerators(
         ~fs=deps.fs,
         ~path=NodeJsPath.make(),
         ~yamlParser=deps.yamlParser,
-        "examples",
+        ~searchPaths=["examples"],
+        (),
       )
     )
     ->Promise.then(gens => {
-      switch Discovery.findByClassification(gens, "create-res-project") {
+      switch Discovery.findByClassificationMeta(gens, "create-res-project") {
       | None =>
         NodeJs.Fs.rm(tmpDir, ~options={recursive: true})->ignore
         assert_false(true)
         resolve()
         Promise.resolve()
-      | Some(gen) =>
-        EngineOrchestrator.run(
-          ~generator=gen,
-          ~name="smoke-app",
-          ~cliAttributes=Dict.make(),
-          ~outputDir,
-          ~force=true,
-          ~deps,
-        )
+      | Some(meta) =>
+        Discovery.loadGeneratorTemplates(~fs=deps.fs, ~path=NodeJsPath.make(), meta.path)
+        ->Promise.then(templates => {
+          let generator: Discovery.generator = {
+            name: meta.name,
+            path: meta.path,
+            templates,
+            manifest: ?meta.manifest,
+          }
+          EngineOrchestrator.run(
+            ~generator,
+            ~name="smoke-app",
+            ~cliAttributes=Dict.make(),
+            ~outputDir,
+            ~force=true,
+            ~deps,
+          )
         ->Promise.then(result => {
           switch result {
           | Error(e) => {
@@ -349,6 +358,7 @@ suite("Engine Integration", () => {
           assert_false(true)
           resolve()
           Promise.resolve()
+        })
         })
       }
     })

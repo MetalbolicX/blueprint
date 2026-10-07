@@ -548,10 +548,16 @@ suite("TemplateRegistry", () => {
         ],
         ~globalTemplates=[],
       )
-      Discovery.discover(~fs=fsAdapter, ~path=pathAdapter, ~yamlParser=NodeJsYamlParser.make(), ~searchPaths=paths, ())
+      Discovery.discoverGenerators(
+        ~fs=fsAdapter,
+        ~path=pathAdapter,
+        ~yamlParser=NodeJsYamlParser.make(),
+        ~searchPaths=paths,
+        (),
+      )
     })
     ->Promise.then(generators => {
-      switch Discovery.findByClassification(generators, classification) {
+      switch Discovery.findByClassificationMeta(generators, classification) {
       | None => assert_false(true)
       | Some(found) => assert_eq(found.path, localGeneratorDir)
       }

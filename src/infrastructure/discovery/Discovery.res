@@ -353,36 +353,3 @@ let findByClassificationMeta: (array<generatorMeta>, string) => option<generator
   generators,
   classification,
 ) => generators->Array.find(g => g.name == classification)
-
-// Discover generators across standard search paths
-let discover: (
-  ~fs: Ports.fileSystem,
-  ~path: Ports.path,
-  ~yamlParser: Ports.yamlParser,
-  ~searchPaths: array<string>=?,
-  unit,
-) => promise<array<generator>> = async (~fs, ~path, ~yamlParser, ~searchPaths=?, ()) => {
-  let defaultPaths = ["_templates", "templates", "generators"]
-  let paths = switch searchPaths {
-  | Some(p) => p
-  | None => defaultPaths
-  }
-
-  let allGenPromises = paths->Array.map(baseDir => discoverIn(~fs, ~path, ~yamlParser, baseDir))
-  let allResults = await Promise.all(allGenPromises)
-
-  // Flatten all generators from all paths
-  let allGenerators = allResults->Array.reduce([], (acc, gens) => {
-    acc->Array.concat(gens)
-  })
-
-  allGenerators
-}
-
-// Find a generator by classification/name
-let findByClassification: (array<generator>, string) => option<generator> = (
-  generators,
-  classification,
-) => {
-  generators->Array.find(g => g.name == classification)
-}

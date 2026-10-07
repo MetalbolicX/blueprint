@@ -101,36 +101,25 @@ suite("Discovery", () => {
   let fs = NodeJsFileSystem.make()
   let pathAdapter = NodeJsPath.make()
   let yamlParser = NodeJsYamlParser.make()
-  test("findByClassification: returns generator when exists", () => {
-    let gens = [
-      {
-        Discovery.name: "component",
-        path: "/workspace/_templates/component",
-        templates: [],
-      },
-      {
-        Discovery.name: "page",
-        path: "/workspace/_templates/page",
-        templates: [],
-      },
+  test("findByClassificationMeta: returns first matching generator when exists", () => {
+    let gens: array<Discovery.generatorMeta> = [
+      {name: "component", path: "/workspace/_templates/component", manifest: None},
+      {name: "component", path: "/later/component", manifest: None},
+      {name: "page", path: "/workspace/_templates/page", manifest: None},
     ]
 
-    switch Discovery.findByClassification(gens, "component") {
-    | Some(g) => assert_eq(g.name, "component")
+    switch Discovery.findByClassificationMeta(gens, "component") {
+    | Some(meta) => assert_eq(meta.path, "/workspace/_templates/component")
     | None => assert_false(true)
     }
   })
 
-  test("findByClassification: returns None when missing", () => {
-    let gens = [
-      {
-        Discovery.name: "component",
-        path: "/workspace/_templates/component",
-        templates: [],
-      },
+  test("findByClassificationMeta: returns None when missing", () => {
+    let gens: array<Discovery.generatorMeta> = [
+      {name: "component", path: "/workspace/_templates/component", manifest: None},
     ]
 
-    assert_eq(Discovery.findByClassification(gens, "missing"), None)
+    assert_eq(Discovery.findByClassificationMeta(gens, "missing"), None)
   })
 
   testAsync("discoverIn: returns generators from real directory", resolve => {
@@ -504,11 +493,17 @@ suite("Discovery", () => {
 
   // --- hook-path discovery and load-guard tests ---
 
-  testAsync("discover: create-res-project generator carries both hook paths", resolve => {
+  testAsync("discoverGenerators: create-res-project generator carries both hook paths", resolve => {
     let examplesPath = NodeJs.Path.resolve(NodeJs.Process.cwd(), "examples")
-    let _ = Discovery.discoverIn(~fs, ~path=pathAdapter, ~yamlParser, examplesPath)
+    let _ = Discovery.discoverGenerators(
+      ~fs,
+      ~path=pathAdapter,
+      ~yamlParser,
+      ~searchPaths=[examplesPath],
+      (),
+    )
     ->Promise.then(gens => {
-      switch Discovery.findByClassification(gens, "create-res-project") {
+      switch Discovery.findByClassificationMeta(gens, "create-res-project") {
       | Some(gen) =>
         switch gen.manifest {
         | Some(m) =>
