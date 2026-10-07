@@ -122,6 +122,88 @@ let makeRollbackFs = (
 }
 
 suite("Phase2", () => {
+  testAsync("commitFiles: refreshes heartbeat after staging copies", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let outputDir = NodeJs.Path.join(root, "output")
+    let trace = ref([])
+    let base = NodeJsFileSystem.make()
+    let heartbeat = NodeJs.Path.join(stagingDir, ".blueprint-heartbeat")
+    let fs: Ports.fileSystem = {
+      ...base,
+      writeFile: (file, content, ~options=?) => {
+        if file == heartbeat { trace.contents->Array.push("heartbeat")->ignore }
+        base.writeFile(file, content, ~options?)
+      },
+      cp: (source, target, ~options=?) => {
+        trace.contents->Array.push("copy")->ignore
+        base.cp(source, target, ~options?)
+      },
+    }
+    let stagedA = NodeJs.Path.join(stagingDir, "a.txt")
+    let stagedB = NodeJs.Path.join(stagingDir, "b.txt")
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedA, "a"))
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedB, "b"))
+    ->Promise.then(_ => Commit.commitFiles(
+      ~stagingDir,
+      ~outputDir,
+      ~renderedFiles=[("a", "a.txt"), ("b", "b.txt")],
+      ~fs,
+      ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true)
+      | Ok(_) => ()
+      }
+      assert_true(trace.contents->Array.some(event => event == "copy"))
+      assert_true(trace.contents->Array.some(event => event == "heartbeat"))
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->ignore
+  })
+
+  testAsync("commitFiles: heartbeat write failure does not fail commit", resolve => {
+    let root = NodeJs.Os.makeStagingDir()
+    let stagingDir = NodeJs.Path.join(root, "stage")
+    let outputDir = NodeJs.Path.join(root, "output")
+    let base = NodeJsFileSystem.make()
+    let fs: Ports.fileSystem = {
+      ...base,
+      writeFile: (file, content, ~options=?) =>
+        if String.endsWith(file, ".blueprint-heartbeat") {
+          %raw(`Promise.reject(new Error("heartbeat unavailable"))`)
+        } else {
+          base.writeFile(file, content, ~options?)
+        },
+    }
+    let stagedFile = NodeJs.Path.join(stagingDir, "file.txt")
+
+    NodeJs.Fs.mkdir(stagingDir, ~options={recursive: true})
+    ->Promise.then(_ => NodeJs.Fs.writeFile(stagedFile, "content"))
+    ->Promise.then(_ => Commit.commitFiles(
+      ~stagingDir,
+      ~outputDir,
+      ~renderedFiles=[("file", "file.txt")],
+      ~fs,
+      ~path=NodeJsPath.make(),
+      ~pathSecurity=NodeJsPathSecurity.make(),
+    ))
+    ->Promise.then(result => {
+      switch result {
+      | Ok((count, _)) => assert_eq(count, 1)
+      | Error(_) => assert_false(true)
+      }
+      NodeJs.Fs.rm(root, ~options={recursive: true})
+      ->Promise.then(_ => { resolve(); Promise.resolve() })
+    })
+    ->ignore
+  })
+
   testAsync("cleanup failure warns with orphan path but preserves successful result", resolve => {
     let root = NodeJs.Os.makeStagingDir()
     let stagingDir = NodeJs.Path.join(root, "stage")

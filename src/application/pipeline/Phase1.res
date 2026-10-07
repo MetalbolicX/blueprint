@@ -112,6 +112,7 @@ let run: (
 ) => {
   let ts = Date.now()->Float.toInt->Int.toString
   let tmpDir = await fs.makeStagingDir("blueprint-" ++ ts ++ "-")
+  await EngineLifecycle.touchHeartbeat(~fs, ~stagingDir=tmpDir, ~path)
   switch await Staging.create(~tmpDir, ~fs) {
   | Error(message) =>
     Error({stagingDir: "", message: "Failed to create staging dir: " ++ message})
@@ -141,7 +142,10 @@ let run: (
           ~fs,
         ) {
         | Error(message) => Error("Failed to write staged file: " ++ message)
-        | Ok() => Ok(Some({sourcePath, targetPath, shellCmds}))
+        | Ok() => {
+            await EngineLifecycle.touchHeartbeat(~fs, ~stagingDir, ~path)
+            Ok(Some({sourcePath, targetPath, shellCmds}))
+          }
         }
       }
     })

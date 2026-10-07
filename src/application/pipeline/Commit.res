@@ -115,6 +115,7 @@ let commitFiles: (
             } else {
               let _ = await fs.mkdir(destDir, ~options={recursive: true})
               await fs.cp(stagedPath, destPath, ~options={recursive: false})
+              await EngineLifecycle.touchHeartbeat(~fs, ~stagingDir, ~path)
               Ok((destPath, backupOpt))
             }
           } catch {

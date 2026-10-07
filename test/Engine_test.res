@@ -70,11 +70,15 @@ let makeCleanupFs = (
   readdir: (target, ~options as _=?) => Promise.resolve(target == tmpRoot ? tmpEntries : []),
   fileExists: target => Promise.resolve(existingPaths->Array.some(path => path == target)),
   stat: target =>
-    Promise.resolve({
-      isDirectory: () => directoryPaths->Array.some(path => path == target),
-      isFile: () => !(directoryPaths->Array.some(path => path == target)),
-      mtimeMs: ?Some(recentMtimePaths->Array.some(path => path == target) ? Date.now() : Date.now() -. 1860000.0),
-    }: Ports.statResult),
+    if String.endsWith(target, ".blueprint-heartbeat") && !(recentMtimePaths->Array.some(path => path == target)) {
+      Promise.reject(JsExn(%raw(`Object.assign(new Error("ENOENT: heartbeat missing"), {code: "ENOENT"})`)))
+    } else {
+      Promise.resolve({
+        isDirectory: () => directoryPaths->Array.some(path => path == target),
+        isFile: () => !(directoryPaths->Array.some(path => path == target)),
+        mtimeMs: ?Some(recentMtimePaths->Array.some(path => path == target) ? Date.now() : Date.now() -. 1860000.0),
+      }: Ports.statResult)
+    },
   lstat: _target =>
     Promise.resolve({
       isDirectory: () => false,
@@ -695,6 +699,41 @@ suite("Engine", () => {
     ->ignore
   })
 
+  testAsync("cleanupOrphans: preserves old staging dir with a fresh heartbeat", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-heartbeat-active"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-active"
+    let target = deps.path.join(tmpRoot, name)
+    let heartbeat = deps.path.join(target, ".blueprint-heartbeat")
+    let removed = ref([])
+    let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~recentMtimePaths=[heartbeat], ~removed)
+
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_eq(Array.length(removed.contents), 0)
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
+  testAsync("cleanupOrphans: sweeps old staging dir without a heartbeat", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-heartbeat-stale"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-stale"
+    let target = deps.path.join(tmpRoot, name)
+    let removed = ref([])
+    let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~removed)
+
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_eq(Array.get(removed.contents, 0), Some(target))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
+  })
+
   testAsync("cleanupOrphans: removes staging dirs old by name and mtime", resolve => {
     let nowMs = Date.now()->Float.toInt
     let tmpRoot = "/tmp/engine-cleanup-stale"
@@ -734,8 +773,21 @@ suite("Engine", () => {
     ->Promise.catch(_ => { assert_false(true); resolve(); Promise.resolve() })->ignore
   })
 
-  testAsync("cleanupOrphans: removes stale blueprint staging dirs", _resolve => {
-    Promise.resolve()->Promise.then(_ => { _resolve(); Promise.resolve() })->ignore
+  testAsync("cleanupOrphans: removes stale blueprint staging dirs", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-stub-stale"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-stale-stub"
+    let target = deps.path.join(tmpRoot, name)
+    let removed = ref([])
+    let fs = makeCleanupFs(~tmpRoot, ~tmpEntries=[name], ~directoryPaths=[target], ~removed)
+
+    cleanupOrphans(~outputDir="/tmp/output", ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_eq(Array.get(removed.contents, 0), Some(target))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   testAsync("cleanupOrphans: preserves fresh blueprint staging dirs", resolve => {
@@ -868,8 +920,30 @@ suite("Engine", () => {
     ->ignore
   })
 
-  testAsync("run: cleans orphaned staging dirs and backup leaks before execution", _resolve => {
-    Promise.resolve()->Promise.then(_ => { _resolve(); Promise.resolve() })->ignore
+  testAsync("cleanupOrphans: removes stale staging dir and backup leak", resolve => {
+    let nowMs = Date.now()->Float.toInt
+    let tmpRoot = "/tmp/engine-cleanup-stub-backup"
+    let outputDir = "/tmp/engine-cleanup-stub-backup-output"
+    let name = "blueprint-" ++ Int.toString(nowMs - 31 * 60 * 1000) ++ "-stale"
+    let target = deps.path.join(tmpRoot, name)
+    let backupDir = deps.path.join(outputDir, ".blueprint-backup")
+    let removed = ref([])
+    let fs = makeCleanupFs(
+      ~tmpRoot,
+      ~tmpEntries=[name],
+      ~existingPaths=[backupDir],
+      ~directoryPaths=[target],
+      ~removed,
+    )
+
+    cleanupOrphans(~outputDir, ~fs, ~path=deps.path, ~tmpRoot)
+    ->Promise.then(_ => {
+      assert_true(removed.contents->Array.some(path => path == target))
+      assert_true(removed.contents->Array.some(path => path == backupDir))
+      resolve()
+      Promise.resolve()
+    })
+    ->ignore
   })
 
   testAsync("run: registers signal handlers around phase2 and removes them after completion", resolve => {

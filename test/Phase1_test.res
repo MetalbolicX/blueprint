@@ -27,6 +27,92 @@ suite("Phase1", () => {
     assert_eq(err.message, "Failed to render")
   })
 
+  testAsync("run: writes heartbeat marker for rendered staging dir", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+    let template: Template.template = {
+      sourcePath: NodeJs.Path.join(templateDir, "index.tsx.ejs.t"),
+      directives: [Template.To("src/<%= Name %>.tsx")],
+      body: "export default '<%= Name %>'",
+    }
+    let fs = NodeJsFileSystem.make()
+    let pathAdapter = NodeJsPath.make()
+
+    Phase1.run(
+      ~templates=[template],
+      ~context,
+      ~outputDir=NodeJs.Path.join(tmpDir, "out"),
+      ~conflictDecisions=None,
+      ~shellConfig=None,
+      ~fs,
+      ~path=pathAdapter,
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~process=NodeJsProcess.make(),
+      ~ejs,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true); resolve(); Promise.resolve()
+      | Ok(phase1) => {
+          let heartbeat = NodeJs.Path.join(phase1.stagingDir, ".blueprint-heartbeat")
+          NodeJs.Fs.fileExists(heartbeat)->Promise.then(exists => {
+            assert_true(exists)
+            Commit.rollback(phase1.stagingDir, ~tmpRoot="/tmp", ~path=pathAdapter, ~fs, ~pathSecurity=NodeJsPathSecurity.make())
+            ->Promise.then(_ => { resolve(); Promise.resolve() })
+          })
+        }
+      }
+    })
+    ->ignore
+  })
+
+  testAsync("run: heartbeat write failure does not fail rendering", resolve => {
+    let tmpDir = NodeJs.Os.makeStagingDir()
+    let templateDir = NodeJs.Path.join(tmpDir, "_templates/component/new")
+    let context = Context.build(~cwd=tmpDir, ~actionfolder=templateDir, ~name="Button", ())
+    let template: Template.template = {
+      sourcePath: NodeJs.Path.join(templateDir, "index.tsx.ejs.t"),
+      directives: [Template.To("src/<%= Name %>.tsx")],
+      body: "export default '<%= Name %>'",
+    }
+    let base = NodeJsFileSystem.make()
+    let fs: Ports.fileSystem = {
+      ...base,
+      writeFile: (file, content, ~options=?) =>
+        if String.endsWith(file, ".blueprint-heartbeat") {
+          %raw(`Promise.reject(new Error("heartbeat unavailable"))`)
+        } else {
+          base.writeFile(file, content, ~options?)
+        },
+    }
+    let pathAdapter = NodeJsPath.make()
+
+    Phase1.run(
+      ~templates=[template],
+      ~context,
+      ~outputDir=NodeJs.Path.join(tmpDir, "out"),
+      ~conflictDecisions=None,
+      ~shellConfig=None,
+      ~fs,
+      ~path=pathAdapter,
+      ~pathSecurity=NodeJsPathSecurity.make(),
+      ~process=NodeJsProcess.make(),
+      ~ejs,
+    )
+    ->Promise.then(result => {
+      switch result {
+      | Error(_) => assert_false(true); resolve(); Promise.resolve()
+      | Ok(phase1) => {
+          assert_eq(Array.length(phase1.renderedFiles), 1)
+          Commit.rollback(phase1.stagingDir, ~tmpRoot="/tmp", ~path=pathAdapter, ~fs=base, ~pathSecurity=NodeJsPathSecurity.make())
+          ->Promise.then(_ => { resolve(); Promise.resolve() })
+        }
+      }
+    })
+    ->ignore
+  })
+
   test("resolveTargetPath: resolves to directive", () => {
     let _nv = Context.makeNameVariants("Hello")
     let ctx = Context.build(

@@ -5,6 +5,15 @@ let stagingDirPrefix = "blueprint-"
 let backupDirName = ".blueprint-backup"
 let staleThresholdMs = 30 * 60 * 1000
 let recentMtimeThresholdMs = 15 * 60 * 1000
+let heartbeatName = ".blueprint-heartbeat"
+
+let touchHeartbeat: (~fs: Ports.fileSystem, ~stagingDir: string, ~path: Ports.path) => promise<unit> = async (~fs, ~stagingDir, ~path) => {
+  try {
+    await fs.writeFile(path.join(stagingDir, heartbeatName), "")
+  } catch {
+  | _ => ()
+  }
+}
 
 let cleanupPath: (~target: string, ~fs: Ports.fileSystem) => promise<unit> = async (~target, ~fs) => {
   try {
@@ -63,8 +72,24 @@ let cleanupOrphans: (~outputDir: string, ~fs: Ports.fileSystem, ~path: Ports.pat
               | Some(mtimeMs) => nowMsFloat -. mtimeMs >= recentMtimeThresholdMs->Int.toFloat
               | None => false
               }
-              if stat.isDirectory() && oldEnoughByMtime {
-                // Residual risk: an active run idle for more than 15 minutes between writes may be swept; a heartbeat marker is a follow-up.
+              let heartbeatOldOrMissing = if oldEnoughByMtime {
+                try {
+                  let heartbeatStat = await fs.stat(path.join(fullPath, heartbeatName))
+                  switch heartbeatStat.mtimeMs {
+                  | Some(mtimeMs) => nowMsFloat -. mtimeMs >= recentMtimeThresholdMs->Int.toFloat
+                  | None => false
+                  }
+                } catch {
+                | JsExn(obj) => {
+                    let message = Errors.extractErrorMessage(JsExn(obj), ~fallback="Heartbeat stat failed")
+                    String.includes(message, "ENOENT")
+                  }
+                | _ => false
+                }
+              } else {
+                false
+              }
+              if stat.isDirectory() && oldEnoughByMtime && heartbeatOldOrMissing {
                 await cleanupPath(~target=fullPath, ~fs)
               }
             } catch {
