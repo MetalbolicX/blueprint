@@ -188,6 +188,23 @@ failure.
   `Commit.res`/`Phase2.res` (grep callers of `rollbackOutput` first).
 - Any existing rollback test flips semantics.
 
+## Amendment (2026-10-05, orchestrator ruling after binding STOP)
+
+Step 1's binding check failed exactly as the plan's STOP anticipated:
+Node's `fs.rm(path, {recursive: false})` rejects directories with
+`ERR_FS_EISDIR`, and widening the port unilaterally was forbidden.
+Ruling after inspecting `Ports.fileSystem`: **no port change is needed**
+— `readdir` already exists (`Ports.res:81`). The removal step now:
+containment re-check → `fs.readdir(dir)`; non-empty → skip (never
+touched); empty → `fs.rm(dir, ~options={recursive: true})`, ENOENT
+tolerated, other failures collected in the existing error-accounting
+style. This mirrors the established `cleanupPath` recursive-rm pattern
+but guarded three ways (created-list-only, containment, empty
+pre-check), staying inside ledger #4's accepted inherent-TOCTOU class
+and strictly narrower than `cleanupPath`'s unconditional recursive rm.
+The ERR_FS_EISDIR binding-check test was replaced by a safety test
+pinning "recorded non-empty dirs survive with contents intact".
+
 ## Maintenance notes
 
 - Deliberate non-goal: cleaning pre-existing empty dirs — that would be a

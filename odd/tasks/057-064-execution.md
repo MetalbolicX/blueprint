@@ -47,14 +47,14 @@ files, different regions; expect line-adjacent merges, not conflicts).
 
 | Plan | Wave | Task | Commits | Suite | Status |
 |---|---|---|---|---|---|
-| 057 | 2 | muy4w1et-c-tm1v | — | — | RUNNING |
+| 057 | 2 | (muy4w1et-c-tm1v) | ac6c125 | 881/881 | DONE |
 | 058 | 1 | (muy4e00e-9-5gll + amendment) | e122ac0 | 874/875 (help drift, fixed at base) | DONE |
 | 060 | 1 | (muy49djv-4-xo8a) | ffa37d9 | n/a (docs) | DONE |
 | 062 | 1 | (muy4e00e-8-4nv6 + 2 approvals) | b4ec25b (on 7aa2e64) | 874/874 | DONE |
 | 063 | 1 | (muy4e00d-7-dota) | 3073ada | 874/875 (help drift) | DONE |
 | 064 | 2 | (muy4w1eu-d-2q9b) | 8960ab9 | 879/879 | DONE |
-| 059 | 3 | — | — | — | QUEUED (after 057) |
-| 061 | 3 | — | — | — | QUEUED (after 057) |
+| 059 | 3 | (muy5ofpg-h-r7ea + readdir ruling; orig muy5ewp9-g-s4me) | 3be0c1b | 885/885 | DONE |
+| 061 | 3 | (muy5ofph-i-laf5 + Phase0_test approval) | cbc90d6 | 883/883 | DONE |
 
 ## Execution discoveries
 
@@ -78,3 +78,33 @@ files, different regions; expect line-adjacent merges, not conflicts).
 Per completed plan: read the branch diff against `82dcd93`, check the
 worker's evidence (RED, gates, suite counts), update `plans/README.md`
 row, record commits above. Merge/push decisions stay with the maintainer.
+
+## Final state (2026-10-05)
+
+Campaign COMPLETE: 8/8 plans executed by gentle-ai-workers, diff-reviewed
+and committed by the advisor. Branch inventory (all exec worktrees remain
+registered for integration):
+
+| Branch | Tip commit | Base |
+|---|---|---|
+| plans/057-064-audit-round (campaign) | 552eb6c | 82dcd93 |
+| fix/057-orphan-sweep-heartbeat | ac6c125 | 7aa2e64 |
+| test/058-deflake-signal-rollback | e122ac0 | 82dcd93 |
+| fix/059-rollback-empty-dir-residue | 3be0c1b | ac6c125 |
+| docs/060-contract-sh-and-shell-enabled | ffa37d9 | 82dcd93 |
+| refactor/061-render-to-once | cbc90d6 | ac6c125 |
+| chore/062-remove-dead-shell-exact | b4ec25b | 7aa2e64 |
+| chore/063-remove-test-only-discovery-api | 3073ada | 82dcd93 |
+| fix/064-cancel-fetch-body-failure-arms | 8960ab9 | 7aa2e64 |
+
+Campaign-side commits: 7aa2e64 (baseline LAN help-test drift fix),
+b4cab8e + 552eb6c (bookkeeping), plus this doc's follow-up rows.
+
+Integration guidance: branches are pairwise-disjoint except the known
+adjacencies — 058 before 062 (both touch Phase2_test), 057 before
+059/061 (already their bases). Suggested order onto an integration base
+(campaign base 7aa2e64 or main): 058 → 062 → 063 → 060 → 064 → 057 →
+059 → 061. Merge/push/pull-request remain the maintainer's decision.
+
+RDD was ON (global) at close; the native review gate is entered
+separately, candidate by candidate, per the review contract.
