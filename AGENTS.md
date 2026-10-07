@@ -55,7 +55,7 @@ pnpm bundle          # rolldown -c (bundle only, assumes ReScript already compil
 ## Conventions
 
 - **ReScript**: PascalCase modules, snake_case values. `//` for comments. `@as("...")` for YAML field aliases.
-- **Templates**: EJS `.ejs.t` files with YAML frontmatter (directives: `to`, `inject`, `after`, `before`, `prepend`, `append`, `force`, `sh`)
+- **Templates**: EJS `.ejs.t` files with YAML frontmatter (directives: `to`, `inject`, `after`, `before`, `prepend`, `append`, `force`)
 - **Node >=22** required (import.meta.dirname usage)
 - **No lint, typecheck, or format scripts exist**
 

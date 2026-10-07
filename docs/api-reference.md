@@ -74,7 +74,8 @@ to: output/path.txt
 | `prepend` | bool | inject | Prepend rendered content to existing file |
 | `append` | bool | inject | Append rendered content to existing file |
 | `force` | bool | all | Overwrite existing file without confirmation |
-| `sh` | string | shell | Command to execute after rendering |
+
+`sh` is not supported (shell-free execution, plans 035/039); use the `script:` directive (requires `shell.enabled: true`) or a lifecycle hook instead.
 
 ### Injection modes
 
@@ -155,6 +156,15 @@ hooks:
   post_generate: <string>    # Shell command, runs after generation
   timeout: <duration>        # e.g. "30s", "5m" (default: 5s)
 ```
+
+| `shell` subkey | Type / default | Effect |
+|----------------|----------------|--------|
+| `shell.enabled` | boolean; default `false` | Strict fail-closed gate for tool and script execution. Without `true`, those executions fail with `Shell execution disabled`. |
+| `shell.tools` | array of `{name, command, args?}` | Required when `shell.enabled: true`; otherwise configuration validation fails. |
+| `shell.scripts` | array of `{name, path, args?}` | Script definitions. |
+| `shell.env` | string-valued object | Environment variables. |
+
+Allowlisted inline commands run shell-free via `execFile` whether or not shell execution is enabled.
 
 ## Global configuration
 

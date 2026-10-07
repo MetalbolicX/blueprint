@@ -194,7 +194,8 @@ export const <%= name %>: React.FC<<%= name %>Props> = ({ children }) => {
 | `prepend` | bool | Prepend content to existing file |
 | `append` | bool | Append content to existing file |
 | `force` | bool | Overwrite existing file |
-| `sh` | string | Shell command to execute after render |
+
+`sh` is not supported (shell-free execution, plans 035/039); use the `script:` directive (requires `shell.enabled: true`) or a lifecycle hook instead.
 
 ### Directive examples
 
@@ -304,6 +305,28 @@ hooks:
 Commands, including interpreters such as `bash script.sh` and `node setup.mjs`, run as binaries with whitespace-tokenized arguments. Shell syntax (quotes, `&&`, pipes, and `$` expansion) is not interpreted. Use the structured `args` field when arguments must be passed literally to `execFile`.
 
 Hooks run through `execFile` without shell interpretation. They retain their configured timeout and filtered environment; script paths are restricted to the project tree. When `shell.tools` is configured, the command binary must be in that allowlist; without a configured allowlist, hooks remain permitted but shell-free. Use a script path for shell syntax.
+
+Shell tool and script execution is disabled unless `shell.enabled: true`. It defaults to `false` (strict fail-closed); without enabling it, these executions fail with `Shell execution disabled`. That error is the migration guide for existing configurations. Setting `enabled: true` requires `tools` to be defined. Allowlisted inline commands run shell-free via `execFile` either way.
+
+```yaml
+shell:
+  enabled: true
+  tools:
+    - name: formatter
+      command: prettier
+  scripts:
+    - name: setup
+      path: scripts/setup.sh
+  env:
+    NODE_ENV: development
+```
+
+| `shell` field | Description |
+|--------------|-------------|
+| `enabled` | Boolean gate; defaults to `false`. Must be `true` to enable tool and script execution. |
+| `tools` | Tool definitions with `name`, `command`, and optional `args`; required when `enabled: true`. |
+| `scripts` | Script definitions with `name`, `path`, and optional `args`. |
+| `env` | String-valued environment variables. |
 
 ## Safety
 
