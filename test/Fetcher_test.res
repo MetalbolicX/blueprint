@@ -340,6 +340,77 @@ suite("Fetcher", () => {
     })->ignore
   })
 
+  testAsync("redirect without Location cancels the body and returns HTTP error", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["302|||cancel"])
+    Fetcher.fetch("http://8.8.8.8/no-location")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_eq(msg, "HTTP 302: Redirect")
+      | Ok(_) => assert_false(true)
+      }
+      assert_true(getBodyCancelCount() >= 1)
+      assert_eq(getBodyCancelCount(), 1)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("redirect-loop cap cancels the body and returns too-many-redirects error", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence([
+      "302|/1", "302|/2", "302|/3", "302|/4", "302|/5", "302|/6||cancel",
+    ])
+    Fetcher.fetch("http://8.8.8.8/loop")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_eq(msg, "Too many redirects (maximum 5)")
+      | Ok(_) => assert_false(true)
+      }
+      assert_true(getBodyCancelCount() >= 1)
+      assert_eq(getBodyCancelCount(), 1)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("invalid redirect URL cancels the body and returns the validation error", resolve => {
+    Fetcher.clearCache()
+    installResponseSequence(["302|file:///etc/passwd||cancel"])
+    Fetcher.fetch("http://8.8.8.8/invalid-redirect")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_eq(msg, "Only http/https URLs are supported: file:///etc/passwd")
+      | Ok(_) => assert_false(true)
+      }
+      assert_true(getBodyCancelCount() >= 1)
+      assert_eq(getBodyCancelCount(), 1)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
+  testAsync("throwing Location header cancels the body and returns invalid-Location error", resolve => {
+    let location = "http://1.1.1.1:99999/path"
+    Fetcher.clearCache()
+    installResponseSequence(["302|" ++ location ++ "||cancel"])
+    Fetcher.fetch("http://8.8.8.8/throwing-location")
+    ->Promise.then(result => {
+      switch result {
+      | Error(msg) => assert_eq(msg, "Invalid redirect Location: " ++ location)
+      | Ok(_) => assert_false(true)
+      }
+      assert_true(getBodyCancelCount() >= 1)
+      assert_eq(getBodyCancelCount(), 1)
+      restoreFetch()
+      resolve()
+      Promise.resolve()
+    })->ignore
+  })
+
   testAsync("public redirect is followed manually and returns final body", resolve => {
     Fetcher.clearCache()
     installResponseSequence(["302|http://1.1.1.1/final", "200|final body"])

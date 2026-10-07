@@ -119,22 +119,32 @@ module Impl = {
         let status: int = response["status"]
         if redirectStatus(status) {
           switch getHeader(response, "location") {
-          | None => Error("HTTP " ++ Int.toString(status) ++ ": " ++ response["statusText"])
+          | None => {
+              await cancelBody(response)
+              Error("HTTP " ++ Int.toString(status) ++ ": " ++ response["statusText"])
+            }
           | Some(location) =>
               if redirects >= 5 {
+                await cancelBody(response)
                 Error("Too many redirects (maximum 5)")
               } else {
                 try {
                   let nextUrl = href(resolveUrl(location, url))
                   switch validateUrl(nextUrl) {
-                  | Error(message) => Error(message)
+                  | Error(message) => {
+                      await cancelBody(response)
+                      Error(message)
+                    }
                   | Ok() => {
                       await cancelBody(response)
                       await httpGetHop(nextUrl, redirects + 1, signal)
                     }
                   }
                 } catch {
-                | JsExn(_) => Error("Invalid redirect Location: " ++ location)
+                | JsExn(_) => {
+                    await cancelBody(response)
+                    Error("Invalid redirect Location: " ++ location)
+                  }
                 }
               }
           }
