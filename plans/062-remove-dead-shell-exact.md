@@ -180,3 +180,18 @@ proven zero-production-caller above).
   comment half is fixed in Step 1).
 - Reviewer focus: the two ExecPolicy test rewrites must not weaken the
   plan-035 allowlist assertions.
+
+## Execution outcome
+
+- Executed as `b4ec25b` on `chore/062-remove-dead-shell-exact` (base
+  `7aa2e64`): 20 files, +16/−117; grep gate clean; full suite 874/874.
+- First review lineage `review-8b0f4ca4ed414c05` reached terminal
+  `escalated` (`native_stop_required`, `unknown_causality`, finding
+  R3-001 downgraded informational at admission) after a native
+  operation failure on the forecast acknowledgement. Terminal
+  escalated authority refuses abandon/reclaim and blocks fresh STARTs
+  of the same candidate identity; the record stands as an audit
+  artifact.
+- Re-reviewed as a fresh candidate identity per the provider's
+  change-candidate-content remedy: this note commit stacks on
+  `b4ec25b` so the reviewed range still contains the full code diff.
