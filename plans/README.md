@@ -52,6 +52,15 @@ ADR 0001). Generated follow-ups not yet planned: 050 gate-downgrade (S),
 | 054  | Make the registry provenance gate advisory (ADR 0001 Option A execution) | P3 | S | 050 | DONE (2026-10-02, commit `346a514` on `chore/054-advisory-provenance-gate`; native review lineage `review-00fd3727722af374` approved via review-reliability lens). Gate flipped: marked control-flow-tag templates render + warn (`Advisory: registry template uses EJS control-flow tags (<% or <%-): <path>. Registry templates run with your permissions — review generators at install (ADR 0001).`); EjsSafety predicate + 046 install guards untouched. RED→GREEN recorded (3/5 → 5/5 focused; suite 802/802 exit 0). Advisories (informational): console.warn patch scope; zero-warning strictness |
 | 055  | Extract application-layer infrastructure imports behind Ports (ADR/053 Step 5 ruling) | P2 | L | 053 | DONE (2026-10-02, branch `refactor/055-ports-extraction`, FOUR work-unit commits: `37192b9` Pass A ports+ShellExecutor, `537d3a2` Pass B hooks port (hook types moved to Ports), `4b4f278` Pass C pathSecurity threading, `170bee9` Passes D-E guard+spec/AGENTS). All seven contested references routed behind Ports; guard extended: five wrapper-module patterns anchored at identifier boundaries + application-style fixture tripwire (caught an [A-Z]-tail weakness pre-ship). **Pass D amendment**: FetchSecurity monkey-patches REMAIN by design — Fetcher-internal unit tests (SSRF/timeout); the port seam doesn't reach them; removal needs a Fetcher-internal fetch indirection (ledger follow-up). Application-layer half landed in Pass A (ShellExecutor_test fake port). Spec ruling record + AGENTS.md arrow synced (target REACHED). Suite 803/803 exit 0. Reviews: Pass A review-5a7f5dec approved; Pass B approved (id verified against the native store); Passes C/D-E carry NO native review receipt — committed directly on compiler-forced threading + guard fixture evidence (suite 803/803). Correction of an earlier inaccurate row claim; the campaign-scale candidate covering them was refused by lens budget (user ruling: leave it, per-work-unit receipts stand) |
 
+| 057  | Orphan-sweep heartbeat — stop deleting active runs' staging dirs | P1 | M | — | TODO (planned 2026-10-05 at `b2f2670`, improve-skill audit; sweep at `EngineLifecycle.res:56-70` removes dirs idle >15 min between writes; also repairs two vacuous `Engine_test.res:739/:873` stubs) |
+| 058  | Deflake the signal-rollback diagnostic test (await, don't poll) | P2 | S | — | TODO (planned 2026-10-05 at `b2f2670`; `Phase2_test.res:313` polls 5ms×400 under the known transient flake; replace with direct await of the handler chain) |
+| 059  | Rollback removes commit-created empty parent dirs | P2 | M | 057 (sequencing only) | TODO (planned 2026-10-05 at `b2f2670`; `Commit.res:116` mkdir-p vs file-only `rollbackOutput`; audit M1 / ledger #8) |
+| 060  | Docs contract: drop `sh` directive claims, document `shell.enabled` | P2 | S | — | TODO (planned 2026-10-05 at `b2f2670`; `README.md:197`/`AGENTS.md:58`/`api-reference.md:80` vs `Frontmatter.res:105-107`; zero `enabled` docs — plan 039 follow-up) |
+| 061  | Render `to:` once — thread Phase0's resolved path to the renderer | P2 | M | — | TODO (planned 2026-10-05 at `b2f2670`; `plans/043:194-197` double evaluation + divergent attribute dicts between the two sites) |
+| 062  | Remove dead ShellExact route + execAsync port chain | P3 | S | — | TODO (planned 2026-10-05 at `b2f2670`; zero construction sites anywhere; ledger #6 removal candidates) |
+| 063  | Remove test-only `Discovery.discover`/`findByClassification` | P3 | S | — | TODO (planned 2026-10-05 at `b2f2670`; code-health-batch-2 deferred follow-up; production uses the Meta variants since plan 047) |
+| 064  | Cancel fetch bodies in the four redirect-failure arms | P2 | S | — | TODO (planned 2026-10-05 at `b2f2670`; plan 049 follow-up advisory: `Fetcher.res:130/:133/:138/:145` skip `cancelBody`) |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
 ## Dependency notes
@@ -87,6 +96,18 @@ From the 2026-10-01 audit (plans 039-053):
   infrastructure imports); it requires a maintainer ruling, not a silent
   refactor. Land 053 before 042/047 if scheduling allows — the strengthened
   guard protects exactly those refactor areas.
+
+From the 2026-10-05 improve-skill audit (plans 057-064):
+
+- 058 first if convenient: it removes the known transient flake from the
+  suite every other plan's full-suite verification relies on.
+- 057 → 059: no code dependency, but both touch `Commit.res` and
+  `test/Phase2_test.res`; execute sequentially (057's heartbeat refresh
+  lands inside the commit loop 059 also modifies). 033→034 precedent.
+- 061 is independent of 057/059 (Phase0/Phase1/TemplateRenderer) but
+  sequences after them for the same test-adjacency reason.
+- 060, 062, 063, 064 are fully independent. 062's `Ports.res` drift note
+  matters only while the LAN branch is unmerged (match symbols, not lines).
 
 ## Findings considered and rejected
 
@@ -151,3 +172,22 @@ From the 2026-10-01 audit:
   (`res:test:coverage:check`) absent from CI; `readyz` one-shot semantics
   (`ProbeState.res`); project `.blueprint.yaml` vs global warn-vs-fail
   asymmetry beyond plan 040's scope.
+
+From the 2026-10-05 improve-skill audit:
+
+- Remove the provenance tag gate entirely: not planned — plan 054 already
+  downgraded it to an advisory `Console.warn` (`TemplateRenderer.res:241`),
+  and ADR 0001:51-53 sanctions the advisory as a valid end state ("warn on
+  control-flow tags, or remove it"). No defect remains; do not re-audit as
+  pending.
+- DNS-rebinding connect-time pinning, `::/96` IPv6 classification,
+  symlink/exec TOCTOU, readline micro-tests (ledger #1/#2/#4/#12): still
+  open, out of this round — http-adjacent, inherent, or benign; revisit
+  with the LAN registry hardening pass.
+- Deleting stale branch `correction/g1-exitcode-assert` and committing the
+  mixed docs files (`docs/setup.md`, `docs/api-reference.md`,
+  `docs/quick-reference.md`): maintainer decisions, not executable plans —
+  see the 056 DEVIATION note above. (The branch's fix is already on `main`
+  as `a5bfc0b`, same subject, +8 minutes later.)
+- Two vacuous `Engine_test.res` stubs (`:739`, `:873`): folded into plan
+  057's scope rather than a standalone plan.
