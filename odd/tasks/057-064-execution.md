@@ -138,3 +138,42 @@ The dead identity's authority record stands as a persisted audit artifact.
 The main worktree's three prior-session untracked files forced an
 intended-untracked selection that conflicted with reduced baseRef →
 baseline reviewed from a clean detached worktree at `ac5db4b` instead.
+
+## Integration to main (2026-10-05, LAN excluded)
+
+`main` was LAN-free (`0b94987`), while the campaign branch sat on top of
+`feat/lan-registry` (`b2f2670`, 11 LAN commits) — so direct merges would
+have dragged the LAN feature in. Delivered instead by cherry-picking each
+plan's commits onto `main` (15 commits, 56 files, +2654/−273; build clean,
+suite **826/826** — 885 campaign-side minus 59 LAN tests).
+
+Excluded as LAN-dependent: `7aa2e64` (help-text `[name|dir]` test fix —
+on LAN-free `main` the original `[name]` expectation is correct again).
+
+Conflict resolutions (rule: main's content + only the plan's delta):
+- `72a9911` (060): LAN's config-reference rework was the diff host — kept
+  main's sections, added 060's shell-subkeys table + allowlisted note to
+  api-reference; dropped the LAN-authored Effective-keys paragraph edit in
+  quick-reference (host text does not exist on main).
+- `ff78198`/`f76baf3`/`13b798b` (docs picks): dropped the LAN 056 row from
+  plans/README.md at each alignment conflict.
+
+Campaign SHA → main SHA mapping (review receipts bind to the campaign
+identities; these are the integrated equivalents):
+
+| Plan | Campaign SHA (branch) | Main SHA |
+|------|------------------------|----------|
+| 058 | e122ac0 (test/058) | `47ecac3` |
+| 062 | b4ec25b + 42a51d2 (chore/062) | `bfd8308` + `52e4fed` |
+| 063 | 3073ada (chore/063) | `656ea46` |
+| 060 | ffa37d9 (docs/060) | `72a9911` |
+| 064 | 8960ab9 (fix/064) | `4064c4e` |
+| 057 | ac6c125 (fix/057) | `02f3b81` |
+| 059 | 3be0c1b (fix/059) | `31dc566` |
+| 061 | cbc90d6 (refactor/061) | `a877865` |
+| plans docs | 82dcd93 | `ff78198` |
+| bookkeeping | b4cab8e / 552eb6c / e8f3c02 / ac5db4b / bdcfa13 | `64e16d4` / `86af5da` / `f76baf3` / `13b798b` / `bbf2032` |
+
+`feat/lan-registry` (`b2f2670`) remains unmerged by explicit user decision;
+the campaign branch `plans/057-064-audit-round` (`bbf2032`-equivalent
+`bdcfa13`) stays as the LAN-based historical record.
