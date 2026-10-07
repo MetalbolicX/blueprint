@@ -177,6 +177,21 @@ zero callers, delete it.
 - The 20× gate still shows a failure — report the failure output; do not
   raise timers or retry loops to mask it.
 
+## Amendment (2026-10-05, orchestrator ruling after executor STOP)
+
+Step 1's inspection found the stored signal callback typed `unit => unit`
+(the `Ports.process.onSignal` contract) — threading a `promise<unit>`
+return would require changing the process port contract, which was this
+plan's STOP condition. Ruling: keep the port contract untouched. Amended
+approach (test-local): the mocked `process.exit` in the test resolves a
+deferred right after recording code 1; the test awaits
+`Promise.race([exitDeferred, hangGuard])` where the hang guard rejects
+after ~10 s (a REAL hang signal — 5× the old cap — not a timing window).
+`exit(1)` is the last link of the handler chain and the diagnostics are
+emitted before it, so awaiting exit guarantees the diagnostics already
+flushed. Edit surface narrows to `test/Phase2_test.res` only;
+`EngineLifecycle.res` stays untouched.
+
 ## Maintenance notes
 
 - If a future change re-adds real-signal timing tests, prefer the
