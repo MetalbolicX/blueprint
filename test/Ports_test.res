@@ -60,9 +60,8 @@ suite("Ports", () => {
     assert_eq(opts.timeout, Some(30))
   })
 
-  test("shell: has execAsync and execFileAsync", () => {
+  test("shell: has execFileAsync", () => {
     let _shell: Ports.shell = {
-      execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
       execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
     }
     assert_true(true)
@@ -133,7 +132,6 @@ suite("Ports", () => {
         homedir: () => "/home/user",
       },
       shell: {
-        execAsync: (_, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
         execFileAsync: (_, ~args as _=?, ~options as _=?) => Promise.resolve({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}),
       },
       interactiveIO: {

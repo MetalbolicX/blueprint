@@ -33,8 +33,6 @@ let makeSignalProcess = (~handler: ref<option<unit => unit>>, ~exitCodes: ref<ar
 }
 
 let makeShell = (~status: int): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
     Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
 }

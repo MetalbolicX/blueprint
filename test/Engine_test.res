@@ -23,7 +23,6 @@ let deps: Ports.deps = {
 let staleThresholdMs = 5 * 60 * 1000
 
 let makeHookCaptureShell = (calls: ref<array<string>>): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) => Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (command, ~args as _=?, ~options as _=?) => {
     calls.contents->Array.push(command)->ignore
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))

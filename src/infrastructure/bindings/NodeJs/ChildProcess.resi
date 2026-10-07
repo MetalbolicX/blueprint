@@ -19,6 +19,4 @@ type execOptions = {
   timeout?: int,
 }
 
-let execWithCallback: (string, ~options: execOptions=?, ~callback: (Nullable.t<JsExn.t>, string, string) => unit) => childProcess
-let execAsync: (string, ~options: execOptions=?) => promise<execResult>
 let execFileAsync: (string, ~args: array<string>=?, ~options: execOptions=?) => promise<execResult>

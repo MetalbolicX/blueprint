@@ -3,7 +3,6 @@
 open TestHelpers
 
 let makeRecordingShell = (recorded: ref<(string, array<string>, option<int>)>): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("execAsync must not be used for hooks")),
   execFileAsync: (command, ~args=?, ~options=?) => {
     let args = args->Option.getOr([])
     let timeout = options->Option.flatMap(o => o.timeout)

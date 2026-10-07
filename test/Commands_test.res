@@ -49,10 +49,6 @@ let makeDeps = (
       homedir: () => "/tmp/test-home",
     },
     shell: {
-      execAsync: (command, ~options=?) => {
-        shellCalls.contents = shellCalls.contents + 1
-        NodeJsShell.make().execAsync(command, ~options?)
-      },
       execFileAsync: (file, ~args=?, ~options=?) => {
         shellCalls.contents = shellCalls.contents + 1
         NodeJsShell.make().execFileAsync(file, ~args?, ~options?)

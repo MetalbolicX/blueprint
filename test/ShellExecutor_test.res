@@ -17,13 +17,9 @@ let mkExecResult = (~status: int = 0, ~killed: bool = false): Ports.execResult =
 }
 
 let makeShell = (
-  ~execAsyncStatus: int = 0,
-  ~execAsyncKilled: bool = false,
   ~execFileAsyncStatus: int = 0,
   ~execFileAsyncKilled: bool = false,
 ): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) =>
-    Promise.resolve(mkExecResult(~status=execAsyncStatus, ~killed=execAsyncKilled)),
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
     Promise.resolve(mkExecResult(~status=execFileAsyncStatus, ~killed=execFileAsyncKilled)),
 }
@@ -31,17 +27,11 @@ let makeShell = (
 type trackingShell = {
   shell: Ports.shell,
   execFileAsyncCalls: array<string>,
-  execAsyncCalls: array<string>,
 }
 
 let makeTrackingShell = (): trackingShell => {
   let execFileAsyncCalls: array<string> = []
-  let execAsyncCalls: array<string> = []
   let shell: Ports.shell = {
-    execAsync: (cmd, ~options as _=?) => {
-      let _ = execAsyncCalls->Array.push(cmd)
-      Promise.resolve(mkExecResult())
-    },
     execFileAsync: (cmd, ~args=?, ~options as _=?) => {
       let _ = execFileAsyncCalls->Array.push(
         cmd ++ "|" ++ (args->Option.getOr([])->Array.join(" ")),
@@ -49,7 +39,7 @@ let makeTrackingShell = (): trackingShell => {
       Promise.resolve(mkExecResult())
     },
   }
-  {shell, execFileAsyncCalls, execAsyncCalls}
+  {shell, execFileAsyncCalls}
 }
 
 let makeFsWithRmTracking = (): (Ports.fileSystem, ref<array<string>>) => {
@@ -477,7 +467,6 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     })
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)
     ->Promise.then(result => {
-      assert_eq(tracking.execAsyncCalls->Array.length, 0)
       assert_eq(tracking.execFileAsyncCalls->Array.length, 1)
       assert_eq(tracking.execFileAsyncCalls[0]->Option.getOr(""), "ls|")
       switch result {
@@ -512,7 +501,6 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     })
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)
     ->Promise.then(result => {
-      assert_eq(tracking.execAsyncCalls->Array.length, 0)
       assert_eq(tracking.execFileAsyncCalls->Array.length, 0)
       switch result {
       | Ok(_) => assert_false(true)
@@ -535,7 +523,6 @@ suite("ShellExecutor.executeShellCommands — ToolCall", () => {
     ]
     let shellConfig: option<Config.shellConfig> = Some({enabled: true, tools: [{name: "danger", command: dangerous}]})
     runShellCommands(~commands, ~shellConfig, ~shell=tracking.shell)->Promise.then(result => {
-      assert_eq(tracking.execAsyncCalls->Array.length, 0)
       assert_eq(tracking.execFileAsyncCalls, [dangerous ++ "|"])
       switch result {
       | Ok(_) => assert_true(true)
@@ -583,7 +570,6 @@ suite("ShellExecutor.executeShellCommands — error message surfacing", () => {
   testAsync("ExecFile rejection surfaces 'execution failed' in error message", resolve => {
     let rejectMsg: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
     let shell: Ports.shell = {
-      ...makeShell(),
       execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => rejectMsg("spawn ENOENT"),
     }
     let commands: array<Template.shellCommand> = [
@@ -824,7 +810,6 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
       tools: [{name: "echo", command: "echo"}],
     })
     let shell: Ports.shell = {
-      ...makeShell(),
       execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => rejectError("port exploded"),
     }
     runShellCommands(~commands, ~shellConfig, ~shell)
@@ -842,7 +827,6 @@ suite("ShellExecutor.executeShellCommands — InlineCommand", () => {
   testAsync("inline command passes ExecPolicy timeout to execFileAsync", resolve => {
     let timeoutSeen: ref<option<int>> = ref(None)
     let shell: Ports.shell = {
-      execAsync: (_cmd, ~options as _=?) => Promise.resolve(mkExecResult()),
       execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
         timeoutSeen.contents = options->Option.flatMap(opts => opts.timeout)
         Promise.resolve(mkExecResult())

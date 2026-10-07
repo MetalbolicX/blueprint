@@ -48,7 +48,6 @@ type process = {
 type execResult = {stdout: string, stderr: string, status: option<int>, signalCode: option<string>, killed: bool}
 type shellOptions = {cwd?: string, env?: dict<string>, encoding?: string, timeout?: int}
 type shell = {
-  execAsync: (string, ~options: shellOptions=?) => promise<execResult>,
   execFileAsync: (string, ~args: array<string>=?, ~options: shellOptions=?) => promise<execResult>,
 }
 type path = {

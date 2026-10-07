@@ -1,5 +1,5 @@
 // ExecPolicy_test — unit tests for the ExecPolicy decision module.
-// Asserts the three decision branches (ExecFile / ShellExact / Reject) plus
+// Asserts the ExecFile and Reject decision branches plus
 // the WS2 default timeout constant.
 
 open TestHelpers
@@ -22,7 +22,6 @@ suite("ExecPolicy", () => {
         assert_eq(cmd, "whatever")
         assert_eq(args->Array.length, 1)
       }
-    | ShellExact(_) => assert_false(true)
     | Reject(_) => assert_false(true)
     }
   })
@@ -51,7 +50,6 @@ suite("ExecPolicy", () => {
         assert_eq(cmd, "eslint")
         assert_eq(args, [])
       }
-    | ShellExact(_) => assert_false(true)
     | Reject(_) => assert_false(true)
     }
   })

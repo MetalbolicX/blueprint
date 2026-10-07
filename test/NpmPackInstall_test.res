@@ -55,8 +55,9 @@ suite("NpmPackInstall smoke", () => {
     let reject: string => promise<unit> = %raw(`msg => Promise.reject(new Error(msg))`)
 
     shell
-    .execAsync(
-      `node "${mainMjs}" --help`,
+    .execFileAsync(
+      "node",
+      ~args=[mainMjs, "--help"],
       ~options={timeout: 30000, encoding: "utf8"},
     )
     ->Promise.then(result => {

@@ -13,7 +13,7 @@ let cleanupFetchTmpFiles: (array<string>, ~fs: Ports.fileSystem) => promise<unit
   })
 }
 
-// Shared helper: runs a shell tool (execFileAsync or execAsync) with consistent
+// Shared helper: runs a shell tool (execFileAsync) with consistent
 // options building, killed check, status check, and error mapping.
 let execToolAsync = (
   ~run: (~options: Ports.shellOptions) => promise<Ports.execResult>,
@@ -124,14 +124,6 @@ let executeToolCall = (
     | Reject(reason) => Promise.resolve(Error(reason))
     | ExecFile(command, args) => execToolAsync(
         ~run=(~options) => shell.execFileAsync(command, ~args, ~options),
-        ~cwd,
-        ~safeEnv,
-        ~timeout=ExecPolicy.defaultTimeout,
-        ~name,
-        ~countRef,
-      )
-    | ShellExact(command) => execToolAsync(
-        ~run=(~options) => shell.execFileAsync(command, ~options),
         ~cwd,
         ~safeEnv,
         ~timeout=ExecPolicy.defaultTimeout,

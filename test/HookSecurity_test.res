@@ -4,14 +4,9 @@ open TestHelpers
 
 let rejectError: string => promise<'a> = %raw(`message => Promise.reject(new Error(message))`)
 
-let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) =>
-    switch execAsyncResult {
-    | Ok(result) => Promise.resolve(result)
-    | Error(message) => rejectError(message)
-    },
+let makeShell = (~shellResult: result<Ports.execResult, string>): Ports.shell => {
   execFileAsync: (_cmd, ~args as _=?, ~options as _=?) =>
-    switch execAsyncResult {
+    switch shellResult {
     | Ok(result) => Promise.resolve(result)
     | Error(message) => rejectError(message)
     },
@@ -21,8 +16,6 @@ let makeShell = (~execAsyncResult: result<Ports.execResult, string>): Ports.shel
 // structured-args tests can prove that shell metacharacters in args do NOT
 // get rewritten (no shell interpretation).
 let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(status), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (cmd, ~args=?, ~options as _=?) => {
     let recordedArgs: array<string> = switch args {
     | Some(a) => a
@@ -36,7 +29,6 @@ let makeRecordingShell = (recorded: ref<(string, array<string>)>, ~status: int):
 type capturedExec = {command: string, args: array<string>, options: option<Ports.shellOptions>}
 
 let makeExecutionCaptureShell = (calls: ref<array<capturedExec>>): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) => Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (command, ~args=?, ~options=?) => {
     calls.contents->Array.push({command, args: args->Option.getOr([]), options})
     Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult))
@@ -77,8 +69,6 @@ let makeProcess = (): Ports.process => {
 // can assert that filtered safeEnv (not raw process.env) is what reaches
 // the child process. Used by the WS3 env-leak guard test below.
 let makeEnvCapturingShell = (capturedEnv: ref<option<Dict.t<string>>>): Ports.shell => {
-  execAsync: (_cmd, ~options as _=?) =>
-    Promise.resolve(({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false}: Ports.execResult)),
   execFileAsync: (_cmd, ~args as _=?, ~options=?) => {
     let _ = capturedEnv.contents = switch options {
     | Some(o) => o.env
@@ -180,7 +170,7 @@ suite("HookSecurity", () => {
       ~timeout=1000,
       ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
-      ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
+      ~shell=makeShell(~shellResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
       ~process=makeProcess(),
       ~path=NodeJsPath.make(),
       ~fs=NodeJsFileSystem.make(),
@@ -215,7 +205,7 @@ suite("HookSecurity", () => {
       ~timeout=100,
       ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
-      ~shell=makeShell(~execAsyncResult=Error("hook timed out")),
+      ~shell=makeShell(~shellResult=Error("hook timed out")),
       ~process=makeProcess(),
       ~path=NodeJsPath.make(),
       ~fs=NodeJsFileSystem.make(),
@@ -240,7 +230,7 @@ suite("HookSecurity", () => {
       ~timeout=1000,
       ~hookType=Ports.PreGenerate,
       ~shellEnv=None,
-      ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
+      ~shell=makeShell(~shellResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
       ~process=makeProcess(),
       ~path=NodeJsPath.make(),
       ~fs=NodeJsFileSystem.make(),
@@ -363,7 +353,7 @@ suite("HookSecurity", () => {
 
   // WS3: non-path hook without args receives filtered safeEnv (not raw
   // process.env). Asserts that sensitive keys set in process.env do NOT
-  // appear in the env passed to execAsync.
+  // appear in the env passed to execFileAsync.
   testAsync("WS3: non-path hook without args receives filtered env", resolve => {
     let capturedEnv: ref<option<Dict.t<string>>> = ref(None)
     let sensitiveEnv = Dict.make()
@@ -520,7 +510,6 @@ suite("HookSecurity", () => {
       ~path=NodeJsPath.make(),
       ~process=NodeJsProcess.make(),
       ~shell={
-        execAsync: (_cmd, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execAsync MUST NOT be called for a Rejected tool")),
         execFileAsync: (_cmd, ~args as _=?, ~options as _=?) => Promise.reject(JsError.throwWithMessage("shell.execFileAsync MUST NOT be called for a Rejected tool")),
       },
       ~fetcher=NodeJsFetcher.make(),
@@ -557,7 +546,7 @@ suite("HookSecurity", () => {
         ~timeout=5000,
         ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
-        ~shell=makeShell(~execAsyncResult=Ok({stdout: "ok", stderr: "", status: Some(0), signalCode: None, killed: false})),
+        ~shell=makeShell(~shellResult=Ok({stdout: "ok", stderr: "", status: Some(0), signalCode: None, killed: false})),
         ~process=makeProcess(),
         ~path=NodeJsPath.make(),
         ~fs=NodeJsFileSystem.make(),
@@ -719,7 +708,7 @@ suite("HookSecurity", () => {
         ~timeout=5000,
         ~hookType=Ports.PreGenerate,
         ~shellEnv=None,
-        ~shell=makeShell(~execAsyncResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
+        ~shell=makeShell(~shellResult=Ok({stdout: "", stderr: "", status: Some(0), signalCode: None, killed: false})),
         ~process=makeProcess(),
         ~path=NodeJsPath.make(),
         ~fs=NodeJsFileSystem.make(),

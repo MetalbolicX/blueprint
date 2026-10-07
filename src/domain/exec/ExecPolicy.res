@@ -1,6 +1,6 @@
 /**
  * ExecPolicy — pure decision module for shell and binary execution.
- * Decides between ExecFile(command, args), ShellExact(command), or Reject(reason).
+ * Decides between ExecFile(command, args) or Reject(reason).
  *
  * Every ToolCall route requires an exact tools allowlist match and executes
  * through execFile, so allowlist entries are never interpreted by a shell.
@@ -16,13 +16,10 @@ let defaultTimeout: int = 30000
  * Decision variants. The consumer is responsible for acting on each branch:
  *  - ExecFile: invoke via child_process.execFile (no shell interpretation),
  *    passing `args` as a structured array.
- *  - ShellExact: invoke via child_process.exec with `shell: true`. Use only when
- *    `command` is an exact match against an allowlist entry.
  *  - Reject: do not invoke — surface `reason` to the caller.
  */
 type decision =
   | ExecFile(string, array<string>)
-  | ShellExact(string)
   | Reject(string)
 
 /**

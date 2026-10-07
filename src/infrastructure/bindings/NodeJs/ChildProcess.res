@@ -19,16 +19,8 @@ type execOptions = {
   timeout?: int,
 }
 
-// Callback-based exec for proper async handling
 // The callback receives (error, stdout, stderr)
 type execCallback = (Nullable.t<JsExn.t>, string, string) => unit
-
-@module("node:child_process")
-external execWithCallback: (
-  string,
-  ~options: execOptions=?,
-  ~callback: execCallback,
-) => childProcess = "exec"
 
 // Typed view of Node.js child_process error fields.
 // Node.js errors carry fields ReScript's JsExn.t doesn't expose:
@@ -72,18 +64,6 @@ let wrapExecResult = (invoke: (~callback: execCallback) => childProcess): promis
       }
     })
   })
-}
-
-// Properly typed async exec using callback API internally
-let execAsync: (
-  string,
-  ~options: execOptions=?,
-) => promise<execResult> = (cmd, ~options=?) => {
-  let opts = switch options {
-  | Some(o) => o
-  | None => {}
-  }
-  wrapExecResult((~callback) => execWithCallback(cmd, ~options=opts, ~callback))
 }
 
 @module("node:child_process")

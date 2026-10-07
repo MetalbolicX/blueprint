@@ -11,12 +11,10 @@ let defaultTimeout: int
 /**
  * Decision variants. The consumer is responsible for acting on each branch.
  *  - ExecFile: invoke via execFile with `args` (no shell interpretation).
- *  - ShellExact: retained for compatibility; ToolCalls no longer select this route.
  *  - Reject: do not invoke — surface `reason` to the caller.
  */
 type decision =
   | ExecFile(string, array<string>)
-  | ShellExact(string)
   | Reject(string)
 
 /**

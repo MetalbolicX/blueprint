@@ -99,7 +99,6 @@ type shellOptions = {
 }
 
 type shell = {
-  execAsync: (string, ~options: shellOptions=?) => promise<execResult>,
   execFileAsync: (string, ~args: array<string>=?, ~options: shellOptions=?) => promise<execResult>,
 }
 
